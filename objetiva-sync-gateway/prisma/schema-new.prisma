@@ -1,0 +1,177 @@
+// Schema Prisma para objetiva-sync-gateway
+// Mapea EXACTAMENTE a las tablas PostgreSQL existentes
+// NO crea tablas, solo las usa
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tabla: public.articulos
+model Articulo {
+  id                    BigInt    @id @default(autoincrement())
+  sku                   String?   @unique @db.Text
+  codigo                String    @db.Text
+  codigoBarras          String?   @map("codigo_barras") @db.Text
+  erpCodigo             String?   @map("erp_codigo") @db.Text
+  erpId                 String?   @map("erp_id") @db.Text
+  codigoEquivalencia    String?   @map("codigo_equivalencia") @db.Text
+  nombre                String?   @db.Text
+  nombreCorto           String?   @map("nombre_corto") @db.Text
+  descripcion           String?   @db.Text
+  descripcionWeb        String?   @map("descripcion_web") @db.Text
+  rubro                 String?   @db.Text
+  subrubro              String?   @db.Text
+  objeto                String?   @db.Text // 'producto' | 'servicio'
+  adjetivo              String?   @db.Text
+  marca                 String?   @db.Text
+  modelo                String?   @db.Text
+  talle                 String?   @db.Text
+  color                 String?   @db.Text
+  material              String?   @db.Text
+  presentacion          String?   @db.Text
+  medida                String?   @db.Text
+  propAux1              String?   @map("prop_aux_1") @db.Text
+  propAux2              String?   @map("prop_aux_2") @db.Text
+  propAux3              String?   @map("prop_aux_3") @db.Text
+  propAux4              String?   @map("prop_aux_4") @db.Text
+  propAux5              String?   @map("prop_aux_5") @db.Text
+  precio                Decimal?  @db.Decimal(10, 2)
+  costo                 Decimal?  @db.Decimal(10, 2)
+  unidades              Int       @default(0)
+  imagenesProducto      String[]  @default([]) @map("imagenes_producto") @db.Text
+  imagenesEtiqueta      String[]  @default([]) @map("imagenes_etiqueta") @db.Text
+  etiquetasOcr          String[]  @default([]) @map("etiquetas_ocr") @db.Text
+  jsonArticulo          Json      @default("{}") @map("json_articulo") @db.JsonB
+  erpNombre             String?   @map("erp_nombre") @db.Text
+  erpExtra              String?   @map("erp_extra") @db.Text
+  erpSincronizado       Boolean   @default(false) @map("erp_sincronizado")
+  erpFechaSync          DateTime? @map("erp_fecha_sync") @db.Timestamp(6)
+  activo                Boolean   @default(true)
+  observaciones         String?   @db.Text
+  creado                DateTime  @default(now()) @db.Timestamp(6)
+  actualizado           DateTime  @default(now()) @updatedAt @db.Timestamp(6)
+
+  @@map("articulos")
+  @@index([activo])
+  @@index([codigo])
+  @@index([codigoBarras], map: "idx_articulos_codigo_barras")
+  @@index([codigoEquivalencia], map: "idx_articulos_codigo_equivalencia")
+  @@index([erpCodigo], map: "idx_articulos_erp_codigo")
+  @@index([erpId], map: "idx_articulos_erp_id")
+  @@index([marca])
+  @@index([objeto])
+  @@index([rubro, subrubro], map: "idx_articulos_rubro_subrubro")
+}
+
+// Tabla: public.comprobantes_cabecera
+model ComprobanteCabecera {
+  id                    BigInt    @id @default(autoincrement())
+  tipo                  String    @db.Text // 'Factura A', 'Ticket', etc
+  comprobante           String    @unique @db.Text // Número único del comprobante
+  numeroComprobante     String?   @map("numero_comprobante") @db.Text
+  fecha                 DateTime  @db.Timestamp(6)
+  periodo               String?   @db.Text
+  terceroTipo           String?   @map("tercero_tipo") @db.Text
+  terceroNombre         String?   @map("tercero_nombre") @db.Text
+  terceroDocumento      String?   @map("tercero_documento") @db.Text
+  terceroDireccion      String?   @map("tercero_direccion") @db.Text
+  terceroDatos          Json      @default("{}") @map("tercero_datos") @db.JsonB
+  cantidadItems         Int       @default(0) @map("cantidad_items")
+  subtotal              Decimal?  @db.Decimal(12, 2)
+  totalImpuestos        Decimal?  @map("total_impuestos") @db.Decimal(12, 2)
+  totalDescuentos       Decimal?  @map("total_descuentos") @db.Decimal(12, 2)
+  total                 Decimal   @db.Decimal(12, 2)
+  erpIdComprobante      String?   @map("erp_id_comprobante") @db.Text
+  erpNombre             String?   @map("erp_nombre") @db.Text
+  erpDatos              Json      @default("{}") @map("erp_datos") @db.JsonB
+  erpSincronizado       Boolean   @default(false) @map("erp_sincronizado")
+  erpFechaSync          DateTime? @map("erp_fecha_sync") @db.Timestamp(6)
+  observaciones         String?   @db.Text
+  activo                Boolean   @default(true)
+  creado                DateTime  @default(now()) @db.Timestamp(6)
+  actualizado           DateTime  @default(now()) @updatedAt @db.Timestamp(6)
+
+  // Relaciones
+  detalles              ComprobanteDetalle[]
+  pagos                 ComprobantePagos[]
+
+  @@map("comprobantes_cabecera")
+  @@index([creado], map: "idx_comprobantes_cabecera_creado")
+  @@index([erpIdComprobante], map: "idx_comprobantes_cabecera_erp_id")
+  @@index([fecha], map: "idx_comprobantes_cabecera_fecha")
+  @@index([periodo], map: "idx_comprobantes_cabecera_periodo")
+  @@index([terceroDocumento], map: "idx_comprobantes_cabecera_tercero")
+  @@index([tipo], map: "idx_comprobantes_cabecera_tipo")
+}
+
+// Tabla: public.comprobantes_detalle
+model ComprobanteDetalle {
+  id                    BigInt              @id @default(autoincrement())
+  comprobanteId         BigInt              @map("comprobante_id")
+  lineaNumero           Int                 @default(1) @map("linea_numero")
+  articuloId            BigInt?             @map("articulo_id")
+  codigoArticulo        String?             @map("codigo_articulo") @db.Text
+  nombreArticulo        String?             @map("nombre_articulo") @db.Text
+  unidades              Decimal             @db.Decimal(10, 3)
+  precioUnitario        Decimal?            @map("precio_unitario") @db.Decimal(12, 4)
+  subtotal              Decimal?            @db.Decimal(12, 2)
+  impuesto1Nombre       String?             @map("impuesto_1_nombre") @db.Text
+  impuesto1Porcentaje   Decimal?            @map("impuesto_1_porcentaje") @db.Decimal(5, 2)
+  impuesto1Monto        Decimal?            @map("impuesto_1_monto") @db.Decimal(12, 2)
+  impuesto2Nombre       String?             @map("impuesto_2_nombre") @db.Text
+  impuesto2Porcentaje   Decimal?            @map("impuesto_2_porcentaje") @db.Decimal(5, 2)
+  impuesto2Monto        Decimal?            @map("impuesto_2_monto") @db.Decimal(12, 2)
+  impuesto3Nombre       String?             @map("impuesto_3_nombre") @db.Text
+  impuesto3Porcentaje   Decimal?            @map("impuesto_3_porcentaje") @db.Decimal(5, 2)
+  impuesto3Monto        Decimal?            @map("impuesto_3_monto") @db.Decimal(12, 2)
+  descuentoPorcentaje   Decimal?            @map("descuento_porcentaje") @db.Decimal(5, 2)
+  descuentoMonto        Decimal?            @map("descuento_monto") @db.Decimal(12, 2)
+  total                 Decimal             @db.Decimal(12, 2)
+  erpDatos              Json                @default("{}") @map("erp_datos") @db.JsonB
+  observaciones         String?             @db.Text
+  creado                DateTime            @default(now()) @db.Timestamp(6)
+  actualizado           DateTime            @default(now()) @updatedAt @db.Timestamp(6)
+
+  // Relaciones
+  comprobante           ComprobanteCabecera @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+  // articuloId es solo referencia, sin FK (para permitir flexibilidad)
+
+  @@map("comprobantes_detalle")
+  @@index([articuloId], map: "idx_comprobantes_detalle_articulo")
+  @@index([codigoArticulo], map: "idx_comprobantes_detalle_codigo")
+  @@index([comprobanteId], map: "idx_comprobantes_detalle_comprobante")
+}
+
+// Tabla: public.comprobantes_pagos
+model ComprobantePagos {
+  id                    BigInt              @id @default(autoincrement())
+  comprobanteId         BigInt              @map("comprobante_id")
+  medio                 String              @db.Text // 'Efectivo', 'Tarjeta', 'Cheque', etc
+  monto                 Decimal             @db.Decimal(12, 2)
+  moneda                String              @default("ARS") @db.Text
+  tarjetaMarca          String?             @map("tarjeta_marca") @db.Text
+  tarjetaCuotas         Int?                @default(1) @map("tarjeta_cuotas")
+  tarjetaRecargo        Decimal?            @default(0) @map("tarjeta_recargo") @db.Decimal(12, 2)
+  chequeFechaDiferida   DateTime?           @map("cheque_fecha_diferida") @db.Date
+  fechaVencimiento      DateTime?           @map("fecha_vencimiento") @db.Date
+  datosExtra            Json                @default("{}") @map("datos_extra") @db.JsonB
+  referencia            String?             @db.Text
+  observaciones         String?             @db.Text
+  creado                DateTime            @default(now()) @db.Timestamp(6)
+  actualizado           DateTime            @default(now()) @updatedAt @db.Timestamp(6)
+
+  // Relaciones
+  comprobante           ComprobanteCabecera @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+
+  @@map("comprobantes_pagos")
+  @@index([chequeFechaDiferida], map: "idx_pagos_cheque_diferido")
+  @@index([comprobanteId], map: "idx_pagos_comprobante")
+  @@index([medio], map: "idx_pagos_medio")
+  @@index([tarjetaCuotas], map: "idx_pagos_tarjeta_cuotas")
+  @@index([tarjetaMarca], map: "idx_pagos_tarjeta_marca")
+}
