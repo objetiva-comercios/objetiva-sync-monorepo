@@ -30,10 +30,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Introspection service handles PostgreSQL-specific types (DECIMAL, JSONB, arrays) correctly
   4. Schema metadata is normalized into consistent JSON structure
   5. Introspection failures are logged with connection retry logic
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD during planning
+- [ ] 01-01-PLAN.md - Infrastructure: types, schemas, db pool, retry wrapper
+- [ ] 01-02-PLAN.md - Introspection service with SQL queries and entity config
 
 ### Phase 2: Schema Distribution Endpoint
 **Goal**: Sync service running on remote server can fetch current schema metadata via HTTP
@@ -105,11 +106,11 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Schema Introspection Foundation | 0/TBD | Not started | - |
+| 1. Schema Introspection Foundation | 0/2 | Planned | - |
 | 2. Schema Distribution Endpoint | 0/TBD | Not started | - |
 | 3. CLI Code Regeneration | 0/TBD | Not started | - |
 | 4. Enhanced Query Validation | 0/TBD | Not started | - |
