@@ -1,0 +1,116 @@
+# Roadmap: Objetiva Sync - Schema-Driven Control
+
+## Overview
+
+This roadmap establishes PostgreSQL as the single source of truth for schema validation across the distributed sync system. Starting with introspection foundations in the gateway, we build outward to HTTP schema distribution, automated code generation, enhanced runtime validation in the sync service, and finally comprehensive testing with production hardening. Each phase delivers independently verifiable capabilities that prevent schema drift from breaking the synchronization pipeline.
+
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+Decimal phases appear between their surrounding integers in numeric order.
+
+- [ ] **Phase 1: Schema Introspection Foundation** - Gateway reads and normalizes PostgreSQL metadata
+- [ ] **Phase 2: Schema Distribution Endpoint** - Gateway exposes authenticated schema API
+- [ ] **Phase 3: CLI Code Regeneration** - Automated Prisma/Zod schema generation from PostgreSQL
+- [ ] **Phase 4: Enhanced Query Validation** - Sync validates queries against live gateway schemas
+- [ ] **Phase 5: Integration Testing & Hardening** - End-to-end validation and production reliability
+
+## Phase Details
+
+### Phase 1: Schema Introspection Foundation
+**Goal**: Gateway can programmatically extract complete PostgreSQL schema metadata for all sync entities
+**Depends on**: Nothing (first phase)
+**Requirements**: SCHEMA-05
+**Success Criteria** (what must be TRUE):
+  1. Gateway can query PostgreSQL information_schema and pg_catalog for table structures
+  2. Schema metadata includes column names, data types, nullability, and constraints for all 4 sync entities
+  3. Introspection service handles PostgreSQL-specific types (DECIMAL, JSONB, arrays) correctly
+  4. Schema metadata is normalized into consistent JSON structure
+  5. Introspection failures are logged with connection retry logic
+**Plans**: TBD
+
+Plans:
+- [ ] 01-01: TBD during planning
+
+### Phase 2: Schema Distribution Endpoint
+**Goal**: Sync service running on remote server can fetch current schema metadata via HTTP
+**Depends on**: Phase 1
+**Requirements**: SCHEMA-01, SCHEMA-02, SCHEMA-03, SCHEMA-04
+**Success Criteria** (what must be TRUE):
+  1. GET /api/schemas endpoint returns all entity schemas with JWT authentication
+  2. GET /api/schemas/:entity endpoint returns single entity schema
+  3. Schema responses are cached with 1-hour TTL to prevent database load
+  4. Unauthorized requests receive 401 responses
+  5. Schema endpoint responds in under 100ms on cache hit
+**Plans**: TBD
+
+Plans:
+- [ ] 02-01: TBD during planning
+
+### Phase 3: CLI Code Regeneration
+**Goal**: Developer can regenerate Prisma and Zod schemas from PostgreSQL with single command
+**Depends on**: Phase 2
+**Requirements**: CLI-01, CLI-02, CLI-03, CLI-04, CLI-05, CLI-06, CLI-07
+**Success Criteria** (what must be TRUE):
+  1. CLI command `npm run regenerate-schemas` introspects PostgreSQL and updates schema files
+  2. Prisma schema (schema.prisma) regenerates from introspection with correct models
+  3. Zod validation schemas regenerate automatically from Prisma models
+  4. CLI displays diff summary showing schema changes before writing files
+  5. CLI supports --dry-run flag to preview changes without modifying files
+  6. CLI supports --entity flag to regenerate specific entity schemas only
+  7. Generated Zod schemas match PostgreSQL column types and nullability
+**Plans**: TBD
+
+Plans:
+- [ ] 03-01: TBD during planning
+
+### Phase 4: Enhanced Query Validation
+**Goal**: Sync service validates SQL queries against live schema before execution preventing runtime failures
+**Depends on**: Phase 3
+**Requirements**: VALID-01, VALID-02, VALID-03, VALID-04, VALID-05, VALID-06, VALID-07, VALID-08
+**Success Criteria** (what must be TRUE):
+  1. Sync fetches schemas from gateway /api/schemas endpoint on startup
+  2. Schema cache refreshes automatically based on TTL without manual intervention
+  3. Query validator detects missing required fields before query execution
+  4. Query validator detects unexpected extra fields not in schema
+  5. Query validator detects field type mismatches (e.g., string vs number)
+  6. Validation errors show field-level detail with suggestions (e.g., "Did you mean customer_id?")
+  7. Dashboard query administration panel validates queries before saving
+  8. Invalid queries cannot be saved to sync configuration
+**Plans**: TBD
+
+Plans:
+- [ ] 04-01: TBD during planning
+
+### Phase 5: Integration Testing & Hardening
+**Goal**: Complete sync pipeline validated end-to-end with reliable monitoring for production deployment
+**Depends on**: Phase 4
+**Requirements**: TEST-01, TEST-02, TEST-03, TEST-04, TEST-05, TEST-06, LOG-01, LOG-02, LOG-03, LOG-04
+**Success Criteria** (what must be TRUE):
+  1. Integration tests validate full sync flow for all 4 entities (articulos, comprobantes_cabecera, comprobantes_detalle, comprobantes_pagos)
+  2. Test suite includes schema change scenario (add column) with automatic validation propagation
+  3. Validation error reporting formats correctly in test assertions
+  4. Gateway logs successful batch ingestion with entity counts
+  5. Gateway logs failed batch ingestion with field-level error details
+  6. Dashboard displays real-time sync logs without manual refresh
+  7. Log refresh mechanism works reliably with consistent latency
+**Plans**: TBD
+
+Plans:
+- [ ] 05-01: TBD during planning
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Schema Introspection Foundation | 0/TBD | Not started | - |
+| 2. Schema Distribution Endpoint | 0/TBD | Not started | - |
+| 3. CLI Code Regeneration | 0/TBD | Not started | - |
+| 4. Enhanced Query Validation | 0/TBD | Not started | - |
+| 5. Integration Testing & Hardening | 0/TBD | Not started | - |
