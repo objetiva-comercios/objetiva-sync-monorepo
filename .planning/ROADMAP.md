@@ -46,10 +46,10 @@ Plans:
   3. Schema responses are cached with 1-hour TTL to prevent database load
   4. Unauthorized requests receive 401 responses
   5. Schema endpoint responds in under 100ms on cache hit
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 02-01: TBD during planning
+- [ ] 02-01-PLAN.md -- Schema cache service + authenticated route + app registration
 
 ### Phase 3: CLI Code Regeneration
 **Goal**: Developer can regenerate Prisma and Zod schemas from PostgreSQL with single command
