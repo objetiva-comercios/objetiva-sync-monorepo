@@ -13,7 +13,7 @@ This roadmap establishes PostgreSQL as the single source of truth for schema val
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Schema Introspection Foundation** - Gateway reads and normalizes PostgreSQL metadata
-- [ ] **Phase 2: Schema Distribution Endpoint** - Gateway exposes authenticated schema API
+- [x] **Phase 2: Schema Distribution Endpoint** - Gateway exposes authenticated schema API
 - [ ] **Phase 3: CLI Code Regeneration** - Automated Prisma/Zod schema generation from PostgreSQL
 - [ ] **Phase 4: Enhanced Query Validation** - Sync validates queries against live gateway schemas
 - [ ] **Phase 5: Integration Testing & Hardening** - End-to-end validation and production reliability
@@ -49,7 +49,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 02-01-PLAN.md -- Schema cache service + authenticated route + app registration
+- [x] 02-01-PLAN.md -- Schema cache service + authenticated route + app registration
 
 ### Phase 3: CLI Code Regeneration
 **Goal**: Developer can regenerate Prisma and Zod schemas from PostgreSQL with single command
@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Schema Introspection Foundation | 2/2 | Complete | 2026-01-27 |
-| 2. Schema Distribution Endpoint | 0/TBD | Not started | - |
+| 2. Schema Distribution Endpoint | 1/1 | Complete | 2026-01-27 |
 | 3. CLI Code Regeneration | 0/TBD | Not started | - |
 | 4. Enhanced Query Validation | 0/TBD | Not started | - |
 | 5. Integration Testing & Hardening | 0/TBD | Not started | - |
