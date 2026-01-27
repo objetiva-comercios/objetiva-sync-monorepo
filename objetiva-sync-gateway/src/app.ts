@@ -8,6 +8,7 @@ import { registerArticulosRoutes } from './routes/articulos.js'
 import { registerComprobantesRoutes } from './routes/comprobantes.js'
 import { registerSetupRoutes } from './routes/setup.js'
 import { registerStatusRoutes } from './routes/status.js'
+import { registerSchemaRoutes } from './routes/schemas.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -36,6 +37,7 @@ export async function buildApp() {
   await registerAuthRoutes(app)
   await registerArticulosRoutes(app)
   await registerComprobantesRoutes(app)
+  await registerSchemaRoutes(app)
 
   // Health check
   app.get('/health', async () => {
