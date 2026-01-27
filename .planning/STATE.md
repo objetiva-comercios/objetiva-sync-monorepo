@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-01-26)
 ## Current Position
 
 Phase: 1 of 5 (Schema Introspection Foundation)
-Plan: 1 of 2 completed
-Status: In progress
-Last activity: 2026-01-26 — Completed 01-01-PLAN.md (Infrastructure Setup)
+Plan: 2 of 2 completed
+Status: Phase complete
+Last activity: 2026-01-26 — Completed 01-02-PLAN.md (Schema Introspection Core)
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 38 minutes
-- Total execution time: 0.6 hours
+- Total plans completed: 2
+- Average duration: 20.5 minutes
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 1/2 | 38m | 38m |
+| 01 | 2/2 | 41m | 20.5m |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (38m)
-- Trend: Starting execution
+- Last 5 plans: 01-01 (38m), 01-02 (3m)
+- Trend: Accelerating execution
 
 *Updated after each plan completion*
 
@@ -52,6 +52,12 @@ Recent decisions affecting current work:
 - Retry only connection errors: SQL errors are permanent, don't waste time retrying
 - Small connection pool (max 5): Introspection is infrequent, reduces resource usage
 
+**From 01-02:**
+- Sequential entity processing: Process entities one at a time to avoid exhausting database pool
+- Partial results pattern: Return successful tables + errors instead of failing completely
+- Type normalization: Map PostgreSQL verbose types to simplified standards for consistency
+- Environment variable override: Allow SYNC_ENTITIES env var to customize entity list without code changes
+
 ### Pending Todos
 
 None yet.
@@ -62,6 +68,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-26 23:35 UTC — Plan 01-01 execution
-Stopped at: Completed 01-01-PLAN.md - Infrastructure setup finished, ready for 01-02
+Last session: 2026-01-26 23:42 UTC — Plan 01-02 execution
+Stopped at: Completed 01-02-PLAN.md - Schema introspection core finished, Phase 1 complete
 Resume file: None
