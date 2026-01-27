@@ -5,33 +5,34 @@
 See: .planning/PROJECT.md (updated 2026-01-26)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Phase 1 - Schema Introspection Foundation
+**Current focus:** Phase 2 - Schema Distribution Endpoint (Complete)
 
 ## Current Position
 
-Phase: 1 of 5 (Schema Introspection Foundation)
-Plan: 2 of 2 completed
-Status: Phase complete, verified (11/11 must-haves)
-Last activity: 2026-01-27 — Phase 1 verified and complete
+Phase: 2 of 5 (Schema Distribution Endpoint)
+Plan: 1 of 1 completed
+Status: Phase complete
+Last activity: 2026-01-27 — Completed 02-01-PLAN.md
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 20.5 minutes
-- Total execution time: 0.7 hours
+- Total plans completed: 3
+- Average duration: 14.8 minutes
+- Total execution time: 0.8 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 2/2 | 41m | 20.5m |
+| 02 | 1/1 | 3.5m | 3.5m |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (38m), 01-02 (3m)
-- Trend: Accelerating execution
+- Last 5 plans: 01-01 (38m), 01-02 (3m), 02-01 (3.5m)
+- Trend: Maintaining accelerated execution
 
 *Updated after each plan completion*
 
@@ -58,6 +59,12 @@ Recent decisions affecting current work:
 - Type normalization: Map PostgreSQL verbose types to simplified standards for consistency
 - Environment variable override: Allow SYNC_ENTITIES env var to customize entity list without code changes
 
+**From 02-01:**
+- 1-hour cache TTL: Balance between schema freshness and database load for infrequent schema changes
+- Response shape mapping: API uses entity (domain language) not table_name (database language)
+- Cache stores mapped responses: Cache final API shape to avoid re-mapping on cache hits
+- Entity validation: Only allow introspection of configured sync entities for security
+
 ### Pending Todos
 
 None yet.
@@ -68,6 +75,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27 — Phase 1 execution and verification
-Stopped at: Phase 1 complete and verified, ready for Phase 2 planning
+Last session: 2026-01-27 — Phase 2 Plan 1 execution
+Stopped at: Completed 02-01-PLAN.md, Phase 2 complete
 Resume file: None
