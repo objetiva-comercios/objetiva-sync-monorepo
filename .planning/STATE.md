@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-26)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Phase 2 - Schema Distribution Endpoint (Complete)
+**Current focus:** Phase 3 - CLI Code Regeneration (In Progress)
 
 ## Current Position
 
-Phase: 2 of 5 (Schema Distribution Endpoint)
-Plan: 1 of 1 completed
-Status: Phase complete, verified (5/5 must-haves + runtime tests passed)
-Last activity: 2026-01-27 — Phase 2 verified and complete with runtime testing
+Phase: 3 of 5 (CLI Code Regeneration)
+Plan: 1 of 3 completed
+Status: Code generation modules complete
+Last activity: 2026-01-27 — Completed 03-01-PLAN.md (codegen modules)
 
-Progress: [████░░░░░░] 40%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 14.8 minutes
-- Total execution time: 0.8 hours
+- Total plans completed: 4
+- Average duration: 12.6 minutes
+- Total execution time: 0.9 hours
 
 **By Phase:**
 
@@ -29,10 +29,11 @@ Progress: [████░░░░░░] 40%
 |-------|-------|-------|----------|
 | 01 | 2/2 | 41m | 20.5m |
 | 02 | 1/1 | 3.5m | 3.5m |
+| 03 | 1/3 | 6m | 6m |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (38m), 01-02 (3m), 02-01 (3.5m)
-- Trend: Maintaining accelerated execution
+- Last 5 plans: 01-01 (38m), 01-02 (3m), 02-01 (3.5m), 03-01 (6m)
+- Trend: Sustained high velocity
 
 *Updated after each plan completion*
 
@@ -65,6 +66,12 @@ Recent decisions affecting current work:
 - Cache stores mapped responses: Cache final API shape to avoid re-mapping on cache hits
 - Entity validation: Only allow introspection of configured sync entities for security
 
+**From 03-01:**
+- BigInt detection via column name pattern (id, *_id): Introspection normalizes bigint to int, so name pattern is reliable heuristic
+- Parse existing schema.prisma to preserve annotations: Extract @map, relations, indexes from current schema before regenerating
+- COLUMN_PRECISION_MAP for decimal types: ColumnMetadata lacks precision/scale, hardcoded map ensures correct financial calculations
+- Database-structure-only Zod schemas: Separate stable schema structure from volatile business validation rules
+
 ### Pending Todos
 
 None yet.
@@ -75,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27 — Phase 2 execution and verification
-Stopped at: Phase 2 complete and verified (runtime tests passed), ready for Phase 3 planning
+Last session: 2026-01-27 — Phase 3 plan 03-01 execution
+Stopped at: Completed 03-01-PLAN.md (codegen modules), 2/3 plans remain in Phase 3
 Resume file: None
