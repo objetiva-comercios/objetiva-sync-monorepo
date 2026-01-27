@@ -11,7 +11,7 @@
 - [ ] **SCHEMA-02**: Gateway exposes GET /api/schemas/:entity endpoint for single entity
 - [ ] **SCHEMA-03**: Schema endpoints require JWT authentication
 - [ ] **SCHEMA-04**: Schema responses cached with 1-hour TTL
-- [ ] **SCHEMA-05**: Schema metadata includes column names, types, nullability, constraints
+- [x] **SCHEMA-05**: Schema metadata includes column names, types, nullability, constraints
 
 ### CLI Introspection & Regeneration
 
@@ -101,7 +101,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCHEMA-02 | Phase 2 | Pending |
 | SCHEMA-03 | Phase 2 | Pending |
 | SCHEMA-04 | Phase 2 | Pending |
-| SCHEMA-05 | Phase 1 | Pending |
+| SCHEMA-05 | Phase 1 | Complete |
 | CLI-01 | Phase 3 | Pending |
 | CLI-02 | Phase 3 | Pending |
 | CLI-03 | Phase 3 | Pending |
