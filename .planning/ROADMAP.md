@@ -63,10 +63,11 @@ Plans:
   5. CLI supports --dry-run flag to preview changes without modifying files
   6. CLI supports --entity flag to regenerate specific entity schemas only
   7. Generated Zod schemas match PostgreSQL column types and nullability
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: TBD during planning
+- [ ] 03-01-PLAN.md -- Code generation modules: types, diff display, Prisma generator, Zod generator
+- [ ] 03-02-PLAN.md -- CLI orchestrator, entry point script, npm script registration
 
 ### Phase 4: Enhanced Query Validation
 **Goal**: Sync service validates SQL queries against live schema before execution preventing runtime failures
@@ -112,6 +113,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Schema Introspection Foundation | 2/2 | Complete | 2026-01-27 |
 | 2. Schema Distribution Endpoint | 1/1 | Complete | 2026-01-27 |
-| 3. CLI Code Regeneration | 0/TBD | Not started | - |
+| 3. CLI Code Regeneration | 0/2 | Not started | - |
 | 4. Enhanced Query Validation | 0/TBD | Not started | - |
 | 5. Integration Testing & Hardening | 0/TBD | Not started | - |
