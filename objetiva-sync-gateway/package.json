@@ -11,7 +11,9 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "regenerate-schemas": "tsx scripts/regenerate-schemas.ts",
+    "regenerate-schemas:dry-run": "tsx scripts/regenerate-schemas.ts --dry-run"
   },
   "keywords": [
     "fastify",
@@ -41,6 +43,7 @@
     "@types/diff": "^7.0.2",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.16.0",
+    "dotenv": "^17.2.3",
     "prisma": "^5.22.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
