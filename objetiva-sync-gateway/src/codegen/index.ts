@@ -1,0 +1,235 @@
+/**
+ * Main orchestrator for schema regeneration
+ *
+ * Coordinates the full pipeline:
+ * 1. Authenticate with gateway
+ * 2. Fetch schema metadata from /api/schemas/:entity
+ * 3. Generate Prisma and Zod schemas
+ * 4. Compute and display diffs
+ * 5. Write files (unless --dry-run)
+ * 6. Run prisma generate
+ */
+
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
+import chalk from 'chalk';
+import type { RegenerateOptions, RegenerateResult, SchemaResponse, DiffResult } from './types.js';
+import { generatePrismaSchema } from './prisma-generator.js';
+import { generateZodSchema } from './zod-generator.js';
+import { computeDiff, displayDiff, displaySummary } from './diff-display.js';
+import { getSyncEntities } from '../config/entities.js';
+
+/**
+ * Authenticate with the gateway and return JWT token
+ */
+async function authenticate(gatewayUrl: string, username: string, password: string): Promise<string> {
+  const response = await fetch(`${gatewayUrl}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username, password }),
+  });
+
+  if (!response.ok) {
+    throw new Error('E003: Authentication failed. Check SYNC_USERNAME and SYNC_PASSWORD credentials.');
+  }
+
+  const data = await response.json() as { token: string };
+  return data.token;
+}
+
+/**
+ * Fetch schema metadata for a single entity
+ */
+async function fetchSchema(
+  gatewayUrl: string,
+  token: string,
+  entity: string
+): Promise<SchemaResponse> {
+  console.log(chalk.cyan(`Fetching schema for ${entity}...`));
+
+  const response = await fetch(`${gatewayUrl}/api/schemas/${entity}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch schema for ${entity}: ${response.statusText}`);
+  }
+
+  return response.json() as Promise<SchemaResponse>;
+}
+
+/**
+ * Main regeneration orchestrator
+ *
+ * @param options - Configuration options (dryRun, entity filter)
+ * @returns Result summary with change details
+ */
+export async function regenerateSchemas(options: RegenerateOptions): Promise<RegenerateResult> {
+  // Step 1: Pre-flight checks
+  const gatewayUrl = process.env.GATEWAY_URL;
+  if (!gatewayUrl) {
+    throw new Error('E001: GATEWAY_URL environment variable not set. Set it to the gateway base URL (e.g., http://localhost:3001).');
+  }
+
+  const username = process.env.SYNC_USERNAME;
+  if (!username) {
+    throw new Error('E002: SYNC_USERNAME environment variable not set. Required for gateway authentication.');
+  }
+
+  const password = process.env.SYNC_PASSWORD;
+  if (!password) {
+    throw new Error('E002: SYNC_PASSWORD environment variable not set. Required for gateway authentication.');
+  }
+
+  // Step 2: Authenticate with gateway
+  console.log(chalk.cyan('Authenticating with gateway...'));
+  const token = await authenticate(gatewayUrl, username, password);
+  console.log(chalk.green('Authentication successful\n'));
+
+  // Step 3: Determine entities to process
+  const allEntities = getSyncEntities();
+  let entitiesToProcess: string[];
+
+  if (options.entity) {
+    // Validate entity is in the list
+    if (!allEntities.includes(options.entity)) {
+      throw new Error(`E004: Unknown entity '${options.entity}'. Valid entities: ${allEntities.join(', ')}`);
+    }
+    entitiesToProcess = [options.entity];
+  } else {
+    entitiesToProcess = allEntities;
+  }
+
+  // Step 4: Fetch all schemas (fail fast on any error)
+  const schemas: SchemaResponse[] = [];
+  for (const entity of entitiesToProcess) {
+    const schema = await fetchSchema(gatewayUrl, token, entity);
+    schemas.push(schema);
+  }
+
+  console.log(chalk.green(`\nFetched ${schemas.length} schema(s)\n`));
+
+  // Step 5: Generate all content
+  console.log(chalk.cyan('Generating Prisma schema...'));
+  const prismaSchemaPath = resolve(process.cwd(), 'prisma/schema.prisma');
+  const prismaContent = generatePrismaSchema(schemas, prismaSchemaPath);
+
+  console.log(chalk.cyan('Generating Zod schemas...'));
+  const zodSchemas = schemas.map((schema) => ({
+    entity: schema.entity,
+    content: generateZodSchema(schema),
+    filePath: resolve(process.cwd(), 'shared/schemas/generated', `${schema.entity}.generated.ts`),
+  }));
+
+  // Step 6: Compute all diffs
+  console.log(chalk.cyan('Computing diffs...\n'));
+  const diffs: DiffResult[] = [];
+
+  // Diff Prisma schema
+  const oldPrismaContent = existsSync(prismaSchemaPath)
+    ? readFileSync(prismaSchemaPath, 'utf-8')
+    : '';
+  const prismaDiff = computeDiff('prisma/schema.prisma', oldPrismaContent, prismaContent);
+  diffs.push(prismaDiff);
+
+  // Diff each Zod schema
+  for (const zodSchema of zodSchemas) {
+    const oldZodContent = existsSync(zodSchema.filePath)
+      ? readFileSync(zodSchema.filePath, 'utf-8')
+      : '';
+    const zodDiff = computeDiff(
+      `shared/schemas/generated/${zodSchema.entity}.generated.ts`,
+      oldZodContent,
+      zodSchema.content
+    );
+    diffs.push(zodDiff);
+  }
+
+  // Step 7: Display diffs
+  for (const diff of diffs) {
+    if (diff.hasChanges) {
+      displayDiff(diff);
+    }
+  }
+  displaySummary(diffs);
+
+  const hasChanges = diffs.some((d) => d.hasChanges);
+
+  // Step 8: Write files (unless dry-run)
+  if (options.dryRun) {
+    console.log(chalk.yellow('\n--dry-run: No files were modified.'));
+    return {
+      hasChanges,
+      filesWritten: 0,
+      entitiesChecked: schemas.length,
+      diffs,
+    };
+  }
+
+  if (!hasChanges) {
+    // No changes, nothing to write
+    return {
+      hasChanges: false,
+      filesWritten: 0,
+      entitiesChecked: schemas.length,
+      diffs,
+    };
+  }
+
+  console.log(chalk.cyan('\nWriting files...'));
+  let filesWritten = 0;
+
+  // Write Prisma schema if changed
+  if (prismaDiff.hasChanges) {
+    writeFileSync(prismaSchemaPath, prismaContent, 'utf-8');
+    console.log(chalk.green(`Written: ${prismaSchemaPath}`));
+    filesWritten++;
+  }
+
+  // Create generated directory if it doesn't exist
+  const generatedDir = resolve(process.cwd(), 'shared/schemas/generated');
+  if (!existsSync(generatedDir)) {
+    mkdirSync(generatedDir, { recursive: true });
+  }
+
+  // Write Zod schemas if changed
+  for (let i = 0; i < zodSchemas.length; i++) {
+    const zodSchema = zodSchemas[i];
+    const zodDiff = diffs[i + 1]; // Prisma diff is first, Zod diffs follow
+
+    if (zodDiff.hasChanges) {
+      writeFileSync(zodSchema.filePath, zodSchema.content, 'utf-8');
+      console.log(chalk.green(`Written: ${zodSchema.filePath}`));
+      filesWritten++;
+    }
+  }
+
+  // Step 9: Run prisma generate (only if schema.prisma was written)
+  if (prismaDiff.hasChanges) {
+    console.log(chalk.cyan('\nRunning prisma generate...'));
+    try {
+      const output = execSync('npx prisma generate', {
+        cwd: process.cwd(),
+        encoding: 'utf-8',
+      });
+      console.log(output);
+      console.log(chalk.green('Prisma generate completed successfully'));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`E005: prisma generate failed. ${errorMessage}`);
+    }
+  }
+
+  // Step 10: Return result
+  return {
+    hasChanges,
+    filesWritten,
+    entitiesChecked: schemas.length,
+    diffs,
+  };
+}
