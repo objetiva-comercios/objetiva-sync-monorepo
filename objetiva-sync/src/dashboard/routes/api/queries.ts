@@ -601,19 +601,31 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
 
         // Importar y usar el validator
         const { validateQueryResult } = await import('../../../sync/query-validator.js');
-        const validation = validateQueryResult(queryResult.rows as Record<string, unknown>[], entityType);
+        const zodValidation = validateQueryResult(queryResult.rows as Record<string, unknown>[], entityType);
+        // NEW: Live schema validation
+        const schemaValidation = await validateQueryAgainstSchema(
+          queryResult.rows as Record<string, unknown>[],
+          entityType
+        );
 
         // Retornar resultado
         return reply.send({
           success: true,
           rowCount: queryResult.rowCount,
-          sampleData: validation.sampleData,
+          sampleData: zodValidation.sampleData,
           validation: {
-            isValid: validation.isValid,
-            requiredFields: validation.requiredFields,
-            optionalFields: validation.optionalFields,
-            validationErrors: validation.validationErrors.slice(0, 20), // Limitar errores
-            recommendations: validation.recommendations
+            isValid: zodValidation.isValid && schemaValidation.isValid,
+            requiredFields: zodValidation.requiredFields,
+            optionalFields: zodValidation.optionalFields,
+            validationErrors: zodValidation.validationErrors.slice(0, 20), // Limitar errores
+            recommendations: zodValidation.recommendations,
+            // NEW: Schema validation results
+            schemaValidation: {
+              isValid: schemaValidation.isValid,
+              errors: schemaValidation.errors,
+              warnings: schemaValidation.warnings,
+              schemaUnavailable: schemaValidation.schemaUnavailable,
+            },
           }
         });
       } catch (error) {
