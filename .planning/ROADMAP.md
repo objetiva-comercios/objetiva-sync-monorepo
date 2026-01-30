@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Schema Introspection Foundation** - Gateway reads and normalizes PostgreSQL metadata
 - [x] **Phase 2: Schema Distribution Endpoint** - Gateway exposes authenticated schema API
 - [x] **Phase 3: CLI Code Regeneration** - Automated Prisma/Zod schema generation from PostgreSQL
-- [ ] **Phase 4: Enhanced Query Validation** - Sync validates queries against live gateway schemas
+- [x] **Phase 4: Enhanced Query Validation** - Sync validates queries against live gateway schemas
 - [ ] **Phase 5: Integration Testing & Hardening** - End-to-end validation and production reliability
 
 ## Phase Details
@@ -86,8 +86,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- Schema cache service for sync (gateway client, TTL caching)
-- [ ] 04-02-PLAN.md -- Schema validator with suggestions, dashboard save integration
+- [x] 04-01-PLAN.md -- Schema cache service for sync (gateway client, TTL caching)
+- [x] 04-02-PLAN.md -- Schema validator with suggestions, dashboard save integration
 
 ### Phase 5: Integration Testing & Hardening
 **Goal**: Complete sync pipeline validated end-to-end with reliable monitoring for production deployment
@@ -116,5 +116,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Schema Introspection Foundation | 2/2 | Complete | 2026-01-27 |
 | 2. Schema Distribution Endpoint | 1/1 | Complete | 2026-01-27 |
 | 3. CLI Code Regeneration | 3/3 | Complete | 2026-01-30 |
-| 4. Enhanced Query Validation | 0/2 | Planned | - |
+| 4. Enhanced Query Validation | 2/2 | Complete | 2026-01-30 |
 | 5. Integration Testing & Hardening | 0/TBD | Not started | - |

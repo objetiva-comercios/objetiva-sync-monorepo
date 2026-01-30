@@ -7,32 +7,32 @@
 
 ### Gateway Schema Endpoint
 
-- [ ] **SCHEMA-01**: Gateway exposes GET /api/schemas endpoint returning all entity schemas
-- [ ] **SCHEMA-02**: Gateway exposes GET /api/schemas/:entity endpoint for single entity
-- [ ] **SCHEMA-03**: Schema endpoints require JWT authentication
-- [ ] **SCHEMA-04**: Schema responses cached with 1-hour TTL
+- [x] **SCHEMA-01**: Gateway exposes GET /api/schemas endpoint returning all entity schemas
+- [x] **SCHEMA-02**: Gateway exposes GET /api/schemas/:entity endpoint for single entity
+- [x] **SCHEMA-03**: Schema endpoints require JWT authentication
+- [x] **SCHEMA-04**: Schema responses cached with 1-hour TTL
 - [x] **SCHEMA-05**: Schema metadata includes column names, types, nullability, constraints
 
 ### CLI Introspection & Regeneration
 
-- [ ] **CLI-01**: CLI command `npm run regenerate-schemas` introspects PostgreSQL
-- [ ] **CLI-02**: CLI generates/updates prisma/schema.prisma from introspection
-- [ ] **CLI-03**: CLI automatically runs `prisma generate` after schema update
-- [ ] **CLI-04**: CLI generates Zod schemas from Prisma models
-- [ ] **CLI-05**: CLI displays diff summary before writing files
-- [ ] **CLI-06**: CLI supports dry-run mode to preview changes
-- [ ] **CLI-07**: CLI supports entity-specific regeneration flag
+- [x] **CLI-01**: CLI command `npm run regenerate-schemas` introspects PostgreSQL
+- [x] **CLI-02**: CLI generates/updates prisma/schema.prisma from introspection
+- [x] **CLI-03**: CLI automatically runs `prisma generate` after schema update
+- [x] **CLI-04**: CLI generates Zod schemas from Prisma models
+- [x] **CLI-05**: CLI displays diff summary before writing files
+- [x] **CLI-06**: CLI supports dry-run mode to preview changes
+- [x] **CLI-07**: CLI supports entity-specific regeneration flag
 
 ### Sync Query Validation
 
-- [ ] **VALID-01**: Sync fetches schemas from gateway /api/schemas endpoint
-- [ ] **VALID-02**: Sync caches schemas locally with TTL-based refresh
-- [ ] **VALID-03**: Query validator validates SQL structure against live schema
-- [ ] **VALID-04**: Validator detects missing required fields
-- [ ] **VALID-05**: Validator detects unexpected extra fields
-- [ ] **VALID-06**: Validator detects field type mismatches
-- [ ] **VALID-07**: Validator provides field-level error messages with suggestions
-- [ ] **VALID-08**: Query validation runs before saving query in dashboard
+- [x] **VALID-01**: Sync fetches schemas from gateway /api/schemas endpoint
+- [x] **VALID-02**: Sync caches schemas locally with TTL-based refresh
+- [x] **VALID-03**: Query validator validates SQL structure against live schema
+- [x] **VALID-04**: Validator detects missing required fields
+- [x] **VALID-05**: Validator detects unexpected extra fields
+- [x] **VALID-06**: Validator detects field type mismatches
+- [x] **VALID-07**: Validator provides field-level error messages with suggestions
+- [x] **VALID-08**: Query validation runs before saving query in dashboard
 
 ### Integration Testing
 
@@ -97,26 +97,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCHEMA-01 | Phase 2 | Pending |
-| SCHEMA-02 | Phase 2 | Pending |
-| SCHEMA-03 | Phase 2 | Pending |
-| SCHEMA-04 | Phase 2 | Pending |
+| SCHEMA-01 | Phase 2 | Complete |
+| SCHEMA-02 | Phase 2 | Complete |
+| SCHEMA-03 | Phase 2 | Complete |
+| SCHEMA-04 | Phase 2 | Complete |
 | SCHEMA-05 | Phase 1 | Complete |
-| CLI-01 | Phase 3 | Pending |
-| CLI-02 | Phase 3 | Pending |
-| CLI-03 | Phase 3 | Pending |
-| CLI-04 | Phase 3 | Pending |
-| CLI-05 | Phase 3 | Pending |
-| CLI-06 | Phase 3 | Pending |
-| CLI-07 | Phase 3 | Pending |
-| VALID-01 | Phase 4 | Pending |
-| VALID-02 | Phase 4 | Pending |
-| VALID-03 | Phase 4 | Pending |
-| VALID-04 | Phase 4 | Pending |
-| VALID-05 | Phase 4 | Pending |
-| VALID-06 | Phase 4 | Pending |
-| VALID-07 | Phase 4 | Pending |
-| VALID-08 | Phase 4 | Pending |
+| CLI-01 | Phase 3 | Complete |
+| CLI-02 | Phase 3 | Complete |
+| CLI-03 | Phase 3 | Complete |
+| CLI-04 | Phase 3 | Complete |
+| CLI-05 | Phase 3 | Complete |
+| CLI-06 | Phase 3 | Complete |
+| CLI-07 | Phase 3 | Complete |
+| VALID-01 | Phase 4 | Complete |
+| VALID-02 | Phase 4 | Complete |
+| VALID-03 | Phase 4 | Complete |
+| VALID-04 | Phase 4 | Complete |
+| VALID-05 | Phase 4 | Complete |
+| VALID-06 | Phase 4 | Complete |
+| VALID-07 | Phase 4 | Complete |
+| VALID-08 | Phase 4 | Complete |
 | TEST-01 | Phase 5 | Pending |
 | TEST-02 | Phase 5 | Pending |
 | TEST-03 | Phase 5 | Pending |
@@ -135,4 +135,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-26*
-*Last updated: 2026-01-26 after roadmap creation*
+*Last updated: 2026-01-30 after Phase 4 completion*
