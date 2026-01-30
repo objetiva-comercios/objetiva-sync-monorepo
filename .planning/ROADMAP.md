@@ -101,10 +101,13 @@ Plans:
   5. Gateway logs failed batch ingestion with field-level error details
   6. Dashboard displays real-time sync logs without manual refresh
   7. Log refresh mechanism works reliably with consistent latency
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 05-01: TBD during planning
+- [ ] 05-01-PLAN.md -- Integration test infrastructure + 4 entity sync flow tests
+- [ ] 05-02-PLAN.md -- Schema change propagation + validation error tests
+- [ ] 05-03-PLAN.md -- Gateway logging enhancement for batch ingestion
+- [ ] 05-04-PLAN.md -- SSE real-time log streaming + dashboard updates
 
 ## Progress
 
@@ -117,4 +120,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Schema Distribution Endpoint | 1/1 | Complete | 2026-01-27 |
 | 3. CLI Code Regeneration | 3/3 | Complete | 2026-01-30 |
 | 4. Enhanced Query Validation | 2/2 | Complete | 2026-01-30 |
-| 5. Integration Testing & Hardening | 0/TBD | Not started | - |
+| 5. Integration Testing & Hardening | 0/4 | Not started | - |
