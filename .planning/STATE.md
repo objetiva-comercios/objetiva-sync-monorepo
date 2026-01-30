@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-26)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Phase 3 - CLI Code Regeneration (COMPLETE + VERIFIED)
+**Current focus:** Phase 4 - Enhanced Query Validation (IN PROGRESS)
 
 ## Current Position
 
-Phase: 3 of 5 (CLI Code Regeneration) ✅ COMPLETE
-Plan: 3 of 3 completed (including verification)
-Status: Phase 3 complete and verified - All requirements tested and working
-Last activity: 2026-01-30 — Completed 03-03-PLAN.md (verification testing), fixed array syntax bug
+Phase: 4 of 5 (Enhanced Query Validation)
+Plan: 1 of 3 completed
+Status: In progress - Schema cache infrastructure complete
+Last activity: 2026-01-30 — Completed 04-01-PLAN.md (schema cache infrastructure)
 
-Progress: [████████░░] 80%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 12.2 minutes
-- Total execution time: 1.2 hours
+- Total plans completed: 7
+- Average duration: 11.4 minutes
+- Total execution time: 1.33 hours
 
 **By Phase:**
 
@@ -30,10 +30,11 @@ Progress: [████████░░] 80%
 | 01 | 2/2 | 41m | 20.5m |
 | 02 | 1/1 | 3.5m | 3.5m |
 | 03 | 3/3 | 29m | 9.7m |
+| 04 | 1/3 | 8m | 8.0m |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (3.5m), 03-01 (6m), 03-02 (15m), 03-03 (8m)
-- Trend: Sustained high velocity with efficient bug discovery and resolution
+- Last 5 plans: 03-01 (6m), 03-02 (15m), 03-03 (8m), 04-01 (8m)
+- Trend: Excellent velocity maintained, infrastructure tasks completing efficiently
 
 *Updated after each plan completion*
 
@@ -83,6 +84,13 @@ Recent decisions affecting current work:
 - Windows file lock during prisma generate: Document workaround to stop gateway before CLI (expected OS behavior)
 - Phase verification via UAT testing: Comprehensive end-to-end tests confirm all requirements before phase completion
 
+**From 04-01:**
+- Use fast-jwt via @fastify/jwt: Native, fast JWT library already in ecosystem, ensures compatibility with gateway
+- 1-hour cache TTL matching gateway: Consistency between gateway and sync cache durations
+- Stale cache fallback: Serve expired cache when gateway unreachable for graceful degradation
+- Non-throwing initialization: Service starts even if gateway is down, schemas fetched on-demand
+- JWT_SECRET shared between services: Sync and gateway use same secret for service-to-service auth
+
 ### Pending Todos
 
 None yet.
@@ -93,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-30 — Phase 3 verified and complete
-Stopped at: Completed 03-03-PLAN.md (verification testing + bug fix), Phase 3 fully verified, ready for Phase 4
+Last session: 2026-01-30 — Phase 4 started
+Stopped at: Completed 04-01-PLAN.md (schema cache infrastructure)
 Resume file: None
