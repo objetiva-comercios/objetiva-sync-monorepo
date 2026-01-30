@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Schema Introspection Foundation** - Gateway reads and normalizes PostgreSQL metadata
 - [x] **Phase 2: Schema Distribution Endpoint** - Gateway exposes authenticated schema API
-- [ ] **Phase 3: CLI Code Regeneration** - Automated Prisma/Zod schema generation from PostgreSQL
+- [x] **Phase 3: CLI Code Regeneration** - Automated Prisma/Zod schema generation from PostgreSQL
 - [ ] **Phase 4: Enhanced Query Validation** - Sync validates queries against live gateway schemas
 - [ ] **Phase 5: Integration Testing & Hardening** - End-to-end validation and production reliability
 
@@ -63,11 +63,12 @@ Plans:
   5. CLI supports --dry-run flag to preview changes without modifying files
   6. CLI supports --entity flag to regenerate specific entity schemas only
   7. Generated Zod schemas match PostgreSQL column types and nullability
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- Code generation modules: types, diff display, Prisma generator, Zod generator
-- [ ] 03-02-PLAN.md -- CLI orchestrator, entry point script, npm script registration
+- [x] 03-01-PLAN.md -- Code generation modules: types, diff display, Prisma generator, Zod generator
+- [x] 03-02-PLAN.md -- CLI orchestrator, entry point script, npm script registration
+- [x] 03-03-PLAN.md -- Phase verification testing
 
 ### Phase 4: Enhanced Query Validation
 **Goal**: Sync service validates SQL queries against live schema before execution preventing runtime failures
@@ -82,10 +83,11 @@ Plans:
   6. Validation errors show field-level detail with suggestions (e.g., "Did you mean customer_id?")
   7. Dashboard query administration panel validates queries before saving
   8. Invalid queries cannot be saved to sync configuration
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD during planning
+- [ ] 04-01-PLAN.md -- Schema cache service for sync (gateway client, TTL caching)
+- [ ] 04-02-PLAN.md -- Schema validator with suggestions, dashboard save integration
 
 ### Phase 5: Integration Testing & Hardening
 **Goal**: Complete sync pipeline validated end-to-end with reliable monitoring for production deployment
@@ -113,6 +115,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Schema Introspection Foundation | 2/2 | Complete | 2026-01-27 |
 | 2. Schema Distribution Endpoint | 1/1 | Complete | 2026-01-27 |
-| 3. CLI Code Regeneration | 0/2 | Not started | - |
-| 4. Enhanced Query Validation | 0/TBD | Not started | - |
+| 3. CLI Code Regeneration | 3/3 | Complete | 2026-01-30 |
+| 4. Enhanced Query Validation | 0/2 | Planned | - |
 | 5. Integration Testing & Hardening | 0/TBD | Not started | - |
