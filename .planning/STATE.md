@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-26)
 ## Current Position
 
 Phase: 4 of 5 (Enhanced Query Validation)
-Plan: 1 of 3 completed
-Status: In progress - Schema cache infrastructure complete
-Last activity: 2026-01-30 — Completed 04-01-PLAN.md (schema cache infrastructure)
+Plan: 2 of 3 completed
+Status: In progress - Schema validation with field suggestions complete
+Last activity: 2026-01-30 — Completed 04-02-PLAN.md (schema validation with field suggestions)
 
-Progress: [████████░░] 83%
+Progress: [████████░░] 87%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 11.4 minutes
-- Total execution time: 1.33 hours
+- Total plans completed: 8
+- Average duration: 12.1 minutes
+- Total execution time: 1.62 hours
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: [████████░░] 83%
 | 01 | 2/2 | 41m | 20.5m |
 | 02 | 1/1 | 3.5m | 3.5m |
 | 03 | 3/3 | 29m | 9.7m |
-| 04 | 1/3 | 8m | 8.0m |
+| 04 | 2/3 | 27m | 13.5m |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (6m), 03-02 (15m), 03-03 (8m), 04-01 (8m)
-- Trend: Excellent velocity maintained, infrastructure tasks completing efficiently
+- Last 5 plans: 03-02 (15m), 03-03 (8m), 04-01 (8m), 04-02 (19m)
+- Trend: Strong velocity, validation complexity managed efficiently
 
 *Updated after each plan completion*
 
@@ -91,6 +91,14 @@ Recent decisions affecting current work:
 - Non-throwing initialization: Service starts even if gateway is down, schemas fetched on-demand
 - JWT_SECRET shared between services: Sync and gateway use same secret for service-to-service auth
 
+**From 04-02:**
+- Empty rows as warning not error: Filtered queries may legitimately return 0 rows, don't block saves
+- Schema unavailable as warning not error: Gateway may be down, allow saves to proceed with graceful degradation
+- Levenshtein distance ≤ 3 for suggestions: Catches typos without suggesting unrelated words
+- Field length ratio 0.5-2.0 for suggestions: Avoids suggesting very short/long words for typos
+- Lenient type compatibility: String compatible with number (could be stringified) to avoid false positives
+- Skip validation when no active connection: Don't block query configuration when ERP database is offline
+
 ### Pending Todos
 
 None yet.
@@ -101,6 +109,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-30 — Phase 4 started
-Stopped at: Completed 04-01-PLAN.md (schema cache infrastructure)
+Last session: 2026-01-30 — Phase 4 in progress
+Stopped at: Completed 04-02-PLAN.md (schema validation with field suggestions)
 Resume file: None
