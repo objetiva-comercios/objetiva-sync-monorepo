@@ -260,8 +260,9 @@ function generatePrismaField(
   // Build field line
   let fieldLine = `  ${prismaFieldName} ${prismaType}`;
 
-  // Add nullability
-  if (col.is_nullable) {
+  // Add nullability (but not for array types - Prisma doesn't support optional arrays)
+  const isArrayType = prismaType.endsWith('[]');
+  if (col.is_nullable && !isArrayType) {
     fieldLine += '?';
   }
 
