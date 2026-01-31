@@ -4,13 +4,19 @@
  * Verifies the full SSE pipeline: createLog() -> logEventEmitter.emit() -> SSE stream
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { loadEnv } from '../../src/config/env.js';
 import { logEventEmitter } from '../../src/dashboard/routes/api/log-stream.js';
 import { createLog, getLogById } from '../../src/store/repositories/sync-logs-repo.js';
 import { initDatabase } from '../../src/store/index.js';
 import type { SyncLog } from '../../src/store/schema.js';
 
 describe('SSE Log Stream Integration', () => {
+  beforeAll(() => {
+    // Load environment configuration
+    loadEnv();
+  });
+
   beforeEach(async () => {
     // Initialize test database
     await initDatabase();
