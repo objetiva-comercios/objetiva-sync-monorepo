@@ -86,7 +86,7 @@ export async function createLog(data: {
       : `Log de sync creado: ${data.entityType} - ${data.status} (ID: ${insertedId})`;
 
     logger.info(logMessage);
-n    // Emit SSE event for real-time dashboard updates
+    // Emit SSE event for real-time dashboard updates
     const createdLog = await getLogById(insertedId);
     if (createdLog) {
       logEventEmitter.emit('newLog', createdLog);
