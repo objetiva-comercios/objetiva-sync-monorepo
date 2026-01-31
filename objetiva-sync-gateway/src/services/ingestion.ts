@@ -6,6 +6,7 @@ import type {
   ComprobantePagosInput
 } from '../../shared/schemas/index.js'
 import { logger } from '../lib/logger.js'
+import type { BatchMetadata, IngestionLogEntry } from '../types/logging.js'
 
 interface IngestionResult {
   inserted: number
@@ -19,6 +20,76 @@ interface IngestionResult {
 }
 
 export class IngestionService {
+  /**
+   * Log ingestion result with human-readable format
+   *
+   * Produces structured logs for batch ingestion observability:
+   * - Successful batches: entity, batch progress, inserted/updated counts, duration
+   * - Failed batches: sample errors (max 3) with identifiers and error details
+   * - Query metadata: queryId, queryName when available from headers
+   */
+  static logIngestionResult(logEntry: IngestionLogEntry): void {
+    const {
+      entity,
+      batchNumber,
+      totalBatches,
+      inserted,
+      updated,
+      failed,
+      durationMs,
+      metadata,
+      sampleErrors
+    } = logEntry
+
+    const batchProgress = `${batchNumber}/${totalBatches}`
+    const totalProcessed = inserted + updated
+
+    // Build human-readable message
+    let message = `Batch ${batchProgress} - ${entity}: ${totalProcessed} processed`
+    if (inserted > 0) message += ` (${inserted} inserted`
+    if (updated > 0) message += `${inserted > 0 ? ', ' : ' ('}${updated} updated`
+    if (inserted > 0 || updated > 0) message += ')'
+    if (failed > 0) message += ` - ${failed} failed`
+    message += ` in ${durationMs}ms`
+
+    // Build structured log data
+    const logData: Record<string, unknown> = {
+      entity,
+      batchNumber,
+      totalBatches,
+      inserted,
+      updated,
+      failed,
+      durationMs
+    }
+
+    // Add metadata if available
+    if (metadata?.queryId) logData.queryId = metadata.queryId
+    if (metadata?.queryName) logData.queryName = metadata.queryName
+    if (metadata?.syncId) logData.syncId = metadata.syncId
+
+    // Log based on failure status
+    if (failed > 0 && sampleErrors && sampleErrors.length > 0) {
+      // Sample first 3 errors for human readability
+      const errorSamples = sampleErrors.slice(0, 3).map((err) => ({
+        identifier: err.identifier,
+        code: err.code,
+        message: err.error
+      }))
+
+      logData.sampleErrors = errorSamples
+
+      // Build error summary for message
+      const errorSummary = errorSamples
+        .map((e) => `${e.identifier}: [${e.code}]`)
+        .join(', ')
+
+      logger.warn(logData, `${message} | Sample errors: ${errorSummary}`)
+    } else {
+      logger.info(logData, message)
+    }
+  }
+
 
   /**
    * Ingesta de artículos
@@ -26,8 +97,10 @@ export class IngestionService {
    */
   static async ingestArticulos(
     prisma: PrismaClient,
-    articulos: ArticuloInput[]
+    articulos: ArticuloInput[],
+    metadata?: BatchMetadata
   ): Promise<IngestionResult> {
+    const startTime = performance.now()
     let inserted = 0
     let updated = 0
     const errors: IngestionResult['errors'] = []
@@ -72,7 +145,47 @@ export class IngestionService {
       }
     }
 
-    logger.info({ inserted, updated, errors: errors.length }, 'Artículos procesados')
+    const durationMs = Math.round(performance.now() - startTime)
+
+
+
+    // Log ingestion result
+
+
+    this.logIngestionResult({
+
+
+      entity: 'articulo',
+
+
+      batchNumber: metadata?.batchNumber ?? 1,
+
+
+      totalBatches: metadata?.totalBatches ?? 1,
+
+
+      inserted,
+
+
+      updated,
+
+
+      failed: errors.length,
+
+
+      durationMs,
+
+
+      metadata,
+
+
+      sampleErrors: errors.length > 0 ? errors : undefined
+
+
+    })
+
+
+
     return { inserted, updated, errors }
   }
 
@@ -81,8 +194,10 @@ export class IngestionService {
    */
   static async ingestComprobantesCabecera(
     prisma: PrismaClient,
-    comprobantes: ComprobanteCabeceraInput[]
+    comprobantes: ComprobanteCabeceraInput[],
+    metadata?: BatchMetadata
   ): Promise<IngestionResult> {
+    const startTime = performance.now()
     let inserted = 0
     let updated = 0
     const errors: IngestionResult['errors'] = []
@@ -155,7 +270,47 @@ export class IngestionService {
       }
     }
 
-    logger.info({ inserted, updated, errors: errors.length }, 'Comprobantes cabecera procesados')
+    const durationMs = Math.round(performance.now() - startTime)
+
+
+
+    // Log ingestion result
+
+
+    this.logIngestionResult({
+
+
+      entity: 'comprobante_cabecera',
+
+
+      batchNumber: metadata?.batchNumber ?? 1,
+
+
+      totalBatches: metadata?.totalBatches ?? 1,
+
+
+      inserted,
+
+
+      updated,
+
+
+      failed: errors.length,
+
+
+      durationMs,
+
+
+      metadata,
+
+
+      sampleErrors: errors.length > 0 ? errors : undefined
+
+
+    })
+
+
+
     return { inserted, updated, errors }
   }
 
@@ -164,8 +319,10 @@ export class IngestionService {
    */
   static async ingestComprobantesDetalle(
     prisma: PrismaClient,
-    detalles: ComprobanteDetalleInput[]
+    detalles: ComprobanteDetalleInput[],
+    metadata?: BatchMetadata
   ): Promise<IngestionResult> {
+    const startTime = performance.now()
     let inserted = 0
     let updated = 0
     const errors: IngestionResult['errors'] = []
@@ -260,7 +417,47 @@ export class IngestionService {
       }
     }
 
-    logger.info({ inserted, updated, errors: errors.length }, 'Comprobantes detalle procesados')
+    const durationMs = Math.round(performance.now() - startTime)
+
+
+
+    // Log ingestion result
+
+
+    this.logIngestionResult({
+
+
+      entity: 'comprobante_detalle',
+
+
+      batchNumber: metadata?.batchNumber ?? 1,
+
+
+      totalBatches: metadata?.totalBatches ?? 1,
+
+
+      inserted,
+
+
+      updated,
+
+
+      failed: errors.length,
+
+
+      durationMs,
+
+
+      metadata,
+
+
+      sampleErrors: errors.length > 0 ? errors : undefined
+
+
+    })
+
+
+
     return { inserted, updated, errors }
   }
 
@@ -269,8 +466,10 @@ export class IngestionService {
    */
   static async ingestComprobantesPagos(
     prisma: PrismaClient,
-    pagos: ComprobantePagosInput[]
+    pagos: ComprobantePagosInput[],
+    metadata?: BatchMetadata
   ): Promise<IngestionResult> {
+    const startTime = performance.now()
     let inserted = 0
     let updated = 0
     const errors: IngestionResult['errors'] = []
@@ -374,7 +573,47 @@ export class IngestionService {
       }
     }
 
-    logger.info({ inserted, updated, errors: errors.length }, 'Comprobantes pagos procesados')
+    const durationMs = Math.round(performance.now() - startTime)
+
+
+
+    // Log ingestion result
+
+
+    this.logIngestionResult({
+
+
+      entity: 'comprobante_pago',
+
+
+      batchNumber: metadata?.batchNumber ?? 1,
+
+
+      totalBatches: metadata?.totalBatches ?? 1,
+
+
+      inserted,
+
+
+      updated,
+
+
+      failed: errors.length,
+
+
+      durationMs,
+
+
+      metadata,
+
+
+      sampleErrors: errors.length > 0 ? errors : undefined
+
+
+    })
+
+
+
     return { inserted, updated, errors }
   }
 }
