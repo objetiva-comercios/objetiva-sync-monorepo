@@ -36,19 +36,19 @@
 
 ### Integration Testing
 
-- [ ] **TEST-01**: Integration test for articulos full sync flow
-- [ ] **TEST-02**: Integration test for comprobantes_cabecera full sync flow
-- [ ] **TEST-03**: Integration test for comprobantes_detalle full sync flow
-- [ ] **TEST-04**: Integration test for comprobantes_pagos full sync flow
-- [ ] **TEST-05**: Test schema change propagation (add column scenario)
-- [ ] **TEST-06**: Test validation error reporting and formatting
+- [x] **TEST-01**: Integration test for articulos full sync flow
+- [x] **TEST-02**: Integration test for comprobantes_cabecera full sync flow
+- [x] **TEST-03**: Integration test for comprobantes_detalle full sync flow
+- [x] **TEST-04**: Integration test for comprobantes_pagos full sync flow
+- [x] **TEST-05**: Test schema change propagation (add column scenario)
+- [x] **TEST-06**: Test validation error reporting and formatting
 
 ### Gateway Logging
 
-- [ ] **LOG-01**: Gateway accurately logs successful batch ingestion
-- [ ] **LOG-02**: Gateway accurately logs failed batch ingestion with errors
-- [ ] **LOG-03**: Gateway dashboard displays sync logs in real-time
-- [ ] **LOG-04**: Log refresh mechanism works reliably without complex polling
+- [x] **LOG-01**: Gateway accurately logs successful batch ingestion
+- [x] **LOG-02**: Gateway accurately logs failed batch ingestion with errors
+- [x] **LOG-03**: Gateway dashboard displays sync logs in real-time
+- [x] **LOG-04**: Log refresh mechanism works reliably without complex polling
 
 ## v2 Requirements
 
@@ -117,16 +117,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VALID-06 | Phase 4 | Complete |
 | VALID-07 | Phase 4 | Complete |
 | VALID-08 | Phase 4 | Complete |
-| TEST-01 | Phase 5 | Pending |
-| TEST-02 | Phase 5 | Pending |
-| TEST-03 | Phase 5 | Pending |
-| TEST-04 | Phase 5 | Pending |
-| TEST-05 | Phase 5 | Pending |
-| TEST-06 | Phase 5 | Pending |
-| LOG-01 | Phase 5 | Pending |
-| LOG-02 | Phase 5 | Pending |
-| LOG-03 | Phase 5 | Pending |
-| LOG-04 | Phase 5 | Pending |
+| TEST-01 | Phase 5 | Complete |
+| TEST-02 | Phase 5 | Complete |
+| TEST-03 | Phase 5 | Complete |
+| TEST-04 | Phase 5 | Complete |
+| TEST-05 | Phase 5 | Complete |
+| TEST-06 | Phase 5 | Complete |
+| LOG-01 | Phase 5 | Complete |
+| LOG-02 | Phase 5 | Complete |
+| LOG-03 | Phase 5 | Complete |
+| LOG-04 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 30 total
@@ -135,4 +135,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-26*
-*Last updated: 2026-01-30 after Phase 4 completion*
+*Last updated: 2026-01-31 after Phase 5 completion*
