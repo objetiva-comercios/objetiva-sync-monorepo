@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-26)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Phase 4 - Enhanced Query Validation (COMPLETE + VERIFIED)
+**Current focus:** Phase 5 - Integration Testing and Hardening (IN PROGRESS)
 
 ## Current Position
 
-Phase: 4 of 5 (Enhanced Query Validation) ✅ COMPLETE
-Plan: 2 of 2 completed (all phase plans verified)
-Status: Phase 4 complete and verified - Query validation with field suggestions working
-Last activity: 2026-01-30 — Completed Phase 4 verification, all 13 must-haves verified
+Phase: 5 of 5 (Integration Testing and Hardening) - IN PROGRESS
+Plan: 3 of 5 completed
+Status: Wave 1 (plans 01-03) complete - Test factories, schema propagation tests, logging infrastructure ready
+Last activity: 2026-01-31 — Completed 05-03-PLAN.md (Gateway batch ingestion logging)
 
-Progress: [████████░░] 90%
+Progress: [█████████░] 95%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 13.5 minutes
-- Total execution time: 1.8 hours
+- Total plans completed: 11
+- Average duration: 12.4 minutes
+- Total execution time: 2.3 hours
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: [████████░░] 90%
 | 02 | 1/1 | 3.5m | 3.5m |
 | 03 | 3/3 | 29m | 9.7m |
 | 04 | 2/2 | 27m | 13.5m |
+| 05 | 3/5 | 36m | 12.0m |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (6m), 03-02 (15m), 03-03 (8m), 04-01 (8m), 04-02 (19m)
-- Trend: Sustained high velocity with efficient handling of validation complexity
+- Last 5 plans: 03-03 (8m), 04-01 (8m), 04-02 (19m), 05-01 (18m), 05-03 (8m)
+- Trend: Excellent velocity in Phase 5 with established patterns and test infrastructure
 
 *Updated after each plan completion*
 
@@ -99,16 +100,25 @@ Recent decisions affecting current work:
 - Lenient type compatibility: String compatible with number (could be stringified) to avoid false positives
 - Skip validation when no active connection: Don't block query configuration when ERP database is offline
 
+**From 05-03:**
+- Human-readable log messages: "Batch X/Y - entity: N processed (M inserted, K updated) in Zms" format enables quick visual scanning
+- Sample up to 3 errors: Provides diagnostic context without flooding logs when many records fail
+- Warn level for failures, info for success: Enables easy production log filtering for problematic batches
+- Optional metadata handling: Include syncId/queryId/queryName when available, gracefully handle missing metadata
+
 ### Pending Todos
 
 None yet.
 
 ### Blockers/Concerns
 
-None yet.
+**Gateway TypeScript errors (pre-existing):**
+- Gateway has compilation errors (Prisma schema mismatches, Fastify types)
+- Not blocking: Tests run successfully, logging works correctly
+- For future consideration: May need Prisma regeneration or tsconfig fixes
 
 ## Session Continuity
 
-Last session: 2026-01-30 — Phase 4 verified and complete
-Stopped at: Completed Phase 4 verification (13/13 must-haves verified), ready for Phase 5
+Last session: 2026-01-31 — Phase 5 Wave 1 execution
+Stopped at: Completed 05-03-PLAN.md (Gateway batch ingestion logging), Wave 1 complete
 Resume file: None
