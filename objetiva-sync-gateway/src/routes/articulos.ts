@@ -35,9 +35,19 @@ export async function registerArticulosRoutes(app: FastifyInstance) {
         'Recibiendo batch de artículos'
       )
 
+      // Build metadata for logging
+      const metadata = syncId && queryId && batchNumber && totalBatches ? {
+        syncId,
+        queryId: parseInt(queryId, 10),
+        queryName,
+        batchNumber: parseInt(batchNumber, 10),
+        totalBatches: parseInt(totalBatches, 10)
+      } : undefined
+
       const result = await IngestionService.ingestArticulos(
         prisma,
-        articulos
+        articulos,
+        metadata
       )
 
       const durationMs = Date.now() - startTime

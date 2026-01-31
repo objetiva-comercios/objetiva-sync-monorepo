@@ -34,9 +34,19 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
         'Recibiendo batch de comprobantes cabecera'
       )
 
+      // Build metadata for logging
+      const metadata = syncId && queryId && batchNumber && totalBatches ? {
+        syncId,
+        queryId: parseInt(queryId, 10),
+        queryName,
+        batchNumber: parseInt(batchNumber, 10),
+        totalBatches: parseInt(totalBatches, 10)
+      } : undefined
+
       const result = await IngestionService.ingestComprobantesCabecera(
         prisma,
-        comprobantes_cabecera
+        comprobantes_cabecera,
+        metadata
       )
 
       const durationMs = Date.now() - startTime
@@ -133,9 +143,19 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
         'Recibiendo batch de comprobantes detalle'
       )
 
+      // Build metadata for logging
+      const metadata = syncId && queryId && batchNumber && totalBatches ? {
+        syncId,
+        queryId: parseInt(queryId, 10),
+        queryName,
+        batchNumber: parseInt(batchNumber, 10),
+        totalBatches: parseInt(totalBatches, 10)
+      } : undefined
+
       const result = await IngestionService.ingestComprobantesDetalle(
         prisma,
-        comprobantes_detalle
+        comprobantes_detalle,
+        metadata
       )
 
       const durationMs = Date.now() - startTime
@@ -232,9 +252,19 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
         'Recibiendo batch de comprobantes pagos'
       )
 
+      // Build metadata for logging
+      const metadata = syncId && queryId && batchNumber && totalBatches ? {
+        syncId,
+        queryId: parseInt(queryId, 10),
+        queryName,
+        batchNumber: parseInt(batchNumber, 10),
+        totalBatches: parseInt(totalBatches, 10)
+      } : undefined
+
       const result = await IngestionService.ingestComprobantesPagos(
         prisma,
-        comprobantes_pagos
+        comprobantes_pagos,
+        metadata
       )
 
       const durationMs = Date.now() - startTime
