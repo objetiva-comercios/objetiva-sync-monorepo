@@ -94,6 +94,7 @@ export class IngestionService {
   /**
    * Ingesta de artículos
    * ✅ TODO EN SNAKE_CASE - Sin mapeo manual
+   * ✅ BULK OPERATIONS - Batch lookup + createMany + transaction
    */
   static async ingestArticulos(
     prisma: PrismaClient,
@@ -105,43 +106,107 @@ export class IngestionService {
     let updated = 0
     const errors: IngestionResult['errors'] = []
 
-    for (const [index, articulo] of articulos.entries()) {
+    // Step 1: Batch lookup of existing records
+    const erpCodigos = articulos.map(a => a.erp_codigo).filter(Boolean)
+    const existingRecords = await prisma.articulo.findMany({
+      where: { erp_codigo: { in: erpCodigos } },
+      select: { id: true, erp_codigo: true },
+    })
+    const existingMap = new Map(existingRecords.map(r => [r.erp_codigo, r.id]))
+
+    // Step 2: Separate into new vs existing records
+    const toCreate: ArticuloInput[] = []
+    const toUpdate: Array<{ id: number; data: ArticuloInput }> = []
+
+    for (const articulo of articulos) {
+      const existingId = existingMap.get(articulo.erp_codigo)
+      if (existingId) {
+        toUpdate.push({ id: existingId, data: articulo })
+      } else {
+        toCreate.push(articulo)
+      }
+    }
+
+    // Step 3: Bulk create new records using createMany
+    if (toCreate.length > 0) {
       try {
-        // Buscar existente por erp_codigo
-        const existing = await prisma.articulo.findFirst({
-          where: {
-            erp_codigo: articulo.erp_codigo,
-          }
+        const createResult = await prisma.articulo.createMany({
+          data: toCreate.map(a => ({
+            ...a,
+            erp_sincronizado: true,
+            erp_fecha_sync: new Date(),
+          })),
+          skipDuplicates: true,
         })
-
-        if (existing) {
-          // UPDATE - Los nombres coinciden exactamente
-          await prisma.articulo.update({
-            where: { id: existing.id },
-            data: {
-              ...articulo,  // ✅ Spread directo - nombres coinciden
-              actualizado: new Date()
-            }
-          })
-          updated++
-          logger.debug({ erp_codigo: articulo.erp_codigo }, 'Artículo actualizado')
-        } else {
-          // INSERT - Los nombres coinciden exactamente
-          await prisma.articulo.create({
-            data: articulo  // ✅ Directo - sin mapeo
-          })
-          inserted++
-          logger.debug({ erp_codigo: articulo.erp_codigo }, 'Artículo insertado')
-        }
-
+        inserted = createResult.count
+        logger.info({ count: inserted }, 'Artículos insertados (bulk)')
       } catch (error) {
-        logger.error({ error, articulo }, 'Error al procesar artículo')
-        errors.push({
-          index,
-          identifier: articulo.sku || articulo.codigo || `item-${index}`,
-          error: error instanceof Error ? error.message : 'Error desconocido',
-          code: 'INGESTION_ERROR'
-        })
+        // If createMany fails, fall back to individual creates
+        logger.warn({ error }, 'createMany failed, falling back to individual creates')
+        for (const [index, articulo] of toCreate.entries()) {
+          try {
+            await prisma.articulo.create({
+              data: {
+                ...articulo,
+                erp_sincronizado: true,
+                erp_fecha_sync: new Date(),
+              },
+            })
+            inserted++
+          } catch (createError) {
+            errors.push({
+              index,
+              identifier: articulo.sku || articulo.codigo || `item-${index}`,
+              error: createError instanceof Error ? createError.message : 'Error desconocido',
+              code: 'INGESTION_ERROR',
+            })
+          }
+        }
+      }
+    }
+
+    // Step 4: Update existing records (in transaction)
+    if (toUpdate.length > 0) {
+      try {
+        await prisma.$transaction(
+          toUpdate.map(({ id, data }) =>
+            prisma.articulo.update({
+              where: { id },
+              data: {
+                ...data,
+                erp_sincronizado: true,
+                erp_fecha_sync: new Date(),
+                actualizado: new Date(),
+              },
+            })
+          )
+        )
+        updated = toUpdate.length
+        logger.info({ count: updated }, 'Artículos actualizados (transaction)')
+      } catch (error) {
+        // If transaction fails, fall back to individual updates
+        logger.warn({ error }, 'Transaction failed, falling back to individual updates')
+        for (const [index, { id, data }] of toUpdate.entries()) {
+          try {
+            await prisma.articulo.update({
+              where: { id },
+              data: {
+                ...data,
+                erp_sincronizado: true,
+                erp_fecha_sync: new Date(),
+                actualizado: new Date(),
+              },
+            })
+            updated++
+          } catch (updateError) {
+            errors.push({
+              index,
+              identifier: data.sku || data.codigo || `item-${index}`,
+              error: updateError instanceof Error ? updateError.message : 'Error desconocido',
+              code: 'INGESTION_ERROR',
+            })
+          }
+        }
       }
     }
 
