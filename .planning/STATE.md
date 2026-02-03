@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 8 of 12 (Sync Reliability) -- first phase of v1.1-rc milestone
-Plan: 1 of 4 completed
+Plan: 2 of 4 completed
 Status: In progress
-Last activity: 2026-02-03 -- Completed 08-01: SSE Heartbeat & Timeout Fixes
+Last activity: 2026-02-03 -- Completed 08-02: Explicit Timeouts and Error Classification
 
-Progress: [###############░░░░░] 72% (v1.0 complete, v1.1-rc 1/4 plans done in Phase 8)
+Progress: [################░░░░] 75% (v1.0 complete, v1.1-rc 2/4 plans done in Phase 8)
 
 ## Performance Metrics
 
@@ -25,14 +25,14 @@ Progress: [###############░░░░░] 72% (v1.0 complete, v1.1-rc 1/4 plans
 
 **v1.1-rc:**
 - Plans estimated: 9 across 5 phases
-- Plans completed: 1 (08-01)
-- Average duration: ~6min per plan
+- Plans completed: 2 (08-01, 08-02)
+- Average duration: ~7min per plan
 
 ## Accumulated Context
 
 ### Decisions
 
-All v1.0 decisions archived in `.planning/archive/v1.0-MILESTONE.md`.
+All v1.0 decisions archived in \`.planning/archive/v1.0-MILESTONE.md\`.
 
 **v1.1-rc decisions (Phase 8):**
 
@@ -44,6 +44,9 @@ All v1.0 decisions archived in `.planning/archive/v1.0-MILESTONE.md`.
 | 120s SQL Server timeout | 08-01 | Allows 100K+ row queries over network |
 | 100ms batch delay (down from 500ms) | 08-01 | 5x throughput improvement while maintaining backpressure |
 | proxy_buffering off for SSE | 08-01 | Critical for real-time event delivery |
+| 2-minute fetch timeout (120,000ms) | 08-02 | Balances large batch processing with preventing indefinite hangs |
+| AbortSignal.any() for timeout + cancellation | 08-02 | Standard API for merging user cancel and timeout signals |
+| Spanish error root cause messages | 08-02 | User-facing errors should be in application language |
 
 ### Known Issues
 
@@ -57,11 +60,11 @@ None.
 
 ### Blockers/Concerns
 
-None - 08-01 complete, ready for 08-02 (Error Classification).
+None - 08-02 complete, ready for 08-03 (verify roadmap for next plan).
 
 ## Session Continuity
 
-Last session: 2026-02-03 18:35 UTC
-Stopped at: Completed 08-01-PLAN.md (SSE Heartbeat & Timeout Fixes)
+Last session: 2026-02-03 21:37 UTC
+Stopped at: Completed 08-02-SUMMARY.md (Explicit Timeouts and Error Classification)
 Resume file: None
-Next: Plan 08-02 (Error Classification) - retry logic and error handling
+Next: Plan 08-03 (verify phase roadmap for remaining plans)
