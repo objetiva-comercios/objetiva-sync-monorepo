@@ -1,16 +1,14 @@
-# Roadmap: Objetiva Sync - Schema-Driven Control
+# Roadmap: Objetiva Sync - Schema-Driven Synchronization Control
 
-## Overview
+## Milestones
 
-This roadmap establishes PostgreSQL as the single source of truth for schema validation across the distributed sync system. Starting with introspection foundations in the gateway, we build outward to HTTP schema distribution, automated code generation, enhanced runtime validation in the sync service, and finally comprehensive testing with production hardening. Each phase delivers independently verifiable capabilities that prevent schema drift from breaking the synchronization pipeline.
+- **v1.0 Schema-Driven Control** - Phases 1-7 (shipped 2026-02-03)
+- **v1.1-rc Release Candidate** - Phases 8-12 (in progress)
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
-
-Decimal phases appear between their surrounding integers in numeric order.
+<details>
+<summary>v1.0 Schema-Driven Control (Phases 1-7) - SHIPPED 2026-02-03</summary>
 
 - [x] **Phase 1: Schema Introspection Foundation** - Gateway reads and normalizes PostgreSQL metadata
 - [x] **Phase 2: Schema Distribution Endpoint** - Gateway exposes authenticated schema API
@@ -18,146 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Enhanced Query Validation** - Sync validates queries against live gateway schemas
 - [x] **Phase 5: Integration Testing & Hardening** - End-to-end validation and production reliability
 - [x] **Phase 6: CLI E2E Verification** - Verify regenerate-schemas command executes successfully end-to-end
-- [x] **Phase 7: Check/test/resolve real-time monitoring dashboard and all sync visualization problems** - Verify dashboard functionality and fix visualization issues
-
-## Phase Details
-
-### Phase 1: Schema Introspection Foundation
-**Goal**: Gateway can programmatically extract complete PostgreSQL schema metadata for all sync entities
-**Depends on**: Nothing (first phase)
-**Requirements**: SCHEMA-05
-**Success Criteria** (what must be TRUE):
-  1. Gateway can query PostgreSQL information_schema and pg_catalog for table structures
-  2. Schema metadata includes column names, data types, nullability, and constraints for all 4 sync entities
-  3. Introspection service handles PostgreSQL-specific types (DECIMAL, JSONB, arrays) correctly
-  4. Schema metadata is normalized into consistent JSON structure
-  5. Introspection failures are logged with connection retry logic
-**Plans**: 2 plans
-
-Plans:
-- [x] 01-01-PLAN.md - Infrastructure: types, schemas, db pool, retry wrapper
-- [x] 01-02-PLAN.md - Introspection service with SQL queries and entity config
-
-### Phase 2: Schema Distribution Endpoint
-**Goal**: Sync service running on remote server can fetch current schema metadata via HTTP
-**Depends on**: Phase 1
-**Requirements**: SCHEMA-01, SCHEMA-02, SCHEMA-03, SCHEMA-04
-**Success Criteria** (what must be TRUE):
-  1. GET /api/schemas endpoint returns all entity schemas with JWT authentication
-  2. GET /api/schemas/:entity endpoint returns single entity schema
-  3. Schema responses are cached with 1-hour TTL to prevent database load
-  4. Unauthorized requests receive 401 responses
-  5. Schema endpoint responds in under 100ms on cache hit
-**Plans**: 1 plan
-
-Plans:
-- [x] 02-01-PLAN.md -- Schema cache service + authenticated route + app registration
-
-### Phase 3: CLI Code Regeneration
-**Goal**: Developer can regenerate Prisma and Zod schemas from PostgreSQL with single command
-**Depends on**: Phase 2
-**Requirements**: CLI-01, CLI-02, CLI-03, CLI-04, CLI-05, CLI-06, CLI-07
-**Success Criteria** (what must be TRUE):
-  1. CLI command `npm run regenerate-schemas` introspects PostgreSQL and updates schema files
-  2. Prisma schema (schema.prisma) regenerates from introspection with correct models
-  3. Zod validation schemas regenerate automatically from Prisma models
-  4. CLI displays diff summary showing schema changes before writing files
-  5. CLI supports --dry-run flag to preview changes without modifying files
-  6. CLI supports --entity flag to regenerate specific entity schemas only
-  7. Generated Zod schemas match PostgreSQL column types and nullability
-**Plans**: 3 plans
-
-Plans:
-- [x] 03-01-PLAN.md -- Code generation modules: types, diff display, Prisma generator, Zod generator
-- [x] 03-02-PLAN.md -- CLI orchestrator, entry point script, npm script registration
-- [x] 03-03-PLAN.md -- Phase verification testing
-
-### Phase 4: Enhanced Query Validation
-**Goal**: Sync service validates SQL queries against live schema before execution preventing runtime failures
-**Depends on**: Phase 3
-**Requirements**: VALID-01, VALID-02, VALID-03, VALID-04, VALID-05, VALID-06, VALID-07, VALID-08
-**Success Criteria** (what must be TRUE):
-  1. Sync fetches schemas from gateway /api/schemas endpoint on startup
-  2. Schema cache refreshes automatically based on TTL without manual intervention
-  3. Query validator detects missing required fields before query execution
-  4. Query validator detects unexpected extra fields not in schema
-  5. Query validator detects field type mismatches (e.g., string vs number)
-  6. Validation errors show field-level detail with suggestions (e.g., "Did you mean customer_id?")
-  7. Dashboard query administration panel validates queries before saving
-  8. Invalid queries cannot be saved to sync configuration
-**Plans**: 2 plans
-
-Plans:
-- [x] 04-01-PLAN.md -- Schema cache service for sync (gateway client, TTL caching)
-- [x] 04-02-PLAN.md -- Schema validator with suggestions, dashboard save integration
-
-### Phase 5: Integration Testing & Hardening
-**Goal**: Complete sync pipeline validated end-to-end with reliable monitoring for production deployment
-**Depends on**: Phase 4
-**Requirements**: TEST-01, TEST-02, TEST-03, TEST-04, TEST-05, TEST-06, LOG-01, LOG-02, LOG-03, LOG-04
-**Success Criteria** (what must be TRUE):
-  1. Integration tests validate full sync flow for all 4 entities (articulos, comprobantes_cabecera, comprobantes_detalle, comprobantes_pagos)
-  2. Test suite includes schema change scenario (add column) with automatic validation propagation
-  3. Validation error reporting formats correctly in test assertions
-  4. Gateway logs successful batch ingestion with entity counts
-  5. Gateway logs failed batch ingestion with field-level error details
-  6. Dashboard displays real-time sync logs without manual refresh
-  7. Log refresh mechanism works reliably with consistent latency
-**Plans**: 5 plans
-
-Plans:
-- [x] 05-01-PLAN.md -- Integration test infrastructure + 4 entity sync flow tests
-- [x] 05-02-PLAN.md -- Schema change propagation + validation error tests
-- [x] 05-03-PLAN.md -- Gateway logging enhancement for batch ingestion
-- [x] 05-04-PLAN.md -- SSE real-time log streaming + dashboard updates
-- [x] 05-05-PLAN.md -- Gap closure: fix blocking bugs in sync-logs-repo and SSE test setup
-
-### Phase 6: CLI E2E Verification
-**Goal**: Verify CLI regenerate-schemas command executes successfully end-to-end with running gateway
-**Depends on**: Phase 3, Phase 5
-**Requirements**: CLI-01 (runtime verification), CLI-03 (runtime verification)
-**Gap Closure**: Closes Phase 3 verification gap from v1.0 milestone audit
-**Success Criteria** (what must be TRUE):
-  1. Gateway starts successfully with PostgreSQL connection established
-  2. Environment variables (GATEWAY_URL, SYNC_USERNAME, SYNC_PASSWORD) configured correctly
-  3. CLI authenticates successfully with gateway and receives JWT token
-  4. CLI fetches all entity schemas from /api/schemas endpoint
-  5. --dry-run mode displays diffs without modifying files
-  6. CLI writes schema.prisma and Zod files when run without --dry-run
-  7. prisma generate executes successfully and outputs "Generated Prisma Client"
-  8. Generated files match expected structure from Phase 3 code review
-**Plans**: 1 plan
-
-Plans:
-- [x] 06-01-PLAN.md -- CLI E2E test infrastructure + integration tests with human verification
-
-### Phase 7: Check/test/resolve real-time monitoring dashboard and all sync visualization problems
-**Goal**: Verify real-time monitoring dashboard functionality and fix all sync visualization issues
-**Depends on**: Phase 6
-**Requirements**: Verify Phase 5 SSE implementation works correctly in practice
-**Success Criteria** (what must be TRUE):
-  1. Dashboard starts successfully without errors
-  2. Real-time SSE log streaming connection establishes automatically on page load
-  3. "Live" status indicator shows green when connected
-  4. Logs table displays historical sync data correctly
-  5. New log entries appear in real-time without manual page refresh
-  6. All visualization elements render properly (stats, filters, table)
-**Plans**: 0 plans (manual testing and bug fixes)
-
-**Issues Found & Fixed**:
-1. SSE initialization checked for #logs-table (loaded via HTMX) instead of #logs-container (immediate DOM)
-2. Script loaded at top of template before HTML, preventing DOM element detection
-3. #logs-container div accidentally deleted during editing, breaking table rendering
-
-**Result**: All 3 critical bugs fixed, real-time monitoring fully functional
-
-**Details:**
-See .planning/phases/07-dashboard-monitoring/07-ISSUES-FOUND.md for complete analysis
-
-## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+- [x] **Phase 7: Dashboard Monitoring Verification** - Verify dashboard functionality and fix visualization issues
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -167,4 +26,113 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Enhanced Query Validation | 2/2 | Complete | 2026-01-30 |
 | 5. Integration Testing & Hardening | 5/5 | Complete | 2026-01-31 |
 | 6. CLI E2E Verification | 1/1 | Complete | 2026-02-03 |
-| 7. Check/test/resolve real-time monitoring dashboard | 0/0 | Complete | 2026-02-03 |
+| 7. Dashboard Monitoring Verification | 0/0 | Complete | 2026-02-03 |
+
+</details>
+
+### v1.1-rc Release Candidate (Phases 8-12)
+
+**Milestone Goal:** Make the sync system production-ready -- fix the sync timeout bug, implement reliable incremental sync, resolve all tech debt, configure deployment, and validate end-to-end robustness.
+
+**Phase Numbering:**
+- Integer phases (8, 9, 10...): Planned milestone work
+- Decimal phases (8.1, 8.2): Urgent insertions (marked with INSERTED)
+
+Decimal phases appear between their surrounding integers in numeric order.
+
+- [ ] **Phase 8: Sync Reliability** - Fix timeout bug and ensure full dataset sync completes without failure
+- [ ] **Phase 9: Tech Debt Cleanup** - Resolve TypeScript errors, switch to generated schemas, remove development garbage
+- [ ] **Phase 10: Incremental Sync** - Implement timestamp-based delta sync for all entity types
+- [ ] **Phase 11: Deployment Configuration** - Production deployment scripts and environment templates
+- [ ] **Phase 12: End-to-End Robustness** - Validate complete workflow and error recovery across the pipeline
+
+## Phase Details
+
+### Phase 8: Sync Reliability
+**Goal**: Sync service can reliably process full datasets (100K+ records) across all batch sizes without timing out or crashing
+**Depends on**: Phase 7 (v1.0 complete)
+**Requirements**: SYNC-01, SYNC-02, SYNC-03, SYNC-04
+**Success Criteria** (what must be TRUE):
+  1. Manual sync of 100K+ records runs to completion without timeout or crash
+  2. Sync with batch sizes 200 and 500 completes without degradation compared to batch size 100
+  3. When sync fails, the error message shows the specific root cause (timeout location, HTTP status, connection error) instead of generic "Error al ejecutar"
+  4. The ~60s time-based failure no longer occurs -- sync duration scales with record count, not a fixed wall-clock limit
+**Plans**: TBD
+
+Plans:
+- [ ] 08-01-PLAN.md - Diagnose and fix the ~60s timeout root cause
+- [ ] 08-02-PLAN.md - Error message enrichment and large batch validation
+
+### Phase 9: Tech Debt Cleanup
+**Goal**: Codebase compiles cleanly, uses generated schemas consistently, and contains no development garbage
+**Depends on**: Nothing (independent of Phase 8, can run in parallel if needed)
+**Requirements**: DEBT-01, DEBT-02, DEBT-03, DEBT-04
+**Success Criteria** (what must be TRUE):
+  1. `npx tsc --noEmit` in objetiva-sync-gateway completes with zero errors
+  2. Gateway ingestion service imports Zod schemas from generated files (not manual/hardcoded schemas)
+  3. No temporary scripts (.mjs test files), isolated .md files, or debug artifacts remain in either module root
+  4. No .backup files, .bak files, or development-only artifacts remain in the repository
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01-PLAN.md - Fix gateway TypeScript compilation errors and switch ingestion to generated schemas
+- [ ] 09-02-PLAN.md - Remove temporary scripts, backup files, and development garbage across both modules
+
+### Phase 10: Incremental Sync
+**Goal**: Sync service fetches only records modified since last successful sync, dramatically reducing sync time for routine updates
+**Depends on**: Phase 8 (sync must work reliably before adding incremental logic)
+**Requirements**: INCR-01, INCR-02, INCR-03, INCR-04
+**Success Criteria** (what must be TRUE):
+  1. After a full sync completes, the last successful sync timestamp is persisted per entity type (articulos, comprobantes_cabecera, comprobantes_detalle, comprobantes_pagos)
+  2. A subsequent sync fetches only records with modification timestamp newer than the stored value, processing far fewer records than a full sync
+  3. Incremental sync works correctly for all 4 entity types without missing or duplicating records
+  4. User can trigger a full sync manually (override) even when incremental timestamps exist
+  5. Dashboard or logs clearly indicate whether a sync run was incremental or full
+**Plans**: TBD
+
+Plans:
+- [ ] 10-01-PLAN.md - Timestamp tracking infrastructure and incremental query filtering
+- [ ] 10-02-PLAN.md - Per-entity incremental sync implementation and full sync override
+
+### Phase 11: Deployment Configuration
+**Goal**: Both modules can be deployed to production servers with documented scripts and environment configuration
+**Depends on**: Phase 9 (codebase must compile cleanly before deployment)
+**Requirements**: DEPL-01, DEPL-02
+**Success Criteria** (what must be TRUE):
+  1. Deployment script for objetiva-sync-gateway builds, migrates database, and starts the service
+  2. Deployment script for objetiva-sync builds and starts the service with correct gateway connection
+  3. `.env.example` files in both modules list every required environment variable with descriptions and example values
+  4. A fresh deployment using only the scripts and .env.example files succeeds without undocumented manual steps
+**Plans**: TBD
+
+Plans:
+- [ ] 11-01-PLAN.md - Deployment scripts and environment configuration for both modules
+
+### Phase 12: End-to-End Robustness
+**Goal**: Complete sync pipeline validated from schema change through regeneration, validation, and sync with reliable error recovery
+**Depends on**: Phase 8, Phase 9, Phase 10, Phase 11 (validates everything built in this milestone)
+**Requirements**: ROBU-01, ROBU-02
+**Success Criteria** (what must be TRUE):
+  1. Full workflow executes successfully: PostgreSQL schema change -> regenerate-schemas CLI -> Zod/Prisma update -> sync validates -> data syncs correctly
+  2. When gateway is temporarily unreachable, sync retries with backoff and recovers when connection restores
+  3. When a batch fails mid-sync, the sync engine retries failed batches and continues processing remaining data
+  4. Error recovery does not produce duplicate records or corrupt data
+**Plans**: TBD
+
+Plans:
+- [ ] 12-01-PLAN.md - End-to-end workflow validation (schema change through sync)
+- [ ] 12-02-PLAN.md - Error recovery and graceful degradation testing
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
+(Phase 9 is logically independent of Phase 8 and could run in parallel)
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 8. Sync Reliability | v1.1-rc | 0/2 | Not started | - |
+| 9. Tech Debt Cleanup | v1.1-rc | 0/2 | Not started | - |
+| 10. Incremental Sync | v1.1-rc | 0/2 | Not started | - |
+| 11. Deployment Configuration | v1.1-rc | 0/1 | Not started | - |
+| 12. End-to-End Robustness | v1.1-rc | 0/2 | Not started | - |

@@ -85,28 +85,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SYNC-01 | — | Pending |
-| SYNC-02 | — | Pending |
-| SYNC-03 | — | Pending |
-| SYNC-04 | — | Pending |
-| INCR-01 | — | Pending |
-| INCR-02 | — | Pending |
-| INCR-03 | — | Pending |
-| INCR-04 | — | Pending |
-| DEBT-01 | — | Pending |
-| DEBT-02 | — | Pending |
-| DEBT-03 | — | Pending |
-| DEBT-04 | — | Pending |
-| DEPL-01 | — | Pending |
-| DEPL-02 | — | Pending |
-| ROBU-01 | — | Pending |
-| ROBU-02 | — | Pending |
+| SYNC-01 | Phase 8: Sync Reliability | Pending |
+| SYNC-02 | Phase 8: Sync Reliability | Pending |
+| SYNC-03 | Phase 8: Sync Reliability | Pending |
+| SYNC-04 | Phase 8: Sync Reliability | Pending |
+| INCR-01 | Phase 10: Incremental Sync | Pending |
+| INCR-02 | Phase 10: Incremental Sync | Pending |
+| INCR-03 | Phase 10: Incremental Sync | Pending |
+| INCR-04 | Phase 10: Incremental Sync | Pending |
+| DEBT-01 | Phase 9: Tech Debt Cleanup | Pending |
+| DEBT-02 | Phase 9: Tech Debt Cleanup | Pending |
+| DEBT-03 | Phase 9: Tech Debt Cleanup | Pending |
+| DEBT-04 | Phase 9: Tech Debt Cleanup | Pending |
+| DEPL-01 | Phase 11: Deployment Configuration | Pending |
+| DEPL-02 | Phase 11: Deployment Configuration | Pending |
+| ROBU-01 | Phase 12: End-to-End Robustness | Pending |
+| ROBU-02 | Phase 12: End-to-End Robustness | Pending |
 
 **Coverage:**
 - v1.1-rc requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 (pending roadmap creation)
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-03 after initial definition*
+*Last updated: 2026-02-03 after roadmap creation*
