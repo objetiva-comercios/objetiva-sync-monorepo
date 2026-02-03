@@ -43,7 +43,15 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 
 ### Active
 
-<!-- No active requirements — milestone v1.0 complete -->
+<!-- Milestone v1.1-rc: Release Candidate -->
+
+- [ ] Sync completes full 100K+ record sets without timeout or crash
+- [ ] Incremental sync (timestamp-based) works reliably for delta updates
+- [ ] Gateway compiles cleanly with zero TypeScript errors
+- [ ] Ingestion uses generated schemas instead of manual imports
+- [ ] Production deployment scripts and environment configuration
+- [ ] Improved error handling and recovery across the pipeline
+- [ ] End-to-end robustness validation of full workflow
 
 ### Out of Scope
 
@@ -63,16 +71,12 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - Physical separation: sync and gateway run on different servers
 - 4 entity types with distinct schemas and synchronization requirements
 
-**Current Pain Points:**
-- Schema changes in PostgreSQL destination tables require manual updates across:
-  1. Prisma schema file
-  2. Zod validation schemas (multiple files)
-  3. SQL extraction queries
-  4. Gateway ingestion logic
-- No automated validation of SQL queries against actual table structure
-- Queries can be saved that will fail at runtime due to schema drift
-- Logging refresh mechanism in gateway is unreliable for real-time monitoring
-- Testing is fragmented, no end-to-end validation of full sync pipeline
+**Current Pain Points (v1.1-rc):**
+- Manual sync fails after ~60 seconds regardless of batch size (timeout somewhere in pipeline)
+- Incremental sync (timestamp-based) exists but untested for reliability
+- Gateway has pre-existing TypeScript compilation errors (Prisma/Fastify types)
+- Ingestion imports manual schemas instead of generated ones (architectural inconsistency)
+- No production deployment scripts or environment configuration
 
 **Prior Work:**
 - Codebase already mapped in `.planning/codebase/` (ARCHITECTURE.md, STACK.md, STRUCTURE.md)
@@ -103,5 +107,16 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 |-----------|------|-----------|---------|
 | v1.0 | Schema-driven synchronization control | 2026-02-03 | `.planning/archive/v1.0-MILESTONE.md` |
 
+## Current Milestone: v1.1-rc Release Candidate
+
+**Goal:** Make the sync system production-ready — fix the sync timeout bug, harden incremental sync, resolve all TypeScript errors, and validate end-to-end robustness.
+
+**Target features:**
+- Fix sync timeout (~60s failure on large datasets)
+- Reliable incremental sync with timestamp-based deltas
+- Clean TypeScript compilation (gateway)
+- Production deployment configuration
+- End-to-end robustness testing of full workflow
+
 ---
-*Last updated: 2026-02-03 after v1.0 milestone completion*
+*Last updated: 2026-02-03 after v1.1-rc milestone start*

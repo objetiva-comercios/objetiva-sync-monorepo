@@ -5,49 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
+**Current focus:** Milestone v1.1-rc — Release Candidate
 
 ## Current Position
 
-**Milestone v1.0: COMPLETED** (archived to `.planning/archive/v1.0-MILESTONE.md`)
-**Next milestone:** Not yet defined
-
-No active phase or plan. Use `/gsd:new-milestone` to start the next milestone.
-
-## Milestone v1.0 Summary
-
-- **Duration:** 2026-01-25 to 2026-02-03
-- **Phases:** 7/7 complete
-- **Plans:** 14 completed
-- **Requirements:** 30/30 satisfied (100%)
-- **Tests:** 45/46 pass (97.8%)
-- **Audit:** PASSED
-- **Commits:** 89
-- **Lines added:** ~32,000
-
-## Performance Metrics
-
-**Velocity (v1.0):**
-- Total plans completed: 14
-- Total execution time: ~5.4 hours
-- Average duration per plan: ~23 minutes
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v1.1-rc
+Last activity: 2026-02-03 — Milestone v1.1-rc started
 
 ## Accumulated Context
 
 ### Decisions
 
-All v1.0 decisions are archived in `.planning/archive/v1.0-MILESTONE.md`.
+All v1.0 decisions archived in `.planning/archive/v1.0-MILESTONE.md`.
 
-### Tech Debt
+### Known Issues
 
-1. Ingestion imports manual schemas instead of generated ones (LOW priority, workaround exists)
-2. Pre-existing TypeScript compilation errors in gateway (Prisma schema mismatches, Fastify types)
+1. **Sync timeout bug** — Manual sync fails after ~60s regardless of batch size. Tested with 100/200/500 batch sizes, all fail around 50-80s. Likely a socket/fetch/connection timeout in the pipeline.
+2. **Ingestion manual schemas** — LOW priority tech debt from v1.0
+3. **Pre-existing TypeScript errors** — Prisma schema mismatches, Fastify type issues in gateway
 
 ### Pending Todos
 
-None - Milestone complete. Ready for next milestone or new work.
+None — Requirements definition in progress.
 
 ## Session Continuity
 
-Last session: 2026-02-03 - Milestone v1.0 completed and archived
-Stopped at: Milestone completion
+Last session: 2026-02-03 — Milestone v1.1-rc initialization
+Stopped at: Requirements definition
 Resume file: None
