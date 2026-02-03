@@ -28,23 +28,22 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - ✓ SQLite state management for sync configuration — existing
 - ✓ API client with entity-specific endpoints — existing
 - ✓ Drizzle ORM for local SQLite database — existing
+- ✓ Gateway exposes `/api/schemas` endpoint returning current PostgreSQL table structures — v1.0
+- ✓ Sync queries gateway schemas endpoint to validate SQL queries before saving — v1.0
+- ✓ CLI command `regenerate-schemas` introspects PostgreSQL and updates Prisma/Zod schemas — v1.0
+- ✓ Enhanced query validator checks field names, types, and nullability against live schema — v1.0
+- ✓ Prisma schema automatically regenerates from PostgreSQL introspection — v1.0
+- ✓ Zod schemas automatically regenerate to match Prisma models — v1.0
+- ✓ Query administration panel validates against current schema before save — v1.0
+- ✓ Integration tests validate complete sync flow for all 4 entities — v1.0
+- ✓ Gateway logging accurately reflects successful/failed sync batches — v1.0
+- ✓ Dashboard displays schema validation errors with field-level detail — v1.0
+- ✓ Real-time monitoring dashboard with SSE log streaming — v1.0
+- ✓ React dashboard with metrics, batch operations, and activity feed — v1.0
 
 ### Active
 
-<!-- New capabilities to build -->
-
-- [ ] Gateway exposes `/api/schemas` endpoint returning current PostgreSQL table structures
-- [ ] Sync queries gateway schemas endpoint to validate SQL queries before saving
-- [ ] CLI command `regenerate-schemas` introspects PostgreSQL and updates Prisma/Zod schemas
-- [ ] Enhanced query validator checks field names, types, and nullability against live schema
-- [ ] Prisma schema automatically regenerates from PostgreSQL introspection
-- [ ] Zod schemas automatically regenerate to match Prisma models
-- [ ] Query administration panel validates against current schema before save
-- [ ] Integration tests validate complete sync flow for all 4 entities
-- [ ] Gateway logging accurately reflects successful/failed sync batches
-- [ ] Dashboard displays schema validation errors with field-level detail
-- [ ] Schema drift detection alerts when PostgreSQL changes vs cached schemas
-- [ ] Visual confirmation in dashboard showing origin→destination data flow
+<!-- No active requirements — milestone v1.0 complete -->
 
 ### Out of Scope
 
@@ -93,10 +92,16 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| PostgreSQL as single source of truth | Destination schema is what ultimately matters for data integrity | — Pending |
-| Gateway exposes schemas via HTTP | Sync needs access to schemas but runs on different server | — Pending |
-| Manual regeneration command | User must consciously propagate schema changes, prevents accidents | — Pending |
-| Distribute tooling between sync/gateway | Avoid third module complexity, leverage existing architecture | — Pending |
+| PostgreSQL as single source of truth | Destination schema is what ultimately matters for data integrity | Implemented (v1.0) |
+| Gateway exposes schemas via HTTP | Sync needs access to schemas but runs on different server | Implemented (v1.0) |
+| Manual regeneration command | User must consciously propagate schema changes, prevents accidents | Implemented (v1.0) |
+| Distribute tooling between sync/gateway | Avoid third module complexity, leverage existing architecture | Implemented (v1.0) |
+
+## Completed Milestones
+
+| Milestone | Goal | Completed | Archive |
+|-----------|------|-----------|---------|
+| v1.0 | Schema-driven synchronization control | 2026-02-03 | `.planning/archive/v1.0-MILESTONE.md` |
 
 ---
-*Last updated: 2026-01-26 after initialization*
+*Last updated: 2026-02-03 after v1.0 milestone completion*
