@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --ignore 'prisma/schema.prisma' --ignore 'shared/schemas/**' src/server.ts",
+    "dev": "tsx watch --ignore 'prisma/**' --ignore 'shared/schemas/**' --ignore 'node_modules/.prisma/**' src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "vitest",
