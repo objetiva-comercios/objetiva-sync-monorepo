@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: CLI Code Regeneration** - Automated Prisma/Zod schema generation from PostgreSQL
 - [x] **Phase 4: Enhanced Query Validation** - Sync validates queries against live gateway schemas
 - [x] **Phase 5: Integration Testing & Hardening** - End-to-end validation and production reliability
+- [ ] **Phase 6: CLI E2E Verification** - Verify regenerate-schemas command executes successfully end-to-end
 
 ## Phase Details
 
@@ -108,12 +109,31 @@ Plans:
 - [x] 05-02-PLAN.md -- Schema change propagation + validation error tests
 - [x] 05-03-PLAN.md -- Gateway logging enhancement for batch ingestion
 - [x] 05-04-PLAN.md -- SSE real-time log streaming + dashboard updates
-- [ ] 05-05-PLAN.md -- Gap closure: fix blocking bugs in sync-logs-repo and SSE test setup
+- [x] 05-05-PLAN.md -- Gap closure: fix blocking bugs in sync-logs-repo and SSE test setup
+
+### Phase 6: CLI E2E Verification
+**Goal**: Verify CLI regenerate-schemas command executes successfully end-to-end with running gateway
+**Depends on**: Phase 3, Phase 5
+**Requirements**: CLI-01 (runtime verification), CLI-03 (runtime verification)
+**Gap Closure**: Closes Phase 3 verification gap from v1.0 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. Gateway starts successfully with PostgreSQL connection established
+  2. Environment variables (GATEWAY_URL, SYNC_USERNAME, SYNC_PASSWORD) configured correctly
+  3. CLI authenticates successfully with gateway and receives JWT token
+  4. CLI fetches all entity schemas from /api/schemas endpoint
+  5. --dry-run mode displays diffs without modifying files
+  6. CLI writes schema.prisma and Zod files when run without --dry-run
+  7. prisma generate executes successfully and outputs "Generated Prisma Client"
+  8. Generated files match expected structure from Phase 3 code review
+**Plans**: TBD (to be planned)
+
+Plans:
+- [ ] 06-01-PLAN.md -- TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -122,3 +142,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. CLI Code Regeneration | 3/3 | Complete | 2026-01-30 |
 | 4. Enhanced Query Validation | 2/2 | Complete | 2026-01-30 |
 | 5. Integration Testing & Hardening | 5/5 | Complete | 2026-01-31 |
+| 6. CLI E2E Verification | 0/? | Pending | - |
