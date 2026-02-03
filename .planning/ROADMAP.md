@@ -57,11 +57,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Sync with batch sizes 200 and 500 completes without degradation compared to batch size 100
   3. When sync fails, the error message shows the specific root cause (timeout location, HTTP status, connection error) instead of generic "Error al ejecutar"
   4. The ~60s time-based failure no longer occurs -- sync duration scales with record count, not a fixed wall-clock limit
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md - Diagnose and fix the ~60s timeout root cause
-- [ ] 08-02-PLAN.md - Error message enrichment and large batch validation
+- [ ] 08-01-PLAN.md -- SSE heartbeat, SQL Server timeout increase, batch delay reduction, nginx config
+- [ ] 08-02-PLAN.md -- Error classification utility and fetch timeout (AbortSignal.timeout) for all API clients
+- [ ] 08-03-PLAN.md -- Gateway ingestion bulk optimization (replace N+1 with createMany + $transaction)
 
 ### Phase 9: Tech Debt Cleanup
 **Goal**: Codebase compiles cleanly, uses generated schemas consistently, and contains no development garbage
@@ -131,7 +132,7 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 8. Sync Reliability | v1.1-rc | 0/2 | Not started | - |
+| 8. Sync Reliability | v1.1-rc | 0/3 | Planned | - |
 | 9. Tech Debt Cleanup | v1.1-rc | 0/2 | Not started | - |
 | 10. Incremental Sync | v1.1-rc | 0/2 | Not started | - |
 | 11. Deployment Configuration | v1.1-rc | 0/1 | Not started | - |
