@@ -111,9 +111,17 @@ CLI E2E integration tests prove regenerate-schemas command works end-to-end agai
 - **Verification:** E003 and E004 tests pass reliably
 - **Commit:** 021efaf
 
+**5. [Rule 1 - Bug] Fixed tsx watch restart during error tests**
+- **Found during:** Post-checkpoint test execution
+- **Issue:** CLI runner renamed .env during E001/E002 tests, causing tsx watch to restart gateway and fail
+- **Fix:** Added SKIP_DOTENV env var to CLI, runner sets it for error tests instead of renaming .env
+- **Files modified:** scripts/regenerate-schemas.ts, tests/helpers/cli-runner.ts
+- **Verification:** Tests pass without causing gateway restart
+- **Commit:** b6cb04d
+
 ---
 
-**Total deviations:** 4 auto-fixed (4 bugs)
+**Total deviations:** 5 auto-fixed (5 bugs)
 **Impact on plan:** All fixes necessary for test reliability. No scope creep.
 
 ## Decisions Made
@@ -130,6 +138,7 @@ CLI E2E integration tests prove regenerate-schemas command works end-to-end agai
 | da2d7d4 | test | Add CLI runner helper and test environment |
 | ffbaf86 | test | Add CLI E2E integration tests |
 | 021efaf | fix | Correct CLI E2E test assertions |
+| b6cb04d | fix | Prevent tsx watch restarts during CLI error tests |
 
 ## Performance
 
