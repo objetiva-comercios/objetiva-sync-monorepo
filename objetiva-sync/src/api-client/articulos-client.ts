@@ -10,6 +10,9 @@ import { articuloPayloadSchema } from '../types/articulos.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
 import { SYNC_CONFIG } from '../config/constants.js';
+import { classifyError } from '../utils/error-classifier.js';
+
+const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 
 /**
  * Cliente para enviar artículos a la API remota
@@ -91,12 +94,18 @@ export class ArticulosClient {
         }
       }
 
+      // Combine cancellation signal with timeout signal
+      const timeoutSignal = AbortSignal.timeout(BATCH_REQUEST_TIMEOUT_MS);
+      const combinedSignal = abortSignal
+        ? AbortSignal.any([abortSignal, timeoutSignal])
+        : timeoutSignal;
+
       // Enviar request con datos transformados y abort signal
       const response = await fetch(`${this.baseUrl}/api/articulos/batch`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ articulos: transformedArticulos }),
-        signal: abortSignal,
+        signal: combinedSignal,
       });
 
       // Siempre leer el cuerpo de la respuesta primero
@@ -184,32 +193,16 @@ export class ArticulosClient {
         errors: errors,
       };
     } catch (error) {
-      // Si fue cancelado, retornar error específico
-      if (error instanceof Error && error.name === 'AbortError') {
-        logger.warn('[ArticulosClient] Batch cancelado por el usuario');
-        return {
-          success: false,
-          inserted: 0,
-          updated: 0,
-          errors: [
-            {
-              index: -1,
-              identifier: 'BATCH_CANCELED',
-              error: 'Sincronización cancelada por el usuario',
-              code: 'SYNC_CANCELED',
-            },
-          ],
-        };
-      }
+      const classified = classifyError(error);
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-
+      // Log with classification
       logger.error({
-        errorMessage,
-        errorStack,
+        errorCode: classified.code,
+        errorMessage: classified.message,
+        rootCause: classified.rootCause,
+        isRetryable: classified.isRetryable,
         errorType: error?.constructor?.name,
-      }, '[ArticulosClient] ❌ Error al enviar batch');
+      }, `[ArticulosClient] Error al enviar batch: [${classified.code}] ${classified.message}`);
 
       return {
         success: false,
@@ -218,9 +211,9 @@ export class ArticulosClient {
         errors: [
           {
             index: -1,
-            identifier: 'BATCH_ERROR',
-            error: errorMessage,
-            code: 'SEND_BATCH_ERROR',
+            identifier: classified.code,
+            error: `${classified.message} | Causa: ${classified.rootCause}`,
+            code: classified.code,
           },
         ],
       };

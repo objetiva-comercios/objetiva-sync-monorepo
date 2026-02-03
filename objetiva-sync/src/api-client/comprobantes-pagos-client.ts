@@ -10,6 +10,9 @@ import { comprobantePagoPayloadSchema } from '../types/comprobantes-pagos.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
 import { SYNC_CONFIG } from '../config/constants.js';
+import { classifyError } from '../utils/error-classifier.js';
+
+const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 
 /**
  * Cliente para enviar pagos de comprobantes a la API remota
@@ -26,7 +29,17 @@ export class ComprobantesPagosClient {
   /**
    * Envía un batch de pagos de comprobantes a la API
    */
-  async sendBatch(pagos: IComprobantePagosPayload[]): Promise<BatchResult> {
+  async sendBatch(
+    pagos: IComprobantePagosPayload[],
+    metadata?: {
+      queryId: number;
+      queryName: string;
+      syncId?: string;
+      batchNumber?: number;
+      totalBatches?: number;
+    },
+    abortSignal?: AbortSignal
+  ): Promise<BatchResult> {
     if (pagos.length === 0) {
       return {
         success: true,
@@ -56,6 +69,12 @@ export class ComprobantesPagosClient {
       // Obtener token
       const token = await this.authManager.getToken();
 
+      // Combine cancellation signal with timeout signal
+      const timeoutSignal = AbortSignal.timeout(BATCH_REQUEST_TIMEOUT_MS);
+      const combinedSignal = abortSignal
+        ? AbortSignal.any([abortSignal, timeoutSignal])
+        : timeoutSignal;
+
       // Enviar request
       const response = await fetch(`${this.baseUrl}/api/comprobantes/pagos/batch`, {
         method: 'POST',
@@ -64,6 +83,7 @@ export class ComprobantesPagosClient {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ comprobantes_pagos: pagos }),
+        signal: combinedSignal,
       });
 
       // Siempre leer el cuerpo de la respuesta primero
@@ -127,7 +147,16 @@ export class ComprobantesPagosClient {
         errors: errors,
       };
     } catch (error) {
-      logger.error({ error }, '[ComprobantesPagosClient] ❌ Error al enviar batch');
+      const classified = classifyError(error);
+
+      // Log with classification
+      logger.error({
+        errorCode: classified.code,
+        errorMessage: classified.message,
+        rootCause: classified.rootCause,
+        isRetryable: classified.isRetryable,
+        errorType: error?.constructor?.name,
+      }, `[ComprobantesPagosClient] Error al enviar batch: [${classified.code}] ${classified.message}`);
 
       return {
         success: false,
@@ -136,9 +165,9 @@ export class ComprobantesPagosClient {
         errors: [
           {
             index: -1,
-            identifier: 'BATCH_ERROR',
-            error: error instanceof Error ? error.message : String(error),
-            code: 'SEND_BATCH_ERROR',
+            identifier: classified.code,
+            error: `${classified.message} | Causa: ${classified.rootCause}`,
+            code: classified.code,
           },
         ],
       };

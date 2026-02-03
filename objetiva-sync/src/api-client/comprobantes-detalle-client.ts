@@ -10,6 +10,9 @@ import { comprobanteDetallePayloadSchema } from '../types/comprobantes-detalle.j
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
 import { SYNC_CONFIG } from '../config/constants.js';
+import { classifyError } from '../utils/error-classifier.js';
+
+const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 
 /**
  * Cliente para enviar detalles de comprobantes a la API remota
@@ -113,12 +116,18 @@ export class ComprobantesDetalleClient {
         '[ComprobantesDetalleClient DEBUG] JSON exacto a enviar'
       );
 
+      // Combine cancellation signal with timeout signal
+      const timeoutSignal = AbortSignal.timeout(BATCH_REQUEST_TIMEOUT_MS);
+      const combinedSignal = abortSignal
+        ? AbortSignal.any([abortSignal, timeoutSignal])
+        : timeoutSignal;
+
       // Enviar request con abort signal
       const response = await fetch(`${this.baseUrl}/api/comprobantes/detalle/batch`, {
         method: 'POST',
         headers,
         body: jsonBody,
-        signal: abortSignal,
+        signal: combinedSignal,
       });
 
       // IMPORTANTE: Siempre leer el body primero, incluso si hay error
@@ -194,25 +203,16 @@ export class ComprobantesDetalleClient {
         errors: errors,
       };
     } catch (error) {
-      // Si fue cancelado, retornar error específico
-      if (error instanceof Error && error.name === 'AbortError') {
-        logger.warn('[ComprobantesDetalleClient] Batch cancelado por el usuario');
-        return {
-          success: false,
-          inserted: 0,
-          updated: 0,
-          errors: [
-            {
-              index: -1,
-              identifier: 'BATCH_CANCELED',
-              error: 'Sincronización cancelada por el usuario',
-              code: 'SYNC_CANCELED',
-            },
-          ],
-        };
-      }
+      const classified = classifyError(error);
 
-      logger.error({ error }, '[ComprobantesDetalleClient] ❌ Error al enviar batch');
+      // Log with classification
+      logger.error({
+        errorCode: classified.code,
+        errorMessage: classified.message,
+        rootCause: classified.rootCause,
+        isRetryable: classified.isRetryable,
+        errorType: error?.constructor?.name,
+      }, `[ComprobantesDetalleClient] Error al enviar batch: [${classified.code}] ${classified.message}`);
 
       return {
         success: false,
@@ -221,9 +221,9 @@ export class ComprobantesDetalleClient {
         errors: [
           {
             index: -1,
-            identifier: 'BATCH_ERROR',
-            error: error instanceof Error ? error.message : String(error),
-            code: 'SEND_BATCH_ERROR',
+            identifier: classified.code,
+            error: `${classified.message} | Causa: ${classified.rootCause}`,
+            code: classified.code,
           },
         ],
       };
