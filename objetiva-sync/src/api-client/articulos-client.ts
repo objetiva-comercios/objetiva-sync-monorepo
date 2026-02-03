@@ -1,0 +1,356 @@
+/**
+ * Cliente para el endpoint de artículos
+ */
+
+import { fetch } from 'undici';
+import type { AuthManager } from './auth.js';
+import type { IArticuloPayload } from '../types/articulos.js';
+import type { BatchResult, APIResponse } from '../types/common.js';
+import { articuloPayloadSchema } from '../types/articulos.js';
+import { logger } from '../utils/logger.js';
+import { chunk } from '../utils/helpers.js';
+import { SYNC_CONFIG } from '../config/constants.js';
+
+/**
+ * Cliente para enviar artículos a la API remota
+ */
+export class ArticulosClient {
+  private baseUrl: string;
+  private authManager: AuthManager;
+
+  constructor(baseUrl: string, authManager: AuthManager) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.authManager = authManager;
+  }
+
+  /**
+   * Envía un batch de artículos a la API
+   */
+  async sendBatch(
+    articulos: IArticuloPayload[],
+    metadata?: {
+      queryId: number;
+      queryName: string;
+      syncId?: string;
+      batchNumber?: number;
+      totalBatches?: number;
+    },
+    abortSignal?: AbortSignal
+  ): Promise<BatchResult> {
+    if (articulos.length === 0) {
+      return {
+        success: true,
+        inserted: 0,
+        updated: 0,
+        errors: [],
+      };
+    }
+
+    try {
+      const logContext = metadata
+        ? `[ArticulosClient] [Query: ${metadata.queryName}] Enviando batch de ${articulos.length} artículos...`
+        : `[ArticulosClient] Enviando batch de ${articulos.length} artículos...`;
+
+      logger.info(logContext);
+
+      // Validar y transformar artículos antes de enviar
+      const transformResult = this.validateAndTransformBatch(articulos);
+      if (transformResult.errors.length > 0) {
+        logger.error({ validationErrors: transformResult.errors }, '[ArticulosClient] Errores de validación');
+        return {
+          success: false,
+          inserted: 0,
+          updated: 0,
+          errors: transformResult.errors,
+        };
+      }
+
+      // Usar los artículos transformados (con conversiones de tipo aplicadas)
+      const transformedArticulos = transformResult.data;
+
+      // Obtener token
+      const token = await this.authManager.getToken();
+
+      // Preparar headers con metadata de query
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      // Agregar headers de query metadata si están disponibles
+      if (metadata) {
+        headers['X-Query-Id'] = metadata.queryId.toString();
+        headers['X-Query-Name'] = metadata.queryName;
+
+        if (metadata.syncId) {
+          headers['X-Sync-Id'] = metadata.syncId;
+        }
+        if (metadata.batchNumber !== undefined && metadata.totalBatches !== undefined) {
+          headers['X-Batch-Number'] = metadata.batchNumber.toString();
+          headers['X-Total-Batches'] = metadata.totalBatches.toString();
+        }
+      }
+
+      // Enviar request con datos transformados y abort signal
+      const response = await fetch(`${this.baseUrl}/api/articulos/batch`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ articulos: transformedArticulos }),
+        signal: abortSignal,
+      });
+
+      // Siempre leer el cuerpo de la respuesta primero
+      const data = (await response.json()) as any;
+
+      // Log de la respuesta para debugging
+      logger.info({
+        status: response.status,
+        success: data.success,
+        dataKeys: Object.keys(data),
+        sampleData: {
+          message: data.message,
+          error: data.error,
+          inserted: data.data?.inserted,
+          updated: data.data?.updated,
+          errorsCount: data.data?.errors?.length,
+        }
+      }, '[ArticulosClient] Respuesta de la gateway');
+
+      // ✅ Manejo de 207 Multi-Status (éxito parcial)
+      if (response.status === 207) {
+        const result = data.data || data.result;
+
+        if (!result) {
+          throw new Error('No data in 207 Multi-Status response');
+        }
+
+        logger.warn({
+          inserted: result.inserted || 0,
+          updated: result.updated || 0,
+          errors: result.errors?.length || 0,
+        }, '[ArticulosClient] ⚠️ Batch con éxito parcial (207 Multi-Status)');
+
+        // Retornar resultado parcial (success=false indica que hubo errores)
+        return {
+          success: false, // Hay errores, no es 100% exitoso
+          inserted: result.inserted || 0,
+          updated: result.updated || 0,
+          errors: result.errors || [],
+        };
+      }
+
+      // Si la respuesta no es OK, leer el mensaje de error del cuerpo
+      if (!response.ok) {
+        const errorMsg = data.error || data.message || response.statusText;
+        const details = data.details ? JSON.stringify(data.details, null, 2) : '';
+        throw new Error(`HTTP ${response.status}: ${errorMsg}${details ? '\n' + details : ''}`);
+      }
+
+      if (!data.success) {
+        // La gateway puede devolver error y details en lugar de message
+        const errorMsg = data.error || data.message || 'Unknown error';
+        const details = data.details ? JSON.stringify(data.details, null, 2) : '';
+        const fullData = JSON.stringify(data, null, 2);
+        logger.warn({ fullData }, '[ArticulosClient] Gateway retornó success:false');
+        throw new Error(`${errorMsg}${details ? '\n' + details : ''}`);
+      }
+
+      // La gateway puede devolver los datos en 'data' o en 'result'
+      const result = data.data || data.result;
+
+      if (!result) {
+        throw new Error('No data in response');
+      }
+
+      // Log completo del resultado para debugging
+      logger.info({ fullResult: JSON.stringify(result, null, 2) }, '[ArticulosClient] Resultado completo de la gateway');
+
+      // Normalizar resultado del gateway (puede venir como "failed" o "errors")
+      const errors = result.errors || [];
+      const failedCount = result.failed || 0;
+
+      logger.info({
+        inserted: result.inserted || 0,
+        updated: result.updated || 0,
+        errors: errors.length || failedCount,
+      }, '[ArticulosClient] ✅ Batch enviado');
+
+      // success=true solo si NO hay errores (100% exitoso)
+      const hasErrors = errors.length > 0 || failedCount > 0;
+      return {
+        success: !hasErrors,
+        inserted: result.inserted || 0,
+        updated: result.updated || 0,
+        errors: errors,
+      };
+    } catch (error) {
+      // Si fue cancelado, retornar error específico
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.warn('[ArticulosClient] Batch cancelado por el usuario');
+        return {
+          success: false,
+          inserted: 0,
+          updated: 0,
+          errors: [
+            {
+              index: -1,
+              identifier: 'BATCH_CANCELED',
+              error: 'Sincronización cancelada por el usuario',
+              code: 'SYNC_CANCELED',
+            },
+          ],
+        };
+      }
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
+      logger.error({
+        errorMessage,
+        errorStack,
+        errorType: error?.constructor?.name,
+      }, '[ArticulosClient] ❌ Error al enviar batch');
+
+      return {
+        success: false,
+        inserted: 0,
+        updated: 0,
+        errors: [
+          {
+            index: -1,
+            identifier: 'BATCH_ERROR',
+            error: errorMessage,
+            code: 'SEND_BATCH_ERROR',
+          },
+        ],
+      };
+    }
+  }
+
+  /**
+   * Envía múltiples artículos dividiéndolos en batches
+   */
+  async sendMultiple(
+    articulos: IArticuloPayload[],
+    batchSize: number = SYNC_CONFIG.BATCH_SIZE_DEFAULT
+  ): Promise<BatchResult> {
+    if (articulos.length === 0) {
+      return {
+        success: true,
+        inserted: 0,
+        updated: 0,
+        errors: [],
+      };
+    }
+
+    logger.info(
+      `[ArticulosClient] Enviando ${articulos.length} artículos en batches de ${batchSize}...`
+    );
+
+    // Dividir en batches
+    const batches = chunk(articulos, batchSize);
+
+    // Resultado acumulado
+    const totalResult: BatchResult = {
+      success: true,
+      inserted: 0,
+      updated: 0,
+      errors: [],
+    };
+
+    // Enviar cada batch
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      if (!batch) continue;
+
+      logger.info(`[ArticulosClient] Enviando batch ${i + 1}/${batches.length}...`);
+
+      const result = await this.sendBatch(batch);
+
+      // Acumular resultados
+      totalResult.inserted += result.inserted;
+      totalResult.updated += result.updated;
+      totalResult.errors.push(...result.errors);
+
+      if (!result.success) {
+        totalResult.success = false;
+      }
+    }
+
+    logger.info({
+      batches: batches.length,
+      inserted: totalResult.inserted,
+      updated: totalResult.updated,
+      errors: totalResult.errors.length,
+    }, '[ArticulosClient] ✅ Envío múltiple completado');
+
+    return totalResult;
+  }
+
+  /**
+   * Valida y transforma un batch de artículos
+   * Aplica las transformaciones del schema (ej: number -> string)
+   */
+  private validateAndTransformBatch(articulos: IArticuloPayload[]): {
+    data: IArticuloPayload[];
+    errors: BatchResult['errors'];
+  } {
+    const errors: BatchResult['errors'] = [];
+    const transformed: IArticuloPayload[] = [];
+
+    for (let i = 0; i < articulos.length; i++) {
+      const articulo = articulos[i];
+      const validation = articuloPayloadSchema.safeParse(articulo);
+
+      if (!validation.success) {
+        errors.push({
+          index: i,
+          identifier: articulo?.sku ?? `ARTICULO_${i}`,
+          error: 'Validación fallida: ' + validation.error.message,
+          code: 'VALIDATION_ERROR',
+        });
+      } else {
+        // Usar los datos transformados (con conversiones de tipo aplicadas)
+        transformed.push(validation.data);
+      }
+    }
+
+    return { data: transformed, errors };
+  }
+
+  /**
+   * Prueba la conexión enviando un artículo de prueba
+   */
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    try {
+      const testArticulo: IArticuloPayload = {
+        sku: 'TEST-001',
+        nombre: 'Artículo de prueba',
+        objeto: 'producto',
+      };
+
+      // Solo validar, no enviar realmente
+      const validation = articuloPayloadSchema.safeParse(testArticulo);
+
+      if (!validation.success) {
+        return {
+          success: false,
+          message: 'Validación fallida: ' + validation.error.message,
+        };
+      }
+
+      // Verificar que tenemos token
+      await this.authManager.getToken();
+
+      return {
+        success: true,
+        message: 'Conexión OK. Token válido.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+}
