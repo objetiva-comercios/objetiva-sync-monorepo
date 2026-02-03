@@ -1,78 +1,68 @@
-# Requirements: Objetiva Sync - Schema-Driven Control
+# Requirements: Objetiva Sync - Release Candidate
 
-**Defined:** 2026-01-26
+**Defined:** 2026-02-03
 **Core Value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
 
-## v1 Requirements
+## v1.1-rc Requirements
 
-### Gateway Schema Endpoint
+Requirements for release candidate. Each maps to roadmap phases.
 
-- [x] **SCHEMA-01**: Gateway exposes GET /api/schemas endpoint returning all entity schemas
-- [x] **SCHEMA-02**: Gateway exposes GET /api/schemas/:entity endpoint for single entity
-- [x] **SCHEMA-03**: Schema endpoints require JWT authentication
-- [x] **SCHEMA-04**: Schema responses cached with 1-hour TTL
-- [x] **SCHEMA-05**: Schema metadata includes column names, types, nullability, constraints
+### Sync Reliability
 
-### CLI Introspection & Regeneration
+- [ ] **SYNC-01**: Sync completes full dataset (100K+ records) without timeout or crash
+- [ ] **SYNC-02**: Timeout root cause identified and fixed (currently fails at ~60s)
+- [ ] **SYNC-03**: Sync error messages include root cause detail (not generic "Error al ejecutar")
+- [ ] **SYNC-04**: Large batch sizes (200, 500) work without degradation
 
-- [x] **CLI-01**: CLI command `npm run regenerate-schemas` introspects PostgreSQL
-- [x] **CLI-02**: CLI generates/updates prisma/schema.prisma from introspection
-- [x] **CLI-03**: CLI automatically runs `prisma generate` after schema update
-- [x] **CLI-04**: CLI generates Zod schemas from Prisma models
-- [x] **CLI-05**: CLI displays diff summary before writing files
-- [x] **CLI-06**: CLI supports dry-run mode to preview changes
-- [x] **CLI-07**: CLI supports entity-specific regeneration flag
+### Incremental Sync
 
-### Sync Query Validation
+- [ ] **INCR-01**: Sync tracks last successful sync timestamp per entity
+- [ ] **INCR-02**: Subsequent syncs fetch only records modified since last sync
+- [ ] **INCR-03**: Incremental sync works reliably for all 4 entity types
+- [ ] **INCR-04**: Full sync remains available as manual override option
 
-- [x] **VALID-01**: Sync fetches schemas from gateway /api/schemas endpoint
-- [x] **VALID-02**: Sync caches schemas locally with TTL-based refresh
-- [x] **VALID-03**: Query validator validates SQL structure against live schema
-- [x] **VALID-04**: Validator detects missing required fields
-- [x] **VALID-05**: Validator detects unexpected extra fields
-- [x] **VALID-06**: Validator detects field type mismatches
-- [x] **VALID-07**: Validator provides field-level error messages with suggestions
-- [x] **VALID-08**: Query validation runs before saving query in dashboard
+### Tech Debt & Cleanup
 
-### Integration Testing
+- [ ] **DEBT-01**: Gateway compiles with zero TypeScript errors
+- [ ] **DEBT-02**: Ingestion uses generated schemas instead of manual imports
+- [ ] **DEBT-03**: Remove temporary scripts, isolated .md files, and development garbage
+- [ ] **DEBT-04**: Clean unused backup files and debug artifacts across both modules
 
-- [x] **TEST-01**: Integration test for articulos full sync flow
-- [x] **TEST-02**: Integration test for comprobantes_cabecera full sync flow
-- [x] **TEST-03**: Integration test for comprobantes_detalle full sync flow
-- [x] **TEST-04**: Integration test for comprobantes_pagos full sync flow
-- [x] **TEST-05**: Test schema change propagation (add column scenario)
-- [x] **TEST-06**: Test validation error reporting and formatting
+### Deployment
 
-### Gateway Logging
+- [ ] **DEPL-01**: Deployment scripts for both sync and gateway modules
+- [ ] **DEPL-02**: Environment configuration templates (.env.example) complete and documented
 
-- [x] **LOG-01**: Gateway accurately logs successful batch ingestion
-- [x] **LOG-02**: Gateway accurately logs failed batch ingestion with errors
-- [x] **LOG-03**: Gateway dashboard displays sync logs in real-time
-- [x] **LOG-04**: Log refresh mechanism works reliably without complex polling
+### Robustness
 
-## v2 Requirements
+- [ ] **ROBU-01**: End-to-end workflow validated: schema change → regeneration → validation → sync
+- [ ] **ROBU-02**: Error recovery works across the pipeline (retry, graceful degradation)
 
-### Advanced Validation
+## Future Requirements
+
+Deferred to future milestones. Tracked but not in current roadmap.
+
+### Advanced Validation (from v1.0 backlog)
 
 - **VALID-09**: Schema version checking between sync and gateway
 - **VALID-10**: Fuzzy matching for field name suggestions
 - **VALID-11**: Dynamic SQL validation at runtime
 - **VALID-12**: Parameterized query type validation
 
-### CLI Enhancements
+### CLI Enhancements (from v1.0 backlog)
 
 - **CLI-08**: Automated staleness detection with pre-commit hooks
 - **CLI-09**: Schema drift detection comparing current vs snapshot
 - **CLI-10**: Breaking vs non-breaking change classification
 
-### Performance & Monitoring
+### Performance & Monitoring (from v1.0 backlog)
 
 - **PERF-01**: Schema endpoint response time monitoring
 - **PERF-02**: Query validation latency tracking
 - **PERF-03**: Cache hit/miss rate metrics
 - **PERF-04**: Schema introspection duration tracking
 
-### Distributed System Features
+### Distributed System Features (from v1.0 backlog)
 
 - **DIST-01**: Circuit breaker for schema endpoint failures
 - **DIST-02**: Graceful degradation when gateway unreachable
@@ -83,13 +73,11 @@
 
 | Feature | Reason |
 |---------|--------|
-| Automatic query rewriting | High complexity, low reliability - better to fail loudly than fix incorrectly |
-| Real-time schema synchronization | Schema changes should be deliberate, not reactive - requires manual trigger for safety |
-| Automatic migration generation | Database migrations are high-risk - use existing Prisma Migrate tools |
-| Schema rollback/time travel | Database-level feature - use PostgreSQL backups instead |
-| Visual schema editor | Sync system consumes schema, doesn't author it - use pgAdmin/DBeaver |
-| Multi-database schema unification | Out of scope for PostgreSQL-specific system - adds unnecessary complexity |
-| Embedded SQL query builder | Users already write SQL - validation is goal, not query construction |
+| Automatic query rewriting | Too risky, user must review changes |
+| Real-time schema synchronization | Manual control preferred |
+| Multi-environment management | Single production environment |
+| Full monitoring dashboard overhaul | Current React dashboard sufficient for RC |
+| Database migration tooling | Use existing Prisma Migrate |
 
 ## Traceability
 
@@ -97,42 +85,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCHEMA-01 | Phase 2 | Complete |
-| SCHEMA-02 | Phase 2 | Complete |
-| SCHEMA-03 | Phase 2 | Complete |
-| SCHEMA-04 | Phase 2 | Complete |
-| SCHEMA-05 | Phase 1 | Complete |
-| CLI-01 | Phase 3 | Complete |
-| CLI-02 | Phase 3 | Complete |
-| CLI-03 | Phase 3 | Complete |
-| CLI-04 | Phase 3 | Complete |
-| CLI-05 | Phase 3 | Complete |
-| CLI-06 | Phase 3 | Complete |
-| CLI-07 | Phase 3 | Complete |
-| VALID-01 | Phase 4 | Complete |
-| VALID-02 | Phase 4 | Complete |
-| VALID-03 | Phase 4 | Complete |
-| VALID-04 | Phase 4 | Complete |
-| VALID-05 | Phase 4 | Complete |
-| VALID-06 | Phase 4 | Complete |
-| VALID-07 | Phase 4 | Complete |
-| VALID-08 | Phase 4 | Complete |
-| TEST-01 | Phase 5 | Complete |
-| TEST-02 | Phase 5 | Complete |
-| TEST-03 | Phase 5 | Complete |
-| TEST-04 | Phase 5 | Complete |
-| TEST-05 | Phase 5 | Complete |
-| TEST-06 | Phase 5 | Complete |
-| LOG-01 | Phase 5 | Complete |
-| LOG-02 | Phase 5 | Complete |
-| LOG-03 | Phase 5 | Complete |
-| LOG-04 | Phase 5 | Complete |
+| SYNC-01 | — | Pending |
+| SYNC-02 | — | Pending |
+| SYNC-03 | — | Pending |
+| SYNC-04 | — | Pending |
+| INCR-01 | — | Pending |
+| INCR-02 | — | Pending |
+| INCR-03 | — | Pending |
+| INCR-04 | — | Pending |
+| DEBT-01 | — | Pending |
+| DEBT-02 | — | Pending |
+| DEBT-03 | — | Pending |
+| DEBT-04 | — | Pending |
+| DEPL-01 | — | Pending |
+| DEPL-02 | — | Pending |
+| ROBU-01 | — | Pending |
+| ROBU-02 | — | Pending |
 
 **Coverage:**
-- v1 requirements: 30 total
-- Mapped to phases: 30
-- Unmapped: 0 ✓
+- v1.1-rc requirements: 16 total
+- Mapped to phases: 0
+- Unmapped: 16 (pending roadmap creation)
 
 ---
-*Requirements defined: 2026-01-26*
-*Last updated: 2026-01-31 after Phase 5 completion*
+*Requirements defined: 2026-02-03*
+*Last updated: 2026-02-03 after initial definition*
