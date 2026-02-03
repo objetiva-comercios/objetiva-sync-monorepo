@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 8 of 12 (Sync Reliability) -- first phase of v1.1-rc milestone
-Plan: 3 of 4 completed
+Plan: 1 of 4 completed
 Status: In progress
-Last activity: 2026-02-03 -- Completed 08-03: Gateway Bulk Ingestion
+Last activity: 2026-02-03 -- Completed 08-01: SSE Heartbeat & Timeout Fixes
 
-Progress: [###############░░░░░] 75% (v1.0 complete, v1.1-rc 3/4 plans done in Phase 8)
+Progress: [###############░░░░░] 72% (v1.0 complete, v1.1-rc 1/4 plans done in Phase 8)
 
 ## Performance Metrics
 
@@ -25,8 +25,8 @@ Progress: [###############░░░░░] 75% (v1.0 complete, v1.1-rc 3/4 plans
 
 **v1.1-rc:**
 - Plans estimated: 9 across 5 phases
-- Plans completed: 3 (08-01, 08-02, 08-03)
-- Average duration: ~5min per plan
+- Plans completed: 1 (08-01)
+- Average duration: ~6min per plan
 
 ## Accumulated Context
 
@@ -34,20 +34,22 @@ Progress: [###############░░░░░] 75% (v1.0 complete, v1.1-rc 3/4 plans
 
 All v1.0 decisions archived in `.planning/archive/v1.0-MILESTONE.md`.
 
-v1.1-rc decisions:
-- Phase numbering continues from v1.0 (start at 8)
-- Sync timeout fix is critical blocker, must be Phase 8
-- Tech debt (Phase 9) is independent, can parallel with Phase 8
-- Use createMany with skipDuplicates for bulk inserts (08-03)
-- Use $transaction for bulk updates (08-03)
-- Composite key string maps for O(1) lookup performance (08-03)
-- Graceful fallback to individual operations if bulk fails (08-03)
+**v1.1-rc decisions (Phase 8):**
+
+| Decision | Phase-Plan | Rationale |
+|----------|------------|-----------|
+| Phase numbering continues from v1.0 (start at 8) | Roadmap | Maintain continuity with v1.0 milestone |
+| Sync timeout fix is critical blocker, must be Phase 8 | Roadmap | Blocks production use of sync feature |
+| 15s SSE heartbeat interval | 08-01 | Stays well under typical 60s proxy timeouts |
+| 120s SQL Server timeout | 08-01 | Allows 100K+ row queries over network |
+| 100ms batch delay (down from 500ms) | 08-01 | 5x throughput improvement while maintaining backpressure |
+| proxy_buffering off for SSE | 08-01 | Critical for real-time event delivery |
 
 ### Known Issues
 
-1. **Sync timeout bug** -- Manual sync fails after ~60s regardless of batch size. With batch 100: 67 batches (6700 records, 51.9s). With batch 200: 53 batches (10600 records, 59.1s). With batch 500: 20 batches (10000 records, 1.3m). Time-based failure, not record-count.
-2. **Gateway TypeScript errors** -- Prisma schema mismatches, Fastify type issues
-3. **Ingestion manual schemas** -- Uses hardcoded schemas instead of generated ones
+1. **Sync timeout bug** -- ~~Manual sync fails after ~60s regardless of batch size~~ **FIXED IN 08-01** via SSE heartbeat, increased SQL Server timeout, and nginx config
+2. **Gateway TypeScript errors** -- Prisma schema mismatches, Fastify type issues (Phase 9 scope)
+3. **Ingestion manual schemas** -- Uses hardcoded schemas instead of generated ones (Phase 9 scope)
 
 ### Pending Todos
 
@@ -55,11 +57,11 @@ None.
 
 ### Blockers/Concerns
 
-None -- ready to begin Phase 8 planning.
+None - 08-01 complete, ready for 08-02 (Error Classification).
 
 ## Session Continuity
 
-Last session: 2026-02-03 -- Completed 08-03
-Stopped at: Completed 08-03-PLAN.md (Gateway Bulk Ingestion)
+Last session: 2026-02-03 18:35 UTC
+Stopped at: Completed 08-01-PLAN.md (SSE Heartbeat & Timeout Fixes)
 Resume file: None
-Next: Plan 08-04 (Timeout Fix) - increase batch size, verify timeout resolved
+Next: Plan 08-02 (Error Classification) - retry logic and error handling
