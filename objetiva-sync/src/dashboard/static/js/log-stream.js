@@ -161,8 +161,8 @@
 
   // Initialize on page load
   document.addEventListener('DOMContentLoaded', function() {
-    // Only connect on logs page
-    if (document.querySelector('#logs-table')) {
+    // Only connect on logs page (check for logs-container which exists immediately)
+    if (document.querySelector('#logs-container')) {
       connect();
     }
   });
