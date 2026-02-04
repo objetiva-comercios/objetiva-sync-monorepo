@@ -20,6 +20,8 @@ import { syncStateManager } from '../../../sync/sync-state-manager.js';
 import { getSyncQueue } from '../../../sync/sync-queue-instance.js';
 import { notifyGatewayCancellation } from '../../../services/gateway-client.js';
 import { v4 as uuidv4 } from 'uuid';
+import * as SyncStateRepo from '../../../store/repositories/sync-state-repo.js';
+import * as SyncLogsRepo from '../../../store/repositories/sync-logs-repo.js';
 
 /**
  * Registra las rutas de API de sincronización
@@ -573,7 +575,10 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
           delayBetweenBatches: SYNC_CONFIG.DELAY_BETWEEN_BATCHES_MS,
           onProgress: (progressData) => {
             // Enviar evento SSE
-            sendEvent('progress', progressData);
+            sendEvent('progress', {
+              ...progressData,
+              syncType: progressData.syncType || (fullSync === 'true' ? 'full' : 'incremental'),
+            });
 
             // Actualizar estado global
             syncStateManager.updateProgress({
@@ -709,6 +714,7 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
 
         // Enviar evento de completado
         sendEvent('complete', {
+          syncType: fullSync === 'true' ? 'full' : 'incremental',
           success: syncSuccess,
           summary: {
             totalEntities: results.length,
@@ -848,6 +854,88 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
           connected: false,
           message: error instanceof Error ? error.message : 'Error al verificar conexión',
         });
+      }
+    }
+  );
+
+  /**
+   * GET /api/sync/sync-state - Obtener estado de sincronizacion por entidad
+   */
+  app.get(
+    '/api/sync/sync-state',
+    { preHandler: requireNoPasswordChange },
+    async (_request, reply) => {
+      try {
+        const allStates = await SyncStateRepo.getAllSyncStates();
+
+        // Enrich with query names
+        const enrichedStates = await Promise.all(
+          allStates.map(async (state) => {
+            const query = await getQuery(state.queryId);
+            return {
+              queryId: state.queryId,
+              queryName: query?.name ?? 'Desconocida',
+              entityType: state.entityType,
+              lastSyncValue: state.lastSyncValue,
+              lastSyncAt: state.lastSyncAt,
+              lastSyncCount: state.lastSyncCount,
+              totalSynced: state.totalSynced,
+              status: state.status,
+              errorMessage: state.errorMessage,
+            };
+          })
+        );
+
+        return reply.send({ success: true, data: enrichedStates });
+      } catch (error) {
+        logger.error({ error }, 'Error al obtener sync state');
+        return reply.status(500).send({ success: false, error: 'Error al obtener estado de sincronizacion' });
+      }
+    }
+  );
+
+  /**
+   * GET /api/sync/history - Obtener historial de sincronizaciones
+   */
+  app.get<{
+    Querystring: {
+      limit?: string;
+      entityType?: string;
+    };
+  }>(
+    '/api/sync/history',
+    { preHandler: requireNoPasswordChange },
+    async (request, reply) => {
+      try {
+        const limit = request.query.limit ? parseInt(request.query.limit, 10) : 20;
+        const entityType = request.query.entityType as EntityType | undefined;
+
+        const { logs } = await SyncLogsRepo.getLogs(
+          { entityType: entityType || undefined },
+          { limit: Math.min(limit, 100), offset: 0 }
+        );
+
+        // Format for dashboard display
+        const history = logs
+          .filter(log => log.status !== 'started') // Exclude in-progress entries
+          .map(log => ({
+            id: log.id,
+            queryId: log.queryId,
+            queryName: log.queryName,
+            entityType: log.entityType,
+            syncType: log.syncType,
+            status: log.status,
+            recordsFetched: log.recordsFetched,
+            recordsSent: log.recordsSent,
+            recordsFailed: log.recordsFailed,
+            durationMs: log.durationMs,
+            createdAt: log.createdAt,
+          }));
+
+        return reply.send({ success: true, data: history });
+      } catch (error) {
+        logger.error({ error }, 'Error al obtener historial de sync');
+        return reply.status(500).send({ success: false, error: 'Error al obtener historial' });
       }
     }
   );
