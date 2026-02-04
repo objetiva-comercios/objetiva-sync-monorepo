@@ -16,6 +16,9 @@ interface SyncEvent {
   queryName?: string
   batchProgress?: string
   status?: string
+  syncId?: string
+  batchNumber?: number
+  totalBatches?: number
 }
 
 interface LoginEvent {
@@ -26,10 +29,30 @@ interface LoginEvent {
   ipAddress?: string
 }
 
+const JOB_TIMEOUT_MS = 30_000 // 30 segundos sin actividad = timeout
+
+interface EntityStats {
+  received: number
+  inserted: number
+  updated: number
+  failed: number
+  lastBatchSize: number
+  lastBatchDurationMs: number
+}
+
 class MetricsCollector {
   private syncEvents: SyncEvent[] = []
   private loginEvents: LoginEvent[] = []
+  private cancelledJobs = new Set<string>() // syncIds cancelados explícitamente
   private maxEvents = 1000 // Mantener últimos 1000 eventos
+
+  // Stats acumuladas por tipo de entidad (se resetean manualmente)
+  private entityStats: Record<string, EntityStats> = {
+    articulo: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 },
+    comprobante_cabecera: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 },
+    comprobante_detalle: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 },
+    comprobante_pago: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 }
+  }
 
   /**
    * Registrar evento de sincronización
@@ -39,6 +62,68 @@ class MetricsCollector {
     if (this.syncEvents.length > this.maxEvents) {
       this.syncEvents = this.syncEvents.slice(0, this.maxEvents)
     }
+
+    // Actualizar stats acumuladas por entidad
+    const entityType = this.normalizeEntityType(event.entityType)
+    if (this.entityStats[entityType]) {
+      this.entityStats[entityType].received += event.totalReceived
+      this.entityStats[entityType].inserted += event.inserted
+      this.entityStats[entityType].updated += event.updated
+      this.entityStats[entityType].failed += event.failed
+      this.entityStats[entityType].lastBatchSize = event.totalReceived
+      this.entityStats[entityType].lastBatchDurationMs = event.durationMs
+    }
+  }
+
+  /**
+   * Normalizar tipo de entidad (mapear aliases)
+   */
+  private normalizeEntityType(type: string): string {
+    const aliases: Record<string, string> = {
+      'articulo': 'articulo',
+      'comprobante': 'comprobante_cabecera',
+      'comprobante_cabecera': 'comprobante_cabecera',
+      'comprobante_detalle': 'comprobante_detalle',
+      'pago': 'comprobante_pago',
+      'comprobante_pago': 'comprobante_pago'
+    }
+    return aliases[type] || type
+  }
+
+  /**
+   * Obtener stats por entidad (para el dashboard)
+   */
+  getEntityStats(): Record<string, EntityStats> {
+    return { ...this.entityStats }
+  }
+
+  /**
+   * Resetear todas las métricas
+   */
+  reset() {
+    this.syncEvents = []
+    this.loginEvents = []
+    this.cancelledJobs.clear()
+    this.entityStats = {
+      articulo: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 },
+      comprobante_cabecera: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 },
+      comprobante_detalle: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 },
+      comprobante_pago: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 }
+    }
+  }
+
+  /**
+   * Marcar un job como cancelado
+   */
+  cancelJob(syncId: string) {
+    this.cancelledJobs.add(syncId)
+  }
+
+  /**
+   * Verificar si un job fue cancelado
+   */
+  isJobCancelled(syncId: string): boolean {
+    return this.cancelledJobs.has(syncId)
   }
 
   /**
@@ -148,9 +233,13 @@ class MetricsCollector {
         updated: e.updated,
         failed: e.failed,
         duration: `${(e.durationMs / 1000).toFixed(2)}s`,
+        durationMs: e.durationMs,
         queryName: e.queryName,
         batchProgress: e.batchProgress,
-        status: e.status
+        status: e.status,
+        syncId: e.syncId,
+        batchNumber: e.batchNumber,
+        totalBatches: e.totalBatches
       })),
       logins: this.loginEvents.slice(0, limit).map(e => ({
         timestamp: e.timestamp,
@@ -159,6 +248,86 @@ class MetricsCollector {
         ip: e.ipAddress
       }))
     }
+  }
+
+  /**
+   * Obtener jobs de sincronización agrupados por syncId
+   */
+  getActiveJobs(limit = 5) {
+    // Agrupar eventos por syncId
+    const jobMap = new Map<string, {
+      syncId: string
+      entityType: string
+      queryName: string
+      comercio: string
+      startTime: Date
+      lastUpdate: Date
+      currentBatch: number
+      totalBatches: number
+      totalReceived: number
+      totalInserted: number
+      totalUpdated: number
+      totalFailed: number
+      totalDurationMs: number
+      status: string
+    }>()
+
+    for (const event of this.syncEvents) {
+      if (!event.syncId) continue
+
+      const existing = jobMap.get(event.syncId)
+      if (!existing) {
+        jobMap.set(event.syncId, {
+          syncId: event.syncId,
+          entityType: event.entityType,
+          queryName: event.queryName || 'Unknown',
+          comercio: event.comercioUsername || event.comercioId.substring(0, 8),
+          startTime: event.timestamp,
+          lastUpdate: event.timestamp,
+          currentBatch: event.batchNumber || 1,
+          totalBatches: event.totalBatches || 1,
+          totalReceived: event.totalReceived,
+          totalInserted: event.inserted,
+          totalUpdated: event.updated,
+          totalFailed: event.failed,
+          totalDurationMs: event.durationMs,
+          status: event.status || 'in_progress'
+        })
+      } else {
+        // Actualizar con datos más recientes
+        if (event.timestamp > existing.lastUpdate) {
+          existing.lastUpdate = event.timestamp
+          existing.currentBatch = event.batchNumber || existing.currentBatch
+          existing.status = event.status || existing.status
+        }
+        if (event.timestamp < existing.startTime) {
+          existing.startTime = event.timestamp
+        }
+        existing.totalReceived += event.totalReceived
+        existing.totalInserted += event.inserted
+        existing.totalUpdated += event.updated
+        existing.totalFailed += event.failed
+        existing.totalDurationMs += event.durationMs
+      }
+    }
+
+    const now = Date.now()
+
+    // Aplicar estados de cancelación y timeout
+    for (const job of jobMap.values()) {
+      if (job.status === 'in_progress') {
+        if (this.cancelledJobs.has(job.syncId)) {
+          job.status = 'cancelled'
+        } else if (now - job.lastUpdate.getTime() > JOB_TIMEOUT_MS) {
+          job.status = 'timeout'
+        }
+      }
+    }
+
+    // Convertir a array y ordenar por última actualización
+    return Array.from(jobMap.values())
+      .sort((a, b) => b.lastUpdate.getTime() - a.lastUpdate.getTime())
+      .slice(0, limit)
   }
 
   /**
