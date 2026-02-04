@@ -116,7 +116,7 @@ export class IngestionService {
 
     // Step 2: Separate into new vs existing records
     const toCreate: ArticuloInput[] = []
-    const toUpdate: Array<{ id: number; data: ArticuloInput }> = []
+    const toUpdate: Array<{ id: bigint; data: ArticuloInput }> = []
 
     for (const articulo of articulos) {
       const existingId = existingMap.get(articulo.erp_codigo)
@@ -293,7 +293,7 @@ export class IngestionService {
 
     // Step 2: Separate into new vs existing records
     const toCreate: ComprobanteCabeceraInput[] = []
-    const toUpdate: Array<{ id: number; data: ComprobanteCabeceraInput }> = []
+    const toUpdate: Array<{ id: bigint; data: ComprobanteCabeceraInput }> = []
 
     for (const comp of comprobantes) {
       const compositeKey = `${comp.operacion}|${comp.formulario}|${comp.numero}`
@@ -508,22 +508,22 @@ export class IngestionService {
     const existingDetalles = await prisma.comprobanteDetalle.findMany({
       where: {
         OR: detalleKeys.map(k => ({
-          operacion: k.operacion,
-          formulario: k.formulario,
-          numero: k.numero,
+          comprobante_operacion: k.operacion,
+          comprobante_formulario: k.formulario,
+          comprobante_numero: k.numero,
           linea_numero: k.linea_numero,
         })),
       },
-      select: { id: true, operacion: true, formulario: true, numero: true, linea_numero: true },
+      select: { id: true, comprobante_operacion: true, comprobante_formulario: true, comprobante_numero: true, linea_numero: true },
     })
 
     const existingMap = new Map(
-      existingDetalles.map(d => [`${d.operacion}|${d.formulario}|${d.numero}|${d.linea_numero}`, d.id])
+      existingDetalles.map(d => [`${d.comprobante_operacion}|${d.comprobante_formulario}|${d.comprobante_numero}|${d.linea_numero}`, d.id])
     )
 
     // Step 2: Separate into new vs existing records
-    const toCreate: Array<{ data: ComprobanteDetalleInput; comprobante_id?: number }> = []
-    const toUpdate: Array<{ id: number; data: ComprobanteDetalleInput; comprobante_id?: number }> = []
+    const toCreate: Array<{ data: ComprobanteDetalleInput; comprobante_id?: bigint }> = []
+    const toUpdate: Array<{ id: bigint; data: ComprobanteDetalleInput; comprobante_id?: bigint }> = []
 
     for (const det of detalles) {
       const cabeceraKey = `${det.comprobante_operacion}|${det.comprobante_formulario}|${det.comprobante_numero}`
@@ -544,16 +544,10 @@ export class IngestionService {
       try {
         // Mapear campos normalizados de comprobante (del JSON al modelo Prisma)
         const createResult = await prisma.comprobanteDetalle.createMany({
-          data: toCreate.map(({ data: det, comprobante_id }) => {
-            const { comprobante_operacion, comprobante_formulario, comprobante_numero, ...detRest } = det
-            return {
-              ...detRest,
-              operacion: comprobante_operacion,
-              formulario: comprobante_formulario,
-              numero: comprobante_numero,
-              comprobante_id,
-            }
-          }),
+          data: toCreate.map(({ data: det, comprobante_id }) => ({
+            ...det,
+            comprobante_id,
+          })),
           skipDuplicates: true,
         })
         inserted = createResult.count
@@ -563,13 +557,9 @@ export class IngestionService {
         logger.warn({ error }, 'createMany failed, falling back to individual creates')
         for (const [index, { data: det, comprobante_id }] of toCreate.entries()) {
           try {
-            const { comprobante_operacion, comprobante_formulario, comprobante_numero, ...detRest } = det
             await prisma.comprobanteDetalle.create({
               data: {
-                ...detRest,
-                operacion: comprobante_operacion,
-                formulario: comprobante_formulario,
-                numero: comprobante_numero,
+                ...det,
                 comprobante_id,
               },
             })
@@ -606,14 +596,10 @@ export class IngestionService {
       try {
         await prisma.$transaction(
           toUpdate.map(({ id, data: det, comprobante_id }) => {
-            const { comprobante_operacion, comprobante_formulario, comprobante_numero, ...detRest } = det
             return prisma.comprobanteDetalle.update({
               where: { id },
               data: {
-                ...detRest,
-                operacion: comprobante_operacion,
-                formulario: comprobante_formulario,
-                numero: comprobante_numero,
+                ...det,
                 comprobante_id,
                 actualizado: new Date(),
               },
@@ -627,14 +613,10 @@ export class IngestionService {
         logger.warn({ error }, 'Transaction failed, falling back to individual updates')
         for (const [index, { id, data: det, comprobante_id }] of toUpdate.entries()) {
           try {
-            const { comprobante_operacion, comprobante_formulario, comprobante_numero, ...detRest } = det
             await prisma.comprobanteDetalle.update({
               where: { id },
               data: {
-                ...detRest,
-                operacion: comprobante_operacion,
-                formulario: comprobante_formulario,
-                numero: comprobante_numero,
+                ...det,
                 comprobante_id,
                 actualizado: new Date(),
               },
@@ -757,22 +739,22 @@ export class IngestionService {
     const existingPagos = await prisma.comprobantePagos.findMany({
       where: {
         OR: pagoKeys.map(k => ({
-          operacion: k.operacion,
-          formulario: k.formulario,
-          numero: k.numero,
+          comprobante_operacion: k.operacion,
+          comprobante_formulario: k.formulario,
+          comprobante_numero: k.numero,
           linea_numero: k.linea_numero,
         })),
       },
-      select: { id: true, operacion: true, formulario: true, numero: true, linea_numero: true },
+      select: { id: true, comprobante_operacion: true, comprobante_formulario: true, comprobante_numero: true, linea_numero: true },
     })
 
     const existingMap = new Map(
-      existingPagos.map(p => [`${p.operacion}|${p.formulario}|${p.numero}|${p.linea_numero}`, p.id])
+      existingPagos.map(p => [`${p.comprobante_operacion}|${p.comprobante_formulario}|${p.comprobante_numero}|${p.linea_numero}`, p.id])
     )
 
     // Step 2: Separate into new vs existing records
-    const toCreate: Array<{ data: ComprobantePagosInput; comprobante_id?: number }> = []
-    const toUpdate: Array<{ id: number; data: ComprobantePagosInput; comprobante_id?: number }> = []
+    const toCreate: Array<{ data: ComprobantePagosInput; comprobante_id?: bigint }> = []
+    const toUpdate: Array<{ id: bigint; data: ComprobantePagosInput; comprobante_id?: bigint }> = []
 
     for (const pago of pagos) {
       const cabeceraKey = `${pago.comprobante_operacion}|${pago.comprobante_formulario}|${pago.comprobante_numero}`
@@ -794,18 +776,13 @@ export class IngestionService {
         // Mapear campos normalizados de comprobante (del JSON al modelo Prisma)
         const createResult = await prisma.comprobantePagos.createMany({
           data: toCreate.map(({ data: pago, comprobante_id }) => {
-            const { comprobante_operacion, comprobante_formulario, comprobante_numero, ...pagoRest } = pago
             const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
             return {
-              ...pagoRest,
-              operacion: comprobante_operacion,
-              formulario: comprobante_formulario,
-              numero: comprobante_numero,
+              ...pago,
               metodo_pago: metodo_pago_normalizado,
               comprobante_id,
-              cheque_fecha_diferida: pagoRest.cheque_fecha_diferida ? new Date(pagoRest.cheque_fecha_diferida) : null,
-              fecha_vencimiento: pagoRest.fecha_vencimiento ? new Date(pagoRest.fecha_vencimiento) : null,
-              fecha_pago: pagoRest.fecha_pago ? new Date(pagoRest.fecha_pago) : null,
+              cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
+              fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
             }
           }),
           skipDuplicates: true,
@@ -817,19 +794,14 @@ export class IngestionService {
         logger.warn({ error }, 'createMany failed, falling back to individual creates')
         for (const [index, { data: pago, comprobante_id }] of toCreate.entries()) {
           try {
-            const { comprobante_operacion, comprobante_formulario, comprobante_numero, ...pagoRest } = pago
             const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
             await prisma.comprobantePagos.create({
               data: {
-                ...pagoRest,
-                operacion: comprobante_operacion,
-                formulario: comprobante_formulario,
-                numero: comprobante_numero,
+                ...pago,
                 metodo_pago: metodo_pago_normalizado,
                 comprobante_id,
-                cheque_fecha_diferida: pagoRest.cheque_fecha_diferida ? new Date(pagoRest.cheque_fecha_diferida) : null,
-                fecha_vencimiento: pagoRest.fecha_vencimiento ? new Date(pagoRest.fecha_vencimiento) : null,
-                fecha_pago: pagoRest.fecha_pago ? new Date(pagoRest.fecha_pago) : null,
+                cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
+                fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
               },
             })
             inserted++
@@ -865,21 +837,16 @@ export class IngestionService {
       try {
         await prisma.$transaction(
           toUpdate.map(({ id, data: pago, comprobante_id }) => {
-            const { comprobante_operacion, comprobante_formulario, comprobante_numero, ...pagoRest } = pago
             const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
             return prisma.comprobantePagos.update({
               where: { id },
               data: {
-                ...pagoRest,
-                operacion: comprobante_operacion,
-                formulario: comprobante_formulario,
-                numero: comprobante_numero,
+                ...pago,
                 metodo_pago: metodo_pago_normalizado,
                 comprobante_id,
-                cheque_fecha_diferida: pagoRest.cheque_fecha_diferida ? new Date(pagoRest.cheque_fecha_diferida) : null,
-                fecha_vencimiento: pagoRest.fecha_vencimiento ? new Date(pagoRest.fecha_vencimiento) : null,
-                fecha_pago: pagoRest.fecha_pago ? new Date(pagoRest.fecha_pago) : null,
-                actualizado: new Date(),
+                cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
+                fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
+                updated_at: new Date(),
               },
             })
           })
@@ -891,21 +858,16 @@ export class IngestionService {
         logger.warn({ error }, 'Transaction failed, falling back to individual updates')
         for (const [index, { id, data: pago, comprobante_id }] of toUpdate.entries()) {
           try {
-            const { comprobante_operacion, comprobante_formulario, comprobante_numero, ...pagoRest } = pago
             const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
             await prisma.comprobantePagos.update({
               where: { id },
               data: {
-                ...pagoRest,
-                operacion: comprobante_operacion,
-                formulario: comprobante_formulario,
-                numero: comprobante_numero,
+                ...pago,
                 metodo_pago: metodo_pago_normalizado,
                 comprobante_id,
-                cheque_fecha_diferida: pagoRest.cheque_fecha_diferida ? new Date(pagoRest.cheque_fecha_diferida) : null,
-                fecha_vencimiento: pagoRest.fecha_vencimiento ? new Date(pagoRest.fecha_vencimiento) : null,
-                fecha_pago: pagoRest.fecha_pago ? new Date(pagoRest.fecha_pago) : null,
-                actualizado: new Date(),
+                cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
+                fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
+                updated_at: new Date(),
               },
             })
             updated++

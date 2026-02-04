@@ -16,48 +16,49 @@ datasource db {
 // ============================================
 
 model Articulo {
-  id BigInt @id @default(autoincrement())
-  sku String? @db.Text
-  codigo String? @db.Text
-  codigo_barras String? @db.Text
-  erp_codigo String @db.Text
-  erp_id String? @db.Text
-  codigo_equivalencia String? @db.Text
-  nombre String? @db.Text
-  nombre_corto String? @db.Text
-  descripcion String? @db.Text
-  descripcion_web String? @db.Text
-  rubro String? @db.Text
-  subrubro String? @db.Text
-  objeto String? @db.Text
-  adjetivo String? @db.Text
-  marca String? @db.Text
-  modelo String? @db.Text
-  talle String? @db.Text
-  color String? @db.Text
-  material String? @db.Text
-  presentacion String? @db.Text
-  medida String? @db.Text
-  prop_aux_1 String? @db.Text
-  prop_aux_2 String? @db.Text
-  prop_aux_3 String? @db.Text
-  prop_aux_4 String? @db.Text
-  prop_aux_5 String? @db.Text
-  precio Decimal? @db.Decimal(10, 2)
-  costo Decimal? @db.Decimal(10, 2)
-  unidades Int? @default(0)
-  imagenes_producto String[] @default([]) @db.Text
-  imagenes_etiqueta String[] @default([]) @db.Text
-  etiquetas_ocr String[] @default([]) @db.Text
-  json_articulo Json? @default("{}") @db.JsonB
-  erp_nombre String @db.Text
-  erp_extra String? @db.Text
-  erp_sincronizado Boolean? @default(false)
-  erp_fecha_sync DateTime? @db.Timestamp(6)
-  activo Boolean? @default(true)
-  observaciones String? @db.Text
-  creado DateTime? @default(now()) @db.Timestamp(6)
-  actualizado DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+  id                  BigInt    @id @default(autoincrement())
+  sku                 String?   @db.Text
+  codigo              String?   @db.Text
+  codigo_barras       String?   @db.Text
+  erp_codigo          String    @db.Text
+  erp_id              String?   @db.Text
+  codigo_equivalencia String?   @db.Text
+  nombre              String?   @db.Text
+  nombre_corto        String?   @db.Text
+  descripcion         String?   @db.Text
+  descripcion_web     String?   @db.Text
+  rubro               String?   @db.Text
+  subrubro            String?   @db.Text
+  objeto              String?   @db.Text
+  adjetivo            String?   @db.Text
+  marca               String?   @db.Text
+  modelo              String?   @db.Text
+  talle               String?   @db.Text
+  color               String?   @db.Text
+  material            String?   @db.Text
+  presentacion        String?   @db.Text
+  medida              String?   @db.Text
+  prop_aux_1          String?   @db.Text
+  prop_aux_2          String?   @db.Text
+  prop_aux_3          String?   @db.Text
+  prop_aux_4          String?   @db.Text
+  prop_aux_5          String?   @db.Text
+  precio              Decimal?  @db.Decimal(10, 2)
+  costo               Decimal?  @db.Decimal(10, 2)
+  unidades            Int?      @default(0)
+  imagenes_producto   String[]  @default([]) @db.Text
+  imagenes_etiqueta   String[]  @default([]) @db.Text
+  etiquetas_ocr       String[]  @default([]) @db.Text
+  json_articulo1      Json?     @default("{}") @db.JsonB
+  erp_nombre2         String    @db.Text
+  erp_extra3          String?   @db.Text
+  erp_sincronizado    Boolean?  @default(false)
+  erp_fecha_sync      DateTime? @db.Timestamp(6)
+  activo              Boolean?  @default(true)
+  observaciones       String?   @db.Text
+  creado              DateTime? @default(now()) @db.Timestamp(6)
+  actualizado         DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+
   @@index([activo])
   @@index([codigo])
   @@index([codigo_barras], map: "idx_articulos_codigo_barras")
@@ -70,98 +71,157 @@ model Articulo {
   @@map("articulos")
 }
 
-model ComprobanteCabecera {
-  id BigInt @id @default(autoincrement())
-  operacion String @db.Text
-  formulario String @db.Text
-  numero String @db.Text
-  fecha DateTime? @db.Timestamp(6)
-  tercero_tipo String? @db.Text
-  tercero_nombre String? @db.Text
-  tercero_documento String? @db.Text
-  tercero_direccion String? @db.Text
-  tercero_datos Json? @default("{}") @db.JsonB
-  cantidad_items Int? @default(0)
-  total_descuentos Decimal @default(0) @db.Decimal(12, 2)
-  total_venta Decimal @default(0) @db.Decimal(12, 2)
-  erp_id String? @db.Text
-  erp_operacion String @db.Text
-  erp_formulario String @db.Text
-  erp_numero String @db.Text
-  erp_datos Json? @default("{}") @db.JsonB
-  erp_sincronizado Boolean? @default(false)
-  erp_fecha_sync DateTime? @db.Timestamp(6)
-  observaciones String? @db.Text
-  activo Boolean @default(true)
-  creado DateTime @default(now()) @db.Timestamp(6)
-  actualizado DateTime @default(now()) @updatedAt @db.Timestamp(6)
-  total_bruto Decimal @db.Decimal(12, 2)
-  total_neto Decimal @db.Decimal(12, 2)
-  total_iva Decimal @db.Decimal(12, 2)
-  total_intereses_financieros Decimal? @default(0) @db.Decimal(12, 2)
-  total_cobrado Decimal? @db.Decimal(12, 2)
+// ============================================
+// TABLA: comprobantes_cabecera
+// ============================================
 
-  @@unique([formulario], name: "comprobantes_cabecera_formulario_key")
-  @@unique([operacion, formulario, numero], name: "comprobantes_cabecera_natural_key")
+model ComprobanteCabecera {
+  id                    BigInt    @id @default(autoincrement())
+
+  // Clave compuesta normalizada (NOT NULL en DB)
+  operacion             String    @db.Text
+  formulario            String    @db.Text
+  numero                String    @db.Text
+
+  // Valores originales del ERP - Metadata (NULL en DB)
+  erp_operacion          String?   @db.Text
+  erp_formulario         String?   @db.Text
+  erp_numero             String?   @db.Text
+
+  // Datos del comprobante
+  fecha                 DateTime? @db.Timestamp(6)
+  periodo               String?   @db.Text
+
+  // Tercero (cliente/proveedor)
+  tercero_tipo           String?   @db.Text
+  tercero_nombre         String?   @db.Text
+  tercero_documento      String?   @db.Text
+  tercero_direccion      String?   @db.Text
+  tercero_datos          Json      @default("{}") @db.JsonB
+
+  // Totales
+  cantidad_items         Int       @default(0)
+  subtotal              Decimal?  @db.Decimal(12, 2)
+  total_impuestos        Decimal?  @db.Decimal(12, 2)
+  total_descuentos       Decimal?  @db.Decimal(12, 2)
+  total                 Decimal   @default(0) @db.Decimal(12, 2)
+
+  // Metadata ERP
+  erp_id                 String?   @db.Text
+  erp_datos              Json      @default("{}") @db.JsonB
+  erp_sincronizado       Boolean   @default(false)
+  erp_fecha_sync          DateTime? @db.Timestamp(6)
+
+  // Estado
+  observaciones         String?   @db.Text
+  activo                Boolean   @default(true)
+  creado                DateTime  @default(now()) @db.Timestamp(6)
+  actualizado           DateTime  @default(now()) @updatedAt @db.Timestamp(6)
+
+  // Relaciones
+  detalles              ComprobanteDetalle[]
+  pagos                 ComprobantePagos[]
+
   @@map("comprobantes_cabecera")
+  @@unique([operacion, formulario, numero], name: "idx_comprobante_erp_unique")
+  @@index([creado], map: "idx_comprobantes_cabecera_creado")
+  @@index([erp_id], map: "idx_comprobantes_cabecera_erp_id")
+  @@index([fecha], map: "idx_comprobantes_cabecera_fecha")
+  @@index([periodo], map: "idx_comprobantes_cabecera_periodo")
+  @@index([tercero_documento], map: "idx_comprobantes_cabecera_tercero")
 }
+
+// ============================================
+// TABLA: comprobantes_detalle
+// ============================================
 
 model ComprobanteDetalle {
-  id BigInt @id @default(autoincrement())
-  comprobante_id BigInt?
-  comprobante_operacion String @db.Text
-  comprobante_formulario String @db.Text
-  comprobante_numero String @db.Text
-  linea_numero Int
-  articulo_id BigInt?
-  articulo_codigo String? @db.Text
-  articulo_nombre String? @db.Text
-  unidades Decimal @db.Decimal(10, 3)
-  precio_unitario Decimal @db.Decimal(12, 4)
-  erp_operacion String @db.Text
-  erp_formulario String @db.Text
-  erp_numero String @db.Text
-  erp_datos Json? @default("{}") @db.JsonB
-  observaciones String? @db.Text
-  creado DateTime @default(now()) @db.Timestamp(6)
-  actualizado DateTime @default(now()) @updatedAt @db.Timestamp(6)
-  importe_bruto Decimal @db.Decimal(12, 2)
-  porc_descuento Decimal? @db.Decimal(5, 2)
-  importe_descuento Decimal @default(0) @db.Decimal(12, 2)
-  importe_neto Decimal @db.Decimal(12, 2)
-  alicuota_iva Decimal @db.Decimal(5, 2)
-  importe_iva Decimal @db.Decimal(12, 2)
-  importe_total Decimal @db.Decimal(12, 2)
+  id                    BigInt              @id @default(autoincrement())
 
-  @@unique([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero], name: "comprobantes_detalle_natural_key")
+  // Clave compuesta normalizada
+  comprobante_operacion  String              @db.Text
+  comprobante_formulario String              @db.Text
+  comprobante_numero     String              @db.Text
+
+  // Metadata ERP
+  erp_operacion          String?             @db.Text
+  erp_formulario         String?             @db.Text
+  erp_numero             String?             @db.Text
+
+  comprobante_id         BigInt?             // Opcional - se llena después de vincular
+  linea_numero           Int                 @default(1)
+  articulo_id            BigInt?
+  articulo_codigo        String?             @db.Text
+  articulo_nombre        String?             @db.Text
+  unidades              Decimal             @db.Decimal(10, 3)
+  precio_unitario        Decimal             @db.Decimal(12, 4)
+  importe_bruto         Decimal             @db.Decimal(12, 2)
+  porc_descuento        Decimal?            @db.Decimal(5, 2)
+  importe_descuento     Decimal             @default(0) @db.Decimal(12, 2)
+  importe_neto          Decimal             @db.Decimal(12, 2)
+  alicuota_iva          Decimal             @db.Decimal(5, 2)
+  importe_iva           Decimal             @db.Decimal(12, 2)
+  importe_total         Decimal             @db.Decimal(12, 2)
+  erp_datos              Json                @default("{}") @db.JsonB
+  observaciones         String?             @db.Text
+  creado                DateTime            @default(now()) @db.Timestamp(6)
+  actualizado           DateTime            @default(now()) @updatedAt @db.Timestamp(6)
+
+  // Relaciones (opcionales)
+  comprobante           ComprobanteCabecera? @relation(fields: [comprobante_id], references: [id], onDelete: Cascade)
+
   @@map("comprobantes_detalle")
+  @@unique([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero], name: "idx_detalle_unique")
+  @@index([erp_operacion, erp_formulario, erp_numero], map: "idx_detalle_erp_comprobante")
+  @@index([articulo_id], map: "idx_comprobantes_detalle_articulo")
+  @@index([articulo_codigo], map: "idx_comprobantes_detalle_codigo")
+  @@index([comprobante_id], map: "idx_comprobantes_detalle_comprobante")
 }
+
+// ============================================
+// TABLA: comprobantes_pagos
+// ============================================
 
 model ComprobantePagos {
-  id BigInt @id @default(autoincrement())
-  comprobante_id BigInt?
-  comprobante_operacion String @db.Text
-  comprobante_formulario String @db.Text
-  comprobante_numero String @db.Text
-  medio String @db.Text
-  monto Decimal @db.Decimal(12, 2)
-  moneda String @default("ARS") @db.Text
-  tarjeta_marca String? @db.Text
-  tarjeta_cuotas Int? @default(1)
-  tarjeta_recargo Decimal? @default(0) @db.Decimal(12, 2)
-  cheque_fecha_diferida DateTime? @db.Date
-  fecha_vencimiento DateTime? @db.Date
-  datos_extra Json? @default("{}") @db.JsonB
-  referencia String? @db.Text
-  erp_operacion String @db.Text
-  erp_formulario String @db.Text
-  erp_numero String @db.Text
-  observaciones String? @db.Text
-  creado DateTime @default(now()) @db.Timestamp(6)
-  actualizado DateTime @default(now()) @updatedAt @db.Timestamp(6)
-  linea_numero Int
+  id                    BigInt              @id @default(autoincrement())
 
-  @@unique([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero], name: "comprobantes_pagos_natural_key")
+  // Clave compuesta normalizada
+  comprobante_operacion             String              @db.Text
+  comprobante_formulario            String              @db.Text
+  comprobante_numero                String              @db.Text
+
+  // Metadata ERP
+  erp_operacion          String?             @db.Text
+  erp_formulario         String?             @db.Text
+  erp_numero             String?             @db.Text
+
+  comprobante_id         BigInt?             // Opcional - se llena después de vincular
+  linea_numero           Int                 @default(1)
+  metodo_pago            String              @db.Text // 'Efectivo', 'Tarjeta', 'Cheque', etc
+  monto                 Decimal             @db.Decimal(12, 2)
+  moneda                String              @default("ARS") @db.Text
+  tarjeta_marca          String?             @db.Text
+  tarjeta_cuotas         Int?
+  tarjeta_recargo        Decimal?            @db.Decimal(12, 2)
+  cheque_fecha_diferida   DateTime?           @db.Timestamptz
+  fecha_vencimiento      DateTime?           @db.Timestamptz
+  datos_extra            Json?               @db.JsonB
+  referencia            String?             @db.Text
+  observaciones         String?             @db.Text
+  erp_datos              Json?               @db.JsonB
+  activo                Boolean             @default(true)
+  created_at                DateTime            @default(now()) @db.Timestamptz
+  updated_at           DateTime            @default(now()) @updatedAt @db.Timestamptz
+
+  // Relaciones (opcionales)
+  comprobante           ComprobanteCabecera? @relation(fields: [comprobante_id], references: [id], onDelete: Cascade)
+
   @@map("comprobantes_pagos")
+  @@unique([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero], name: "idx_pagos_unique")
+  @@index([erp_operacion, erp_formulario, erp_numero], map: "idx_pago_erp_comprobante")
+  @@index([cheque_fecha_diferida], map: "idx_pagos_cheque_diferido")
+  @@index([comprobante_id], map: "idx_pagos_comprobante")
+  @@index([metodo_pago], map: "idx_pagos_medio")
+  @@index([tarjeta_cuotas], map: "idx_pagos_tarjeta_cuotas")
+  @@index([tarjeta_marca], map: "idx_pagos_tarjeta_marca")
 }
-

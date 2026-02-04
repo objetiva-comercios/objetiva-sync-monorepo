@@ -8,7 +8,7 @@
 
 import { readFileSync } from 'fs';
 import type { SchemaResponse, PrismaFieldConfig } from './types.js';
-import type { ColumnMetadata, ConstraintMetadata } from '../types/schema.js';
+import type { ColumnMetadata } from '../types/schema.js';
 
 /**
  * Information extracted from existing schema.prisma file

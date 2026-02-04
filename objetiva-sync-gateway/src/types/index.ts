@@ -9,3 +9,16 @@ declare module '@fastify/jwt' {
     user: JWTPayload
   }
 }
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    jwt: {
+      sign: (payload: JWTPayload) => string
+      verify: (token: string) => JWTPayload
+    }
+  }
+  interface FastifyRequest {
+    jwtVerify: () => Promise<void>
+    user: JWTPayload
+  }
+}
