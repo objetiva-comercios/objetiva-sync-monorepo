@@ -40,7 +40,7 @@
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 8: Sync Reliability** - Fix timeout bug and ensure full dataset sync completes without failure
+- [~] **Phase 8: Sync Reliability** - Fix timeout bug and ensure full dataset sync completes without failure *(code complete, human test pending)*
 - [ ] **Phase 9: Tech Debt Cleanup** - Resolve TypeScript errors, switch to generated schemas, remove development garbage
 - [ ] **Phase 10: Incremental Sync** - Implement timestamp-based delta sync for all entity types
 - [ ] **Phase 11: Deployment Configuration** - Production deployment scripts and environment templates
@@ -60,9 +60,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md -- SSE heartbeat, SQL Server timeout increase, batch delay reduction, nginx config
-- [ ] 08-02-PLAN.md -- Error classification utility and fetch timeout (AbortSignal.timeout) for all API clients
-- [ ] 08-03-PLAN.md -- Gateway ingestion bulk optimization (replace N+1 with createMany + $transaction)
+- [x] 08-01-PLAN.md -- SSE heartbeat, SQL Server timeout increase, batch delay reduction, nginx config
+- [x] 08-02-PLAN.md -- Error classification utility and fetch timeout (AbortSignal.timeout) for all API clients
+- [x] 08-03-PLAN.md -- Gateway ingestion bulk optimization (replace N+1 with createMany + $transaction)
 
 ### Phase 9: Tech Debt Cleanup
 **Goal**: Codebase compiles cleanly, uses generated schemas consistently, and contains no development garbage
@@ -132,7 +132,7 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 8. Sync Reliability | v1.1-rc | 0/3 | Planned | - |
+| 8. Sync Reliability | v1.1-rc | 3/3 | Human Test | - |
 | 9. Tech Debt Cleanup | v1.1-rc | 0/2 | Not started | - |
 | 10. Incremental Sync | v1.1-rc | 0/2 | Not started | - |
 | 11. Deployment Configuration | v1.1-rc | 0/1 | Not started | - |

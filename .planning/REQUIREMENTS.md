@@ -9,10 +9,10 @@ Requirements for release candidate. Each maps to roadmap phases.
 
 ### Sync Reliability
 
-- [ ] **SYNC-01**: Sync completes full dataset (100K+ records) without timeout or crash
-- [ ] **SYNC-02**: Timeout root cause identified and fixed (currently fails at ~60s)
-- [ ] **SYNC-03**: Sync error messages include root cause detail (not generic "Error al ejecutar")
-- [ ] **SYNC-04**: Large batch sizes (200, 500) work without degradation
+- [~] **SYNC-01**: Sync completes full dataset (100K+ records) without timeout or crash *(code complete, needs human test)*
+- [x] **SYNC-02**: Timeout root cause identified and fixed (currently fails at ~60s) *(SSE heartbeat, bulk ingestion)*
+- [x] **SYNC-03**: Sync error messages include root cause detail (not generic "Error al ejecutar") *(error-classifier.ts)*
+- [~] **SYNC-04**: Large batch sizes (200, 500) work without degradation *(code complete, needs human test)*
 
 ### Incremental Sync
 
@@ -85,10 +85,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SYNC-01 | Phase 8: Sync Reliability | Pending |
-| SYNC-02 | Phase 8: Sync Reliability | Pending |
-| SYNC-03 | Phase 8: Sync Reliability | Pending |
-| SYNC-04 | Phase 8: Sync Reliability | Pending |
+| SYNC-01 | Phase 8: Sync Reliability | Human Test |
+| SYNC-02 | Phase 8: Sync Reliability | Complete |
+| SYNC-03 | Phase 8: Sync Reliability | Complete |
+| SYNC-04 | Phase 8: Sync Reliability | Human Test |
 | INCR-01 | Phase 10: Incremental Sync | Pending |
 | INCR-02 | Phase 10: Incremental Sync | Pending |
 | INCR-03 | Phase 10: Incremental Sync | Pending |
