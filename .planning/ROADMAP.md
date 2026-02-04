@@ -90,11 +90,11 @@ Plans:
   3. Incremental sync works correctly for all 4 entity types without missing or duplicating records
   4. User can trigger a full sync manually (override) even when incremental timestamps exist
   5. Dashboard or logs clearly indicate whether a sync run was incremental or full
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 10-01-PLAN.md - Timestamp tracking infrastructure and incremental query filtering
-- [ ] 10-02-PLAN.md - Per-entity incremental sync implementation and full sync override
+- [ ] 10-01-PLAN.md -- Clock skew protection, syncType metadata in SSE events, sync state and history API endpoints
+- [ ] 10-02-PLAN.md -- Dashboard sync type badge, per-entity timestamps display, sync history table, human verification
 
 ### Phase 11: Deployment Configuration
 **Goal**: Both modules can be deployed to production servers with documented scripts and environment configuration
