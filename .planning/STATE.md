@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 9 of 12 (Tech Debt Cleanup)
-Plan: 1/2
-Status: In progress
-Last activity: 2026-02-04 -- Completed 09-02-PLAN.md (repository cleanup)
+Plan: 2/2
+Status: Phase complete
+Last activity: 2026-02-04 -- Completed 09-01-PLAN.md (gateway TypeScript compilation fix)
 
-Progress: [################░░░░] 80% (v1.0 complete, Phase 8 complete, Phase 9 in progress)
+Progress: [#################░░░] 85% (v1.0 complete, Phase 8 complete, Phase 9 complete)
 
 ## Performance Metrics
 
@@ -25,9 +25,9 @@ Progress: [################░░░░] 80% (v1.0 complete, Phase 8 complete, P
 
 **v1.1-rc:**
 - Plans estimated: 9 across 5 phases
-- Plans completed: 4 (08-01, 08-02, 08-03, 09-02)
-- Phases completed: 1 (Phase 8)
-- Phase 9 in progress: 1/2 plans complete
+- Plans completed: 6 (08-01, 08-02, 08-03, 09-01, 09-02)
+- Phases completed: 2 (Phase 8, Phase 9)
+- Phase 10 ready to start
 
 ## Accumulated Context
 
@@ -58,12 +58,14 @@ All v1.0 decisions archived in `.planning/archive/v1.0-MILESTONE.md`.
 | Preserve scripts/ directory | 09-02 | Legitimate utility scripts distinct from temporary test scripts |
 | Delete schema.prisma.backup | 09-02 | Content well-documented in research notes, safe for parallel execution |
 | Keep essential documentation | 09-02 | README.md, DEPLOYMENT.md, SETUP.md needed for Phase 11 deployment |
+| Use manual Zod schemas (not generated) | 09-01 | Generated schemas are outdated (pre-IVA-migration); manual schemas are correct and match current Prisma schema |
+| Prisma schema must match database exactly | 09-01 | Schema is source of truth for TypeScript types; discrepancies cause compilation errors |
 
 ### Known Issues
 
 1. **Sync timeout bug** -- **FIXED** (root cause: JWT expiring in 86.4s not 24h, plus SSE/timeout improvements)
-2. **Gateway TypeScript errors** -- Prisma schema mismatches, Fastify type issues (Phase 9 scope)
-3. **Ingestion manual schemas** -- Uses hardcoded schemas instead of generated ones (Phase 9 scope)
+2. **Gateway TypeScript errors** -- **FIXED** (Prisma schema updated to match IVA migration, bigint types corrected)
+3. **Generated schemas outdated** -- Manual schemas in use (correct); regenerate after deployment when gateway is running
 
 ### Pending Todos
 
@@ -75,8 +77,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-04 -- Completed 09-02-PLAN.md (repository cleanup)
-Stopped at: Phase 9 Plan 02 complete - 1/2 plans done
+Last session: 2026-02-04 -- Completed 09-01-PLAN.md (gateway TypeScript compilation fix)
+Stopped at: Phase 9 complete - 2/2 plans done
 Resume file: None
 
 ### Phase 8 Summary (Completed 2026-02-04)
@@ -85,5 +87,6 @@ Resume file: None
 - 08-03: Gateway bulk ingestion (createMany + $transaction) replacing N+1
 - Post-plan fixes: JWT expiration parsing (root cause of ~60s failure), dashboard UI (button reset, localStorage persistence, timestamp format dd/mm/yyyy HH:mm:ss, cancel button flash fix, RECIBIDOS incremental tracking, clear metrics button, background circles removed)
 
-### Phase 9 Progress (In Progress)
-- 09-02: Repository cleanup (60+ temporary files removed: test scripts, backups, debug logs) - **COMPLETE**
+### Phase 9 Summary (Completed 2026-02-04)
+- 09-01: Gateway TypeScript compilation fix (Prisma schema aligned with IVA migration, bigint types fixed, zero compilation errors)
+- 09-02: Repository cleanup (60+ temporary files removed: test scripts, backups, debug logs)
