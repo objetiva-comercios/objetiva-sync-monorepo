@@ -9,7 +9,7 @@ import type { IArticuloPayload } from '../types/articulos.js';
 import type { IComprobanteCabeceraPayload } from '../types/comprobantes-cabecera.js';
 import type { IComprobanteDetallePayload } from '../types/comprobantes-detalle.js';
 import type { IComprobantePagosPayload } from '../types/comprobantes-pagos.js';
-import { EntityType, SyncType, LogStatus } from '../types/common.js';
+import { EntityType, SyncType, LogStatus, SyncStatus } from '../types/common.js';
 import type { SyncResult } from '../types/common.js';
 import * as QueriesRepo from '../store/repositories/queries-repo.js';
 import * as SyncStateRepo from '../store/repositories/sync-state-repo.js';
@@ -682,8 +682,11 @@ export class SyncEngine {
           recordCount: result.recordsSent,
         });
       } else if (result.status === LogStatus.CANCELED) {
-        // No actualizar sync state si fue cancelado - mantener el estado anterior
-        logger.info('[SyncEngine] Sync cancelado - manteniendo estado anterior');
+        await SyncStateRepo.updateSyncState(queryId, {
+          status: SyncStatus.IDLE,
+          errorMessage: null
+        });
+        logger.info('[SyncEngine] Sync cancelado - status restablecido a IDLE');
       } else {
         await SyncStateRepo.markSyncAsError(
           queryId,
