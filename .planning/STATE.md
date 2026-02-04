@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 10 of 12 (Incremental Sync)
-Plan: 1/2
-Status: In progress
-Last activity: 2026-02-04 -- Completed 10-01-PLAN.md
+Plan: 4/4
+Status: Phase complete
+Last activity: 2026-02-04 -- Completed 10-04-PLAN.md
 
-Progress: [##################░░] 92% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 in progress)
+Progress: [###################░] 95% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete)
 
 ## Performance Metrics
 
@@ -25,15 +25,14 @@ Progress: [##################░░] 92% (v1.0 complete, Phase 8 complete, Phase
 
 **v1.1-rc:**
 - Plans estimated: 9 across 5 phases
-- Plans completed: 8 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03, 10-01)
-- Phases completed: 2 (Phase 8, Phase 9)
-- Phase 10 in progress (1/2 plans complete)
+- Plans completed: 11 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03, 10-01, 10-02, 10-03, 10-04)
+- Phases completed: 3 (Phase 8, Phase 9, Phase 10)
 
 ## Accumulated Context
 
 ### Decisions
 
-All v1.0 decisions archived in `.planning/archive/v1.0-MILESTONE.md`.
+All v1.0 decisions archived in \`.planning/archive/v1.0-MILESTONE.md\`.
 
 **v1.1-rc decisions (Phase 8):**
 
@@ -65,11 +64,20 @@ All v1.0 decisions archived in `.planning/archive/v1.0-MILESTONE.md`.
 | nullToUndefined helper for Prisma | 09-03 | Bridges Zod nullable (T | null) with Prisma optional (T | undefined) |
 | Complete event uses fullSync param | 10-01 | Complete event emitted after all queries finish, no single progressData to reference; fullSync param is user's original intent |
 
+**v1.1-rc decisions (Phase 10):**
+
+| Decision | Phase-Plan | Rationale |
+|----------|----------|------------|
+| Preserve lastSyncValue on cancellation | 10-04 | Cancelled sync shouldn't update timestamps - only successful syncs advance the watermark |
+| Reset status to IDLE on cancellation | 10-04 | Dashboard must show correct state after cancel, not perpetual RUNNING |
+| 179-line comprehensive documentation | 10-04 | Users need detailed guide for incrementalField, @lastSync, clock skew, troubleshooting |
+
 ### Known Issues
 
 1. **Sync timeout bug** -- **FIXED** (root cause: JWT expiring in 86.4s not 24h, plus SSE/timeout improvements)
 2. **Gateway TypeScript errors** -- **FIXED** (Prisma schema updated to match IVA migration, bigint types corrected)
 3. **Generated schemas outdated** -- **FIXED** (manually updated to match Prisma schema, re-export from index.ts); regenerate after deployment recommended
+4. **Cancellation state bug** -- **FIXED** (10-04: CANCELED branch now resets status to IDLE)
 
 ### Pending Todos
 
@@ -81,8 +89,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-04 -- Phase 10 plan 10-01 execution complete
-Stopped at: Completed 10-01-PLAN.md - Phase 10 in progress
+Last session: 2026-02-04 -- Phase 10 plan 10-04 execution complete
+Stopped at: Completed 10-04-PLAN.md - Phase 10 complete
 Resume file: None
 
 ### Phase 8 Summary (Completed 2026-02-04)
@@ -96,5 +104,8 @@ Resume file: None
 - 09-02: Repository cleanup (60+ temporary files removed: test scripts, backups, debug logs)
 - 09-03: Schema consolidation (index.ts re-exports from generated schemas with backward-compatible aliases, nullToUndefined helper for Prisma compatibility, DEBT-02 and DEBT-04 satisfied)
 
-### Phase 10 Summary (In progress - 1/2 plans complete)
+### Phase 10 Summary (Completed 2026-02-04)
 - 10-01: Clock skew protection (5-min overlap), ProgressData extended with syncType and queryId, SSE events enriched, GET /api/sync/sync-state and /api/sync/history endpoints
+- 10-02: Gap closure verification plan (re-verified Phase 10, found 2 new gaps: cancellation bug, missing docs)
+- 10-03: Dead code removal and numeric sort fix (removed 520-line syncEntity method, fixed getMaxFieldValue for numeric IDs)
+- 10-04: Cancellation bug fix and incremental sync documentation (status reset to IDLE, 179-line user guide)
