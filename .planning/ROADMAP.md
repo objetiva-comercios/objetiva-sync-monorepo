@@ -41,7 +41,7 @@
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 8: Sync Reliability** - Fix timeout bug and ensure full dataset sync completes without failure *(completed 2026-02-04)*
-- [ ] **Phase 9: Tech Debt Cleanup** - Resolve TypeScript errors, switch to generated schemas, remove development garbage
+- [x] **Phase 9: Tech Debt Cleanup** - Resolve TypeScript errors, switch to generated schemas, remove development garbage *(completed 2026-02-04)*
 - [ ] **Phase 10: Incremental Sync** - Implement timestamp-based delta sync for all entity types
 - [ ] **Phase 11: Deployment Configuration** - Production deployment scripts and environment templates
 - [ ] **Phase 12: End-to-End Robustness** - Validate complete workflow and error recovery across the pipeline
@@ -73,11 +73,12 @@ Plans:
   2. Gateway ingestion service imports Zod schemas from generated files (not manual/hardcoded schemas)
   3. No temporary scripts (.mjs test files), isolated .md files, or debug artifacts remain in either module root
   4. No .backup files, .bak files, or development-only artifacts remain in the repository
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 09-01-PLAN.md -- Fix all 46 gateway TypeScript errors (Prisma models, Fastify types, bigint) and switch ingestion to generated schemas
-- [ ] 09-02-PLAN.md -- Remove temporary scripts, backup files, and development garbage across both modules
+- [x] 09-01-PLAN.md -- Fix all 46 gateway TypeScript errors (Prisma models, Fastify types, bigint) and switch ingestion to generated schemas
+- [x] 09-02-PLAN.md -- Remove temporary scripts, backup files, and development garbage across both modules
+- [x] 09-03-PLAN.md -- Gap closure: rewrite schema index to source from generated schemas, delete schema.prisma.broken
 
 ### Phase 10: Incremental Sync
 **Goal**: Sync service fetches only records modified since last successful sync, dramatically reducing sync time for routine updates
@@ -133,7 +134,7 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 8. Sync Reliability | v1.1-rc | 3/3 | Complete | 2026-02-04 |
-| 9. Tech Debt Cleanup | v1.1-rc | 0/2 | Not started | - |
+| 9. Tech Debt Cleanup | v1.1-rc | 3/3 | Complete | 2026-02-04 |
 | 10. Incremental Sync | v1.1-rc | 0/2 | Not started | - |
 | 11. Deployment Configuration | v1.1-rc | 0/1 | Not started | - |
 | 12. End-to-End Robustness | v1.1-rc | 0/2 | Not started | - |

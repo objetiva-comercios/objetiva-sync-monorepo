@@ -23,10 +23,10 @@ Requirements for release candidate. Each maps to roadmap phases.
 
 ### Tech Debt & Cleanup
 
-- [ ] **DEBT-01**: Gateway compiles with zero TypeScript errors
-- [ ] **DEBT-02**: Ingestion uses generated schemas instead of manual imports
-- [ ] **DEBT-03**: Remove temporary scripts, isolated .md files, and development garbage
-- [ ] **DEBT-04**: Clean unused backup files and debug artifacts across both modules
+- [x] **DEBT-01**: Gateway compiles with zero TypeScript errors *(Plan 09-01)*
+- [x] **DEBT-02**: Ingestion uses generated schemas instead of manual imports *(Plan 09-03)*
+- [x] **DEBT-03**: Remove temporary scripts, isolated .md files, and development garbage *(Plan 09-02)*
+- [x] **DEBT-04**: Clean unused backup files and debug artifacts across both modules *(Plan 09-03)*
 
 ### Deployment
 
@@ -93,10 +93,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INCR-02 | Phase 10: Incremental Sync | Pending |
 | INCR-03 | Phase 10: Incremental Sync | Pending |
 | INCR-04 | Phase 10: Incremental Sync | Pending |
-| DEBT-01 | Phase 9: Tech Debt Cleanup | Pending |
-| DEBT-02 | Phase 9: Tech Debt Cleanup | Pending |
-| DEBT-03 | Phase 9: Tech Debt Cleanup | Pending |
-| DEBT-04 | Phase 9: Tech Debt Cleanup | Pending |
+| DEBT-01 | Phase 9: Tech Debt Cleanup | Complete |
+| DEBT-02 | Phase 9: Tech Debt Cleanup | Complete |
+| DEBT-03 | Phase 9: Tech Debt Cleanup | Complete |
+| DEBT-04 | Phase 9: Tech Debt Cleanup | Complete |
 | DEPL-01 | Phase 11: Deployment Configuration | Pending |
 | DEPL-02 | Phase 11: Deployment Configuration | Pending |
 | ROBU-01 | Phase 12: End-to-End Robustness | Pending |
