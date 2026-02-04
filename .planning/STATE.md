@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 9 of 12 (Tech Debt Cleanup)
-Plan: 2/2
+Plan: 3/3
 Status: Phase complete
-Last activity: 2026-02-04 -- Completed 09-01-PLAN.md (gateway TypeScript compilation fix)
+Last activity: 2026-02-04 -- Completed 09-03-PLAN.md (schema consolidation)
 
-Progress: [#################░░░] 85% (v1.0 complete, Phase 8 complete, Phase 9 complete)
+Progress: [##################░░] 90% (v1.0 complete, Phase 8 complete, Phase 9 complete)
 
 ## Performance Metrics
 
@@ -25,7 +25,7 @@ Progress: [#################░░░] 85% (v1.0 complete, Phase 8 complete, Pha
 
 **v1.1-rc:**
 - Plans estimated: 9 across 5 phases
-- Plans completed: 6 (08-01, 08-02, 08-03, 09-01, 09-02)
+- Plans completed: 7 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03)
 - Phases completed: 2 (Phase 8, Phase 9)
 - Phase 10 ready to start
 
@@ -60,12 +60,15 @@ All v1.0 decisions archived in `.planning/archive/v1.0-MILESTONE.md`.
 | Keep essential documentation | 09-02 | README.md, DEPLOYMENT.md, SETUP.md needed for Phase 11 deployment |
 | Use manual Zod schemas (not generated) | 09-01 | Generated schemas are outdated (pre-IVA-migration); manual schemas are correct and match current Prisma schema |
 | Prisma schema must match database exactly | 09-01 | Schema is source of truth for TypeScript types; discrepancies cause compilation errors |
+| Generated schemas as source of truth | 09-03 | index.ts re-exports from generated schemas (DEBT-02 satisfied) |
+| Backward-compatible aliases during migration | 09-03 | Type aliases ensure consumer code doesn't break while migrating to generated schemas |
+| nullToUndefined helper for Prisma | 09-03 | Bridges Zod nullable (T | null) with Prisma optional (T | undefined) |
 
 ### Known Issues
 
 1. **Sync timeout bug** -- **FIXED** (root cause: JWT expiring in 86.4s not 24h, plus SSE/timeout improvements)
 2. **Gateway TypeScript errors** -- **FIXED** (Prisma schema updated to match IVA migration, bigint types corrected)
-3. **Generated schemas outdated** -- Manual schemas in use (correct); regenerate after deployment when gateway is running
+3. **Generated schemas outdated** -- **FIXED** (manually updated to match Prisma schema, re-export from index.ts); regenerate after deployment recommended
 
 ### Pending Todos
 
@@ -77,8 +80,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-04 -- Completed 09-01-PLAN.md (gateway TypeScript compilation fix)
-Stopped at: Phase 9 complete - 2/2 plans done
+Last session: 2026-02-04 -- Completed 09-03-PLAN.md (schema consolidation)
+Stopped at: Phase 9 complete - 3/3 plans done
 Resume file: None
 
 ### Phase 8 Summary (Completed 2026-02-04)
@@ -90,3 +93,4 @@ Resume file: None
 ### Phase 9 Summary (Completed 2026-02-04)
 - 09-01: Gateway TypeScript compilation fix (Prisma schema aligned with IVA migration, bigint types fixed, zero compilation errors)
 - 09-02: Repository cleanup (60+ temporary files removed: test scripts, backups, debug logs)
+- 09-03: Schema consolidation (index.ts re-exports from generated schemas with backward-compatible aliases, nullToUndefined helper for Prisma compatibility, DEBT-02 and DEBT-04 satisfied)
