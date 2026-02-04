@@ -95,7 +95,14 @@
                   <span class="label-text-alt">Si no se marca, solo sincronizará datos nuevos/modificados desde la última sincronización</span>
                 </label>
               </div>
-<!-- Sync Mode Indicator -->              <div class="pt-2">                <div id="sync-mode-indicator" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200">                  <span id="sync-type-badge" class="badge badge-primary badge-sm">INCREMENTAL</span>                  <span id="sync-mode-description" class="text-xs opacity-70">Solo registros modificados</span>                </div>              </div>
+
+              <!-- Sync Mode Indicator -->
+              <div class="pt-2">
+                <div id="sync-mode-indicator" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-base-200">
+                  <span id="sync-type-badge" class="badge badge-primary badge-sm">INCREMENTAL</span>
+                  <span id="sync-mode-description" class="text-xs opacity-70">Solo registros modificados</span>
+                </div>
+              </div>
 
               <!-- Execute Button -->
               <div class="pt-4 border-t">
@@ -133,12 +140,42 @@
         </div>
       </div>
     </div>
+
+    <!-- Sync State: Per-Entity Timestamps -->
+    <div class="mt-6">
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          <h3 class="card-title text-lg">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+            Estado por Entidad
+          </h3>
+          <div id="sync-state-container" class="overflow-x-auto">
+            <div class="text-center py-4 text-sm opacity-60">Cargando estado...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sync History -->
+    <div class="mt-6">
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          <h3 class="card-title text-lg">
+            <i data-lucide="history" class="w-5 h-5"></i>
+            Historial de Sincronizaciones
+          </h3>
+          <div id="sync-history-container" class="overflow-x-auto">
+            <div class="text-center py-4 text-sm opacity-60">Cargando historial...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
   let isSyncing = false;
-<!-- Sync State: Per-Entity Timestamps -->    <div class="mt-6">      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">        <div class="card bg-base-100 shadow-xl">          <div class="card-body">            <h3 class="card-title text-lg">              <i data-lucide="clock" class="w-5 h-5"></i>              Estado por Entidad            </h3>            <div id="sync-state-container" class="overflow-x-auto">              <div class="text-center py-4 text-sm opacity-60">Cargando estado...</div>            </div>          </div>        </div>      </div>    </div>    <!-- Sync History -->    <div class="mt-6">      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">        <div class="card bg-base-100 shadow-xl">          <div class="card-body">            <h3 class="card-title text-lg">              <i data-lucide="history" class="w-5 h-5"></i>              Historial de Sincronizaciones            </h3>            <div id="sync-history-container" class="overflow-x-auto">              <div class="text-center py-4 text-sm opacity-60">Cargando historial...</div>            </div>          </div>        </div>      </div>    </div>
   let currentEventSource = null;
   let currentSyncLogId = null;
   let isGatewayConnected = false;
@@ -158,11 +195,175 @@
   };
 
   /**
+   * Formatea timestamp ISO a formato dd/mm/yyyy HH:mm:ss
+   */
+  function formatTimestamp(isoString) {
+    if (!isoString) return '-';
+    const d = new Date(isoString);
+    const pad = (n) => n.toString().padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  /**
+   * Formatea duración en ms a formato legible
+   */
+  function formatDuration(ms) {
+    if (!ms) return '-';
+    if (ms < 1000) return `${ms}ms`;
+    const seconds = ms / 1000;
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  /**
+   * Actualiza el indicador de modo de sincronización según el checkbox
+   */
+  function updateSyncModeIndicator() {
+    const isFullSync = document.getElementById('full-sync-checkbox').checked;
+    const badge = document.getElementById('sync-type-badge');
+    const desc = document.getElementById('sync-mode-description');
+    if (!badge || !desc) return;
+
+    if (isFullSync) {
+      badge.textContent = 'COMPLETA';
+      badge.className = 'badge badge-warning badge-sm';
+      desc.textContent = 'Todos los registros desde el principio';
+    } else {
+      badge.textContent = 'INCREMENTAL';
+      badge.className = 'badge badge-primary badge-sm';
+      desc.textContent = 'Solo registros modificados';
+    }
+  }
+
+  /**
+   * Carga el estado de sincronización por entidad
+   */
+  async function loadSyncState() {
+    try {
+      const response = await fetch('/api/sync/sync-state');
+      const result = await response.json();
+      const container = document.getElementById('sync-state-container');
+      if (!container) return;
+
+      if (!result.success || !result.data || result.data.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-sm opacity-60">No hay datos de sincronización</div>';
+        return;
+      }
+
+      const html = `
+        <table class="table table-sm w-full">
+          <thead>
+            <tr>
+              <th>Entidad</th>
+              <th>Query</th>
+              <th>Ultimo Sync</th>
+              <th>Registros</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${result.data.map(item => {
+              const icon = ENTITY_ICONS[item.entityType] || '📋';
+              const statusBadge = item.status === 'running' ? 'badge-warning' :
+                                  item.status === 'error' ? 'badge-error' : 'badge-info';
+              const lastSync = item.lastSyncAt ? formatTimestamp(item.lastSyncAt) : '<i>Sin sincronizar</i>';
+              const records = item.lastSyncCount || 0;
+              return `
+                <tr>
+                  <td>${icon} ${escapeHtml(item.entityType)}</td>
+                  <td class="text-xs">${escapeHtml(item.queryName || '-')}</td>
+                  <td class="text-xs">${lastSync}</td>
+                  <td class="text-xs">${records}</td>
+                  <td><span class="badge ${statusBadge} badge-sm">${escapeHtml(item.status || 'idle')}</span></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+      container.innerHTML = html;
+      if (window.lucide) lucide.createIcons();
+    } catch (error) {
+      console.error('Error loading sync state:', error);
+      const container = document.getElementById('sync-state-container');
+      if (container) {
+        container.innerHTML = '<div class="text-center py-4 text-sm text-red-600">Error al cargar estado</div>';
+      }
+    }
+  }
+
+  /**
+   * Carga el historial de sincronizaciones
+   */
+  async function loadSyncHistory() {
+    try {
+      const response = await fetch('/api/sync/history?limit=15');
+      const result = await response.json();
+      const container = document.getElementById('sync-history-container');
+      if (!container) return;
+
+      if (!result.success || !result.data || result.data.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-sm opacity-60">No hay historial de sincronizaciones</div>';
+        return;
+      }
+
+      const html = `
+        <table class="table table-sm w-full">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Query</th>
+              <th>Tipo</th>
+              <th>Obtenidos</th>
+              <th>Enviados</th>
+              <th>Fallidos</th>
+              <th>Duracion</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${result.data.map(entry => {
+              const syncTypeBadge = entry.syncType === 'full' ? 'badge-warning' :
+                                    entry.syncType === 'manual' ? 'badge-info' : 'badge-primary';
+              const syncTypeLabel = entry.syncType === 'full' ? 'COMPLETA' :
+                                    entry.syncType === 'manual' ? 'MANUAL' : 'INCREMENTAL';
+              const statusBadge = entry.status === 'success' ? 'badge-success' :
+                                  entry.status === 'failed' ? 'badge-error' :
+                                  entry.status === 'partial' ? 'badge-warning' : 'badge-ghost';
+              return `
+                <tr>
+                  <td class="text-xs">${formatTimestamp(entry.createdAt)}</td>
+                  <td class="text-xs">${escapeHtml(entry.queryName || '-')}</td>
+                  <td><span class="badge ${syncTypeBadge} badge-sm">${syncTypeLabel}</span></td>
+                  <td class="text-xs">${entry.recordsFetched || 0}</td>
+                  <td class="text-xs">${entry.recordsSent || 0}</td>
+                  <td class="text-xs">${entry.recordsFailed || 0}</td>
+                  <td class="text-xs">${formatDuration(entry.durationMs)}</td>
+                  <td><span class="badge ${statusBadge} badge-sm">${escapeHtml(entry.status || 'unknown')}</span></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+      container.innerHTML = html;
+      if (window.lucide) lucide.createIcons();
+    } catch (error) {
+      console.error('Error loading sync history:', error);
+      const container = document.getElementById('sync-history-container');
+      if (container) {
+        container.innerHTML = '<div class="text-center py-4 text-sm text-red-600">Error al cargar historial</div>';
+      }
+    }
+  }
+
+  /**
    * Carga las queries disponibles desde el API
    */
   async function loadAvailableQueries() {
     try {
-/**   * Formatea timestamp ISO a formato dd/mm/yyyy HH:mm:ss   */  function formatTimestamp(isoString) {    if (!isoString) return '-';    const d = new Date(isoString);    const pad = (n) => n.toString().padStart(2, '0');    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;  }  /**   * Formatea duración en ms a formato legible   */  function formatDuration(ms) {    if (!ms) return '-';    if (ms < 1000) return `${ms}ms`;    const seconds = ms / 1000;    if (seconds < 60) return `${seconds.toFixed(1)}s`;    const minutes = Math.floor(seconds / 60);    const remainingSeconds = Math.floor(seconds % 60);    return `${minutes}m ${remainingSeconds}s`;  }
       const response = await fetch('/api/sync/available-queries');
       const result = await response.json();
 
@@ -188,7 +389,6 @@
       .map((query) => {
         const icon = ENTITY_ICONS[query.entityType] || '📋';
         const isAvailable = query.available;
-/**   * Actualiza el indicador de modo de sincronización según el checkbox   */  function updateSyncModeIndicator() {    const isFullSync = document.getElementById('full-sync-checkbox').checked;    const badge = document.getElementById('sync-type-badge');    const desc = document.getElementById('sync-mode-description');    if (!badge || !desc) return;    if (isFullSync) {      badge.textContent = 'COMPLETA';      badge.className = 'badge badge-warning badge-sm';      desc.textContent = 'Todos los registros desde el principio';    } else {      badge.textContent = 'INCREMENTAL';      badge.className = 'badge badge-primary badge-sm';      desc.textContent = 'Solo registros modificados';    }  }  /**   * Carga el estado de sincronización por entidad   */  async function loadSyncState() {    try {      const response = await fetch('/api/sync/sync-state');      const result = await response.json();      const container = document.getElementById('sync-state-container');      if (!container) return;      if (!result.success || !result.data || result.data.length === 0) {        container.innerHTML = '<div class="text-center py-4 text-sm opacity-60">No hay datos de sincronización</div>';        return;      }      const html = `        <table class="table table-sm w-full">          <thead>            <tr>              <th>Entidad</th>              <th>Query</th>              <th>Ultimo Sync</th>              <th>Registros</th>              <th>Estado</th>            </tr>          </thead>          <tbody>            ${result.data.map(item => {              const icon = ENTITY_ICONS[item.entityType] || '📋';              const statusBadge = item.status === 'running' ? 'badge-warning' :                                  item.status === 'error' ? 'badge-error' : 'badge-info';              const lastSync = item.lastSyncAt ? formatTimestamp(item.lastSyncAt) : '<i>Sin sincronizar</i>';              const records = item.lastRecordCount || 0;              return `                <tr>                  <td>${icon} ${escapeHtml(item.entityType)}</td>                  <td class="text-xs">${escapeHtml(item.queryName || '-')}</td>                  <td class="text-xs">${lastSync}</td>                  <td class="text-xs">${records}</td>                  <td><span class="badge ${statusBadge} badge-sm">${escapeHtml(item.status || 'idle')}</span></td>                </tr>              `;            }).join('')}          </tbody>        </table>      `;      container.innerHTML = html;      if (window.lucide) lucide.createIcons();    } catch (error) {      console.error('Error loading sync state:', error);      const container = document.getElementById('sync-state-container');      if (container) {        container.innerHTML = '<div class="text-center py-4 text-sm text-red-600">Error al cargar estado</div>';      }    }  }  /**   * Carga el historial de sincronizaciones   */  async function loadSyncHistory() {    try {      const response = await fetch('/api/sync/history?limit=15');      const result = await response.json();      const container = document.getElementById('sync-history-container');      if (!container) return;      if (!result.success || !result.data || result.data.length === 0) {        container.innerHTML = '<div class="text-center py-4 text-sm opacity-60">No hay historial de sincronizaciones</div>';        return;      }      const html = `        <table class="table table-sm w-full">          <thead>            <tr>              <th>Fecha</th>              <th>Query</th>              <th>Tipo</th>              <th>Obtenidos</th>              <th>Enviados</th>              <th>Fallidos</th>              <th>Duracion</th>              <th>Estado</th>            </tr>          </thead>          <tbody>            ${result.data.map(entry => {              const syncTypeBadge = entry.syncType === 'full' ? 'badge-warning' :                                    entry.syncType === 'manual' ? 'badge-info' : 'badge-primary';              const syncTypeLabel = entry.syncType === 'full' ? 'COMPLETA' :                                    entry.syncType === 'manual' ? 'MANUAL' : 'INCREMENTAL';              const statusBadge = entry.status === 'success' ? 'badge-success' :                                  entry.status === 'failed' ? 'badge-error' :                                  entry.status === 'partial' ? 'badge-warning' : 'badge-ghost';              return `                <tr>                  <td class="text-xs">${formatTimestamp(entry.startedAt)}</td>                  <td class="text-xs">${escapeHtml(entry.queryName || '-')}</td>                  <td><span class="badge ${syncTypeBadge} badge-sm">${syncTypeLabel}</span></td>                  <td class="text-xs">${entry.recordsProcessed || 0}</td>                  <td class="text-xs">${entry.recordsSent || 0}</td>                  <td class="text-xs">${entry.recordsFailed || 0}</td>                  <td class="text-xs">${formatDuration(entry.durationMs)}</td>                  <td><span class="badge ${statusBadge} badge-sm">${escapeHtml(entry.status || 'unknown')}</span></td>                </tr>              `;            }).join('')}          </tbody>        </table>      `;      container.innerHTML = html;      if (window.lucide) lucide.createIcons();    } catch (error) {      console.error('Error loading sync history:', error);      const container = document.getElementById('sync-history-container');      if (container) {        container.innerHTML = '<div class="text-center py-4 text-sm text-red-600">Error al cargar historial</div>';      }    }  }
         const checkboxId = `query-${query.id}`;
         const progressId = `progress-${query.id}`;
 
@@ -688,7 +888,91 @@
     if (window.lucide) lucide.createIcons();
   }
 
-function showSyncResults(result) {    const { summary, results, syncType } = result;    // Determine sync type badge    const syncTypeLabel = syncType === 'full' ? 'COMPLETA' : 'INCREMENTAL';    const syncTypeBadgeClass = syncType === 'full' ? 'badge-warning' : 'badge-primary';    const html = `      <!-- Summary Card -->      <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 mb-4">        <h4 class="text-md font-semibold text-blue-900 mb-2">          <i data-lucide="check-circle" class="w-5 h-5 inline-block mr-2"></i>          Resumen de Sincronización          <span class="badge ${syncTypeBadgeClass} badge-sm ml-2">${syncTypeLabel}</span>        </h4>        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">          <div>            <p class="text-xs text-blue-700">Entidades</p>            <p class="text-lg font-bold text-blue-900">${summary.totalEntities}</p>          </div>          <div>            <p class="text-xs text-green-700">Exitosas</p>            <p class="text-lg font-bold text-green-900">${summary.successful}</p>          </div>          <div>            <p class="text-xs text-red-700">Fallidas</p>            <p class="text-lg font-bold text-red-900">${summary.failed}</p>          </div>          <div>            <p class="text-xs text-blue-700">Registros</p>            <p class="text-lg font-bold text-blue-900">${summary.totalSent || 0}</p>          </div>        </div>      </div>      <!-- Detailed Results -->      <div class="space-y-3">        ${results          .map(            (r) => `          <div class="border ${r.status === 'success' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'} rounded-lg p-4">            <div class="flex items-center justify-between mb-2">              <h5 class="text-sm font-medium ${r.status === 'success' ? 'text-green-900' : 'text-red-900'}">                ${r.entityType === 'articulo' ? '📦 Artículos' :                  r.entityType === 'comprobante_cabecera' ? '📄 Comprobantes Cabecera' :                  r.entityType === 'comprobante_detalle' ? '📋 Comprobantes Detalle' :                  r.entityType === 'comprobante_pago' ? '💳 Comprobantes Pago' : r.entityType}              </h5>              <span class="text-xs font-semibold ${r.status === 'success' ? 'text-green-700' : 'text-red-700'}">                ${r.status === 'success' ? '✓ ÉXITO' : '✗ FALLÓ'}              </span>            </div>            ${              r.status === 'success'                ? `              <div class="grid grid-cols-2 gap-2 text-xs ${r.status === 'success' ? 'text-green-700' : 'text-red-700'}">                <div>Procesados: <span class="font-semibold">${r.recordsProcessed || 0}</span></div>                <div>Enviados: <span class="font-semibold">${r.recordsSent || 0}</span></div>                <div>Duración: <span class="font-semibold">${r.durationMs ? (r.durationMs / 1000).toFixed(2) + 's' : 'N/A'}</span></div>                ${r.logId ? `<div><button onclick="viewLogDetails(${r.logId})" class="text-blue-600 hover:text-blue-800 underline text-xs">Ver detalles</button></div>` : ''}              </div>            `                : `              <p class="text-xs text-red-700 mb-2">Error: ${escapeHtml(r.error || 'Desconocido')}</p>              ${r.recordsFailed > 0 ? `<p class="text-xs text-red-700 font-semibold">Registros fallidos: ${r.recordsFailed}</p>` : ''}              ${r.logId ? `<button onclick="viewLogDetails(${r.logId})" class="mt-2 inline-flex items-center px-3 py-1 border border-red-300 text-xs font-medium rounded-md text-red-700 bg-white hover:bg-red-50"><i data-lucide="alert-circle" class="w-3 h-3 mr-1"></i> Ver errores detallados</button>` : ''}            `            }          </div>        `          )          .join('')}      </div>    `;    const container = document.getElementById('sync-results-container');    container.innerHTML = html;    if (window.lucide) lucide.createIcons();    // Refresh sync state and history after sync completes    loadSyncState();    loadSyncHistory();  }  function showSyncError
+  function showSyncResults(result) {
+    const { summary, results, syncType } = result;
+
+    // Determine sync type badge
+    const syncTypeLabel = syncType === 'full' ? 'COMPLETA' : 'INCREMENTAL';
+    const syncTypeBadgeClass = syncType === 'full' ? 'badge-warning' : 'badge-primary';
+
+    const html = `
+      <!-- Summary Card -->
+      <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 mb-4">
+        <h4 class="text-md font-semibold text-blue-900 mb-2">
+          <i data-lucide="check-circle" class="w-5 h-5 inline-block mr-2"></i>
+          Resumen de Sincronización
+          <span class="badge ${syncTypeBadgeClass} badge-sm ml-2">${syncTypeLabel}</span>
+        </h4>
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <p class="text-xs text-blue-700">Entidades</p>
+            <p class="text-lg font-bold text-blue-900">${summary.totalEntities}</p>
+          </div>
+          <div>
+            <p class="text-xs text-green-700">Exitosas</p>
+            <p class="text-lg font-bold text-green-900">${summary.successful}</p>
+          </div>
+          <div>
+            <p class="text-xs text-red-700">Fallidas</p>
+            <p class="text-lg font-bold text-red-900">${summary.failed}</p>
+          </div>
+          <div>
+            <p class="text-xs text-blue-700">Registros</p>
+            <p class="text-lg font-bold text-blue-900">${summary.totalSent || 0}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Results -->
+      <div class="space-y-3">
+        ${results
+          .map(
+            (r) => `
+          <div class="border ${r.status === 'success' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'} rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h5 class="text-sm font-medium ${r.status === 'success' ? 'text-green-900' : 'text-red-900'}">
+                ${r.entityType === 'articulo' ? '📦 Artículos' :
+                  r.entityType === 'comprobante_cabecera' ? '📄 Comprobantes Cabecera' :
+                  r.entityType === 'comprobante_detalle' ? '📋 Comprobantes Detalle' :
+                  r.entityType === 'comprobante_pago' ? '💳 Comprobantes Pago' : r.entityType}
+              </h5>
+              <span class="text-xs font-semibold ${r.status === 'success' ? 'text-green-700' : 'text-red-700'}">
+                ${r.status === 'success' ? '✓ ÉXITO' : '✗ FALLÓ'}
+              </span>
+            </div>
+            ${
+              r.status === 'success'
+                ? `
+              <div class="grid grid-cols-2 gap-2 text-xs ${r.status === 'success' ? 'text-green-700' : 'text-red-700'}">
+                <div>Procesados: <span class="font-semibold">${r.recordsProcessed || 0}</span></div>
+                <div>Enviados: <span class="font-semibold">${r.recordsSent || 0}</span></div>
+                <div>Duración: <span class="font-semibold">${r.durationMs ? (r.durationMs / 1000).toFixed(2) + 's' : 'N/A'}</span></div>
+                ${r.logId ? `<div><button onclick="viewLogDetails(${r.logId})" class="text-blue-600 hover:text-blue-800 underline text-xs">Ver detalles</button></div>` : ''}
+              </div>
+            `
+                : `
+              <p class="text-xs text-red-700 mb-2">Error: ${escapeHtml(r.error || 'Desconocido')}</p>
+              ${r.recordsFailed > 0 ? `<p class="text-xs text-red-700 font-semibold">Registros fallidos: ${r.recordsFailed}</p>` : ''}
+              ${r.logId ? `<button onclick="viewLogDetails(${r.logId})" class="mt-2 inline-flex items-center px-3 py-1 border border-red-300 text-xs font-medium rounded-md text-red-700 bg-white hover:bg-red-50"><i data-lucide="alert-circle" class="w-3 h-3 mr-1"></i> Ver errores detallados</button>` : ''}
+            `
+            }
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+    `;
+
+    const container = document.getElementById('sync-results-container');
+    container.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
+
+    // Refresh sync state and history after sync completes
+    loadSyncState();
+    loadSyncHistory();
+  }
+
+  function showSyncError(message) {
     const container = document.getElementById('sync-results-container');
     container.innerHTML = `
       <div class="text-center py-8 text-red-600">
@@ -851,13 +1135,26 @@ function showSyncResults(result) {    const { summary, results, syncType } = res
     }
   }
 
-// Check for ongoing sync when page loads  document.addEventListener('DOMContentLoaded', function() {    loadAvailableQueries(); // CAMBIO: de loadAvailableEntities a loadAvailableQueries    checkOngoingSync();    startGatewayCheck();    // Si no hay sync en progreso, restaurar últimos resultados    if (!isSyncing) {      restoreLastSyncResults();    }    // Load sync state and history    loadSyncState();    loadSyncHistory();    // Update sync mode indicator on checkbox change    updateSyncModeIndicator();    const fullSyncCheckbox = document.getElementById('full-sync-checkbox');    if (fullSyncCheckbox) {      fullSyncCheckbox.addEventListener('change', updateSyncModeIndicator);    }  });
-    loadAvailableQueries(); // CAMBIO: de loadAvailableEntities a loadAvailableQueries
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    loadAvailableQueries();
     checkOngoingSync();
     startGatewayCheck();
+
     // Si no hay sync en progreso, restaurar últimos resultados
     if (!isSyncing) {
       restoreLastSyncResults();
+    }
+
+    // Load sync state and history
+    loadSyncState();
+    loadSyncHistory();
+
+    // Update sync mode indicator on checkbox change
+    updateSyncModeIndicator();
+    const fullSyncCheckbox = document.getElementById('full-sync-checkbox');
+    if (fullSyncCheckbox) {
+      fullSyncCheckbox.addEventListener('change', updateSyncModeIndicator);
     }
   });
 
