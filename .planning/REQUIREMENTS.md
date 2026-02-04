@@ -16,10 +16,10 @@ Requirements for release candidate. Each maps to roadmap phases.
 
 ### Incremental Sync
 
-- [ ] **INCR-01**: Sync tracks last successful sync timestamp per entity
-- [ ] **INCR-02**: Subsequent syncs fetch only records modified since last sync
-- [ ] **INCR-03**: Incremental sync works reliably for all 4 entity types
-- [ ] **INCR-04**: Full sync remains available as manual override option
+- [x] **INCR-01**: Sync tracks last successful sync timestamp per entity *(Plan 10-01)*
+- [x] **INCR-02**: Subsequent syncs fetch only records modified since last sync *(Plan 10-01)*
+- [x] **INCR-03**: Incremental sync works reliably for all 4 entity types *(Plans 10-01, 10-03, 10-04)*
+- [x] **INCR-04**: Full sync remains available as manual override option *(Plan 10-01)*
 
 ### Tech Debt & Cleanup
 
@@ -89,10 +89,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SYNC-02 | Phase 8: Sync Reliability | Complete |
 | SYNC-03 | Phase 8: Sync Reliability | Complete |
 | SYNC-04 | Phase 8: Sync Reliability | Human Test |
-| INCR-01 | Phase 10: Incremental Sync | Pending |
-| INCR-02 | Phase 10: Incremental Sync | Pending |
-| INCR-03 | Phase 10: Incremental Sync | Pending |
-| INCR-04 | Phase 10: Incremental Sync | Pending |
+| INCR-01 | Phase 10: Incremental Sync | Complete |
+| INCR-02 | Phase 10: Incremental Sync | Complete |
+| INCR-03 | Phase 10: Incremental Sync | Complete |
+| INCR-04 | Phase 10: Incremental Sync | Complete |
 | DEBT-01 | Phase 9: Tech Debt Cleanup | Complete |
 | DEBT-02 | Phase 9: Tech Debt Cleanup | Complete |
 | DEBT-03 | Phase 9: Tech Debt Cleanup | Complete |
@@ -109,4 +109,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-03 after roadmap creation*
+*Last updated: 2026-02-04 after Phase 10 completion*

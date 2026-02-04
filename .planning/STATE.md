@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Milestone v1.1-rc -- Phase 10: Incremental Sync
+**Current focus:** Milestone v1.1-rc -- Phase 11: Deployment Configuration
 
 ## Current Position
 
