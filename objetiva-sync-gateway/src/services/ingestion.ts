@@ -19,6 +19,19 @@ interface IngestionResult {
   }>
 }
 
+/**
+ * Convert null values to undefined for Prisma compatibility
+ * Prisma expects undefined for optional/nullable fields, not null
+ * Uses `as any` for type compatibility with Prisma's complex JSON types
+ */
+function nullToUndefined<T extends Record<string, any>>(obj: T): any {
+  const result = {} as any
+  for (const [key, value] of Object.entries(obj)) {
+    result[key] = value === null ? undefined : value
+  }
+  return result
+}
+
 export class IngestionService {
   /**
    * Log ingestion result with human-readable format
@@ -131,7 +144,7 @@ export class IngestionService {
     if (toCreate.length > 0) {
       try {
         const createResult = await prisma.articulo.createMany({
-          data: toCreate.map(a => ({
+          data: toCreate.map(a => nullToUndefined({
             ...a,
             erp_sincronizado: true,
             erp_fecha_sync: new Date(),
@@ -146,11 +159,11 @@ export class IngestionService {
         for (const [index, articulo] of toCreate.entries()) {
           try {
             await prisma.articulo.create({
-              data: {
+              data: nullToUndefined({
                 ...articulo,
                 erp_sincronizado: true,
                 erp_fecha_sync: new Date(),
-              },
+              }),
             })
             inserted++
           } catch (createError) {
@@ -172,12 +185,12 @@ export class IngestionService {
           toUpdate.map(({ id, data }) =>
             prisma.articulo.update({
               where: { id },
-              data: {
+              data: nullToUndefined({
                 ...data,
                 erp_sincronizado: true,
                 erp_fecha_sync: new Date(),
                 actualizado: new Date(),
-              },
+              }),
             })
           )
         )
@@ -190,12 +203,12 @@ export class IngestionService {
           try {
             await prisma.articulo.update({
               where: { id },
-              data: {
+              data: nullToUndefined({
                 ...data,
                 erp_sincronizado: true,
                 erp_fecha_sync: new Date(),
                 actualizado: new Date(),
-              },
+              }),
             })
             updated++
           } catch (updateError) {
@@ -309,7 +322,7 @@ export class IngestionService {
     if (toCreate.length > 0) {
       try {
         const createResult = await prisma.comprobanteCabecera.createMany({
-          data: toCreate.map(c => ({
+          data: toCreate.map(c => nullToUndefined({
             ...c,
             fecha: c.fecha ? new Date(c.fecha) : undefined,
             erp_fecha_sync: c.erp_fecha_sync ? new Date(c.erp_fecha_sync) : undefined,
@@ -324,11 +337,11 @@ export class IngestionService {
         for (const [index, comp] of toCreate.entries()) {
           try {
             await prisma.comprobanteCabecera.create({
-              data: {
+              data: nullToUndefined({
                 ...comp,
                 fecha: comp.fecha ? new Date(comp.fecha) : undefined,
                 erp_fecha_sync: comp.erp_fecha_sync ? new Date(comp.erp_fecha_sync) : undefined,
-              },
+              }),
             })
             inserted++
           } catch (createError) {
@@ -365,12 +378,12 @@ export class IngestionService {
           toUpdate.map(({ id, data }) =>
             prisma.comprobanteCabecera.update({
               where: { id },
-              data: {
+              data: nullToUndefined({
                 ...data,
                 fecha: data.fecha ? new Date(data.fecha) : undefined,
                 erp_fecha_sync: data.erp_fecha_sync ? new Date(data.erp_fecha_sync) : undefined,
                 actualizado: new Date(),
-              },
+              }),
             })
           )
         )
@@ -383,12 +396,12 @@ export class IngestionService {
           try {
             await prisma.comprobanteCabecera.update({
               where: { id },
-              data: {
+              data: nullToUndefined({
                 ...data,
                 fecha: data.fecha ? new Date(data.fecha) : undefined,
                 erp_fecha_sync: data.erp_fecha_sync ? new Date(data.erp_fecha_sync) : undefined,
                 actualizado: new Date(),
-              },
+              }),
             })
             updated++
           } catch (updateError) {
@@ -544,7 +557,7 @@ export class IngestionService {
       try {
         // Mapear campos normalizados de comprobante (del JSON al modelo Prisma)
         const createResult = await prisma.comprobanteDetalle.createMany({
-          data: toCreate.map(({ data: det, comprobante_id }) => ({
+          data: toCreate.map(({ data: det, comprobante_id }) => nullToUndefined({
             ...det,
             comprobante_id,
           })),
@@ -558,10 +571,10 @@ export class IngestionService {
         for (const [index, { data: det, comprobante_id }] of toCreate.entries()) {
           try {
             await prisma.comprobanteDetalle.create({
-              data: {
+              data: nullToUndefined({
                 ...det,
                 comprobante_id,
-              },
+              }),
             })
             inserted++
           } catch (createError) {
@@ -598,11 +611,11 @@ export class IngestionService {
           toUpdate.map(({ id, data: det, comprobante_id }) => {
             return prisma.comprobanteDetalle.update({
               where: { id },
-              data: {
+              data: nullToUndefined({
                 ...det,
                 comprobante_id,
                 actualizado: new Date(),
-              },
+              }),
             })
           })
         )
@@ -615,11 +628,11 @@ export class IngestionService {
           try {
             await prisma.comprobanteDetalle.update({
               where: { id },
-              data: {
+              data: nullToUndefined({
                 ...det,
                 comprobante_id,
                 actualizado: new Date(),
-              },
+              }),
             })
             updated++
           } catch (updateError) {
@@ -777,13 +790,13 @@ export class IngestionService {
         const createResult = await prisma.comprobantePagos.createMany({
           data: toCreate.map(({ data: pago, comprobante_id }) => {
             const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
-            return {
+            return nullToUndefined({
               ...pago,
               metodo_pago: metodo_pago_normalizado,
               comprobante_id,
               cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
               fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
-            }
+            })
           }),
           skipDuplicates: true,
         })
@@ -796,13 +809,13 @@ export class IngestionService {
           try {
             const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
             await prisma.comprobantePagos.create({
-              data: {
+              data: nullToUndefined({
                 ...pago,
                 metodo_pago: metodo_pago_normalizado,
                 comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
-              },
+              }),
             })
             inserted++
           } catch (createError) {
@@ -840,14 +853,14 @@ export class IngestionService {
             const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
             return prisma.comprobantePagos.update({
               where: { id },
-              data: {
+              data: nullToUndefined({
                 ...pago,
                 metodo_pago: metodo_pago_normalizado,
                 comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
                 updated_at: new Date(),
-              },
+              }),
             })
           })
         )
@@ -861,14 +874,14 @@ export class IngestionService {
             const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
             await prisma.comprobantePagos.update({
               where: { id },
-              data: {
+              data: nullToUndefined({
                 ...pago,
                 metodo_pago: metodo_pago_normalizado,
                 comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
                 updated_at: new Date(),
-              },
+              }),
             })
             updated++
           } catch (updateError) {
