@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 12 of 12 (End-to-End Robustness)
-Plan: 1/3
+Plan: 2/3
 Status: In progress
-Last activity: 2026-02-05 -- Completed 12-01-PLAN.md
+Last activity: 2026-02-05 -- Completed 12-02-PLAN.md
 
-Progress: [████████████████████░] 98% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete, Phase 11 complete, 12-01 complete)
+Progress: [█████████████████████] 99% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete, Phase 11 complete, 12-01 complete, 12-02 complete)
 
 ## Performance Metrics
 
@@ -25,9 +25,9 @@ Progress: [████████████████████░] 98% 
 
 **v1.1-rc:**
 - Plans estimated: 9 across 5 phases
-- Plans completed: 14 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03, 10-01, 10-02, 10-03, 10-04, 11-01, 11-02, 12-01)
+- Plans completed: 15 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03, 10-01, 10-02, 10-03, 10-04, 11-01, 11-02, 12-01, 12-02)
 - Phases completed: 4 (Phase 8, Phase 9, Phase 10, Phase 11)
-- Phase 12 in progress: 1/3 plans complete
+- Phase 12 in progress: 2/3 plans complete
 
 ## Accumulated Context
 
@@ -90,8 +90,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-05 -- Phase 12 plan 12-01 execution complete
-Stopped at: Completed 12-01-PLAN.md (workflow validation tests, 33 tests passing)
+Last session: 2026-02-05 -- Phase 12 plan 12-02 execution complete
+Stopped at: Completed 12-02-PLAN.md (error recovery and data integrity tests, 26 tests passing)
 Resume file: None
 
 ### Phase 8 Summary (Completed 2026-02-04)
@@ -134,6 +134,10 @@ Resume file: None
 |----------|----------|------------|
 | Fixed test fixture field name (erp_nombre → erp_nombre2) | 12-01 | Prisma schema is source of truth; test data must match actual schema |
 | Reused existing test infrastructure | 12-01 | Plan explicitly required reusing gateway-mock.ts and test-data.ts; avoids duplication |
+| Mock syncStateManager at module level | 12-02 | Batch processor imports syncStateManager singleton; vi.mock() with per-test vi.mocked() allows cancellation control |
+| Use vi.useFakeTimers() for backoff testing | 12-02 | Exponential backoff sleeps (2s, 4s, 8s) would slow tests; fake timers allow instant advancement |
+| Test behavior not implementation for retry | 12-02 | Processor call count is observable contract; internal status field proved brittle |
 
 ### Phase 12 Summary (In Progress)
 - 12-01: Workflow validation tests (33 tests: Zod validation for all 4 entity types, API client mock, error classifier completeness, full send-validate-persist flow)
+- 12-02: Error recovery and data integrity tests (26 tests: gateway unreachable recovery, batch retry with exponential backoff, AbortSignal cancellation, RetryQueueManager lifecycle, zero duplicate records)
