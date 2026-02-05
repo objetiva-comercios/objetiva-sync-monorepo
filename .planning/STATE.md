@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 Phase: 12 of 12 (End-to-End Robustness)
-Plan: 2/3
-Status: In progress
-Last activity: 2026-02-05 -- Completed 12-02-PLAN.md
+Plan: 3/3
+Status: Phase complete
+Last activity: 2026-02-05 -- Completed 12-03-PLAN.md
 
-Progress: [█████████████████████] 99% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete, Phase 11 complete, 12-01 complete, 12-02 complete)
+Progress: [█████████████████████] 100% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete, Phase 11 complete, Phase 12 complete)
 
 ## Performance Metrics
 
@@ -25,9 +25,9 @@ Progress: [█████████████████████] 99% 
 
 **v1.1-rc:**
 - Plans estimated: 9 across 5 phases
-- Plans completed: 15 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03, 10-01, 10-02, 10-03, 10-04, 11-01, 11-02, 12-01, 12-02)
-- Phases completed: 4 (Phase 8, Phase 9, Phase 10, Phase 11)
-- Phase 12 in progress: 2/3 plans complete
+- Plans completed: 16 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03, 10-01, 10-02, 10-03, 10-04, 11-01, 11-02, 12-01, 12-02, 12-03)
+- Phases completed: 5 (Phase 8, Phase 9, Phase 10, Phase 11, Phase 12)
+- **v1.1-rc COMPLETE**
 
 ## Accumulated Context
 
@@ -90,8 +90,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-05 -- Phase 12 plan 12-02 execution complete
-Stopped at: Completed 12-02-PLAN.md (error recovery and data integrity tests, 26 tests passing)
+Last session: 2026-02-05 -- Phase 12 plan 12-03 execution complete
+Stopped at: Completed 12-03-PLAN.md (end-to-end pipeline integration tests, 20 tests passing, ROBU-01 gap closed, Phase 12 complete)
 Resume file: None
 
 ### Phase 8 Summary (Completed 2026-02-04)
@@ -137,7 +137,11 @@ Resume file: None
 | Mock syncStateManager at module level | 12-02 | Batch processor imports syncStateManager singleton; vi.mock() with per-test vi.mocked() allows cancellation control |
 | Use vi.useFakeTimers() for backoff testing | 12-02 | Exponential backoff sleeps (2s, 4s, 8s) would slow tests; fake timers allow instant advancement |
 | Test behavior not implementation for retry | 12-02 | Processor call count is observable contract; internal status field proved brittle |
+| Cross-module imports for gateway codegen functions | 12-03 | Tests need actual codegen logic, not mocks; monorepo allows ../../../objetiva-sync-gateway/src/codegen/ imports |
+| Test both gateway-side and sync-side schemas | 12-03 | Gateway generates DB-structure schemas, sync has business-rule schemas; both must accept valid data |
+| Fix activo field nullability expectation | 12-03 | Field is nullable=true AND has default; codegen if-else prioritizes is_nullable → .nullable().optional() |
 
-### Phase 12 Summary (In Progress)
+### Phase 12 Summary (Completed 2026-02-05)
 - 12-01: Workflow validation tests (33 tests: Zod validation for all 4 entity types, API client mock, error classifier completeness, full send-validate-persist flow)
 - 12-02: Error recovery and data integrity tests (26 tests: gateway unreachable recovery, batch retry with exponential backoff, AbortSignal cancellation, RetryQueueManager lifecycle, zero duplicate records)
+- 12-03: End-to-end pipeline integration tests (20 tests: codegen Zod/Prisma, cross-schema validation, complete pipeline flow, schema evolution backward compatibility, ROBU-01 gap closed)
