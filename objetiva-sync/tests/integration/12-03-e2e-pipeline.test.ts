@@ -50,7 +50,7 @@ function createMockArticulosSchema(extraColumns: ColumnMetadata[] = []): SchemaR
 
     // Required fields (NOT NULL)
     { column_name: 'erp_codigo', data_type: 'text', is_nullable: false, default_value: null, ordinal_position: 4, column_comment: 'Código del artículo en el ERP' },
-    { column_name: 'erp_nombre2', data_type: 'text', is_nullable: false, default_value: null, ordinal_position: 5, column_comment: 'Nombre del artículo en el ERP' },
+    { column_name: 'erp_nombre', data_type: 'text', is_nullable: false, default_value: null, ordinal_position: 5, column_comment: 'Nombre del artículo en el ERP' },
 
     // Optional text fields
     { column_name: 'nombre', data_type: 'text', is_nullable: true, default_value: null, ordinal_position: 6, column_comment: null },
@@ -100,7 +100,7 @@ describe('Group 1: Codegen produces correct Zod schemas from schema metadata', (
 
     // Verify field mappings
     expect(generatedContent).toContain('erp_codigo: z.string()'); // NOT NULL -> no .nullable()
-    expect(generatedContent).toContain('erp_nombre2: z.string()'); // NOT NULL -> no .nullable()
+    expect(generatedContent).toContain('erp_nombre: z.string()'); // NOT NULL -> no .nullable()
     expect(generatedContent).toContain('nombre: z.string().nullable().optional()'); // Nullable
     expect(generatedContent).toContain('precio: z.number().nullable().optional()'); // Decimal -> number
     expect(generatedContent).toContain('activo: z.boolean()'); // Boolean with default -> .optional()
@@ -204,7 +204,7 @@ datasource db {
 model Articulo {
   id BigInt @id @default(autoincrement())
   erp_codigo String @db.Text
-  erpNombre2 String @map("erp_nombre2") @db.Text
+  erpNombre String @map("erp_nombre") @db.Text
 
   @@map("articulos")
 }
@@ -219,7 +219,7 @@ model Articulo {
     // Verify field maps extracted
     expect(parsed.fieldMaps.has('articulos')).toBe(true);
     const articulosMap = parsed.fieldMaps.get('articulos');
-    expect(articulosMap?.get('erp_nombre2')).toBe('erpNombre2');
+    expect(articulosMap?.get('erp_nombre')).toBe('erpNombre');
   });
 
   it('a new column in ColumnMetadata would produce a new field in Prisma model output', () => {
@@ -254,7 +254,7 @@ describe('Group 3: Generated schemas and sync schemas both accept valid fixture 
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.erp_codigo).toBe(fixture.erp_codigo);
-      expect(result.data.erp_nombre2).toBe(fixture.erp_nombre2);
+      expect(result.data.erp_nombre).toBe(fixture.erp_nombre);
     }
   });
 
@@ -265,7 +265,7 @@ describe('Group 3: Generated schemas and sync schemas both accept valid fixture 
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.erp_codigo).toBe(fixture.erp_codigo);
-      expect(result.data.erp_nombre2).toBe(fixture.erp_nombre2);
+      expect(result.data.erp_nombre).toBe(fixture.erp_nombre);
     }
   });
 
@@ -374,7 +374,7 @@ describe('Group 5: Complete pipeline flow - schema change to validated data send
     // Step 3: Verify the string is valid (contains expected fields)
     expect(generatedZodContent).toContain('export const ArticulosDbSchema = z.object({');
     expect(generatedZodContent).toContain('erp_codigo: z.string()');
-    expect(generatedZodContent).toContain('erp_nombre2: z.string()');
+    expect(generatedZodContent).toContain('erp_nombre: z.string()');
     expect(generatedZodContent).toContain('precio: z.number()');
 
     // Step 4: Create test fixture data
@@ -487,7 +487,7 @@ describe('Group 5: Complete pipeline flow - schema change to validated data send
 
     const testData = {
       erp_codigo: 'TEST-001',
-      erp_nombre2: 'Test Product',
+      erp_nombre: 'Test Product',
       nombre: 'Full Product Name',
       precio: 100.50,
       activo: true,
@@ -511,7 +511,7 @@ describe('Group 5: Complete pipeline flow - schema change to validated data send
     // Both sync and gateway schemas should enforce required fields
     const invalidData = {
       // Missing erp_codigo (required)
-      erp_nombre2: 'Product Name',
+      erp_nombre: 'Product Name',
       precio: 100,
     };
 

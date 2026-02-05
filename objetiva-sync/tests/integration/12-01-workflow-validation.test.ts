@@ -56,7 +56,7 @@ describe('Workflow Validation - End-to-End Integration Tests', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.erp_codigo).toBeDefined();
-        expect(result.data.erp_nombre2).toBeDefined();
+        expect(result.data.erp_nombre).toBeDefined();
       }
     });
 
@@ -129,7 +129,7 @@ describe('Workflow Validation - End-to-End Integration Tests', () => {
       const invalidArticulo = {
         nombre: 'Invalid Product',
         precio: 50000,
-        // Missing: erp_codigo, erp_nombre2
+        // Missing: erp_codigo, erp_nombre
       };
 
       // Act
@@ -141,7 +141,7 @@ describe('Workflow Validation - End-to-End Integration Tests', () => {
         expect(result.error.issues.length).toBeGreaterThan(0);
         const fieldNames = result.error.issues.map(issue => issue.path.join('.'));
         expect(fieldNames).toContain('erp_codigo');
-        expect(fieldNames).toContain('erp_nombre2');
+        expect(fieldNames).toContain('erp_nombre');
       }
     });
 

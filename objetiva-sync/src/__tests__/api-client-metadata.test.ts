@@ -62,7 +62,7 @@ describe('API Clients - Metadata Transmission', () => {
 
       const client = new ArticulosClient(baseUrl, mockAuthManager);
       const testArticulos: IArticuloPayload[] = [
-        { sku: 'TEST-001', erp_codigo: 'TEST-001', erp_nombre2: 'Test Article', nombre: 'Test Article', objeto: 'producto' },
+        { sku: 'TEST-001', erp_codigo: 'TEST-001', erp_nombre: 'Test Article', nombre: 'Test Article', objeto: 'producto' },
       ];
 
       await client.sendBatch(testArticulos, mockMetadata);
@@ -92,7 +92,7 @@ describe('API Clients - Metadata Transmission', () => {
 
       const client = new ArticulosClient(baseUrl, mockAuthManager);
       const testArticulos: IArticuloPayload[] = [
-        { sku: 'TEST-002', erp_codigo: 'TEST-002', erp_nombre2: 'Test Article 2', nombre: 'Test Article 2', objeto: 'producto' },
+        { sku: 'TEST-002', erp_codigo: 'TEST-002', erp_nombre: 'Test Article 2', nombre: 'Test Article 2', objeto: 'producto' },
       ];
 
       // Call without metadata

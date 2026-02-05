@@ -338,7 +338,7 @@ export class ArticulosClient {
       const testArticulo: IArticuloPayload = {
         sku: 'TEST-001',
         erp_codigo: 'TEST-001',
-        erp_nombre2: 'Articulo de prueba',
+        erp_nombre: 'Articulo de prueba',
         nombre: 'Artículo de prueba',
         objeto: 'producto',
       };

@@ -66,7 +66,7 @@ export interface ValidationResult {
 const ENTITY_SCHEMAS = {
   [EntityType.ARTICULO]: {
     schema: articuloPayloadSchema,
-    requiredFields: ['erp_codigo', 'erp_nombre2'],
+    requiredFields: ['erp_codigo', 'erp_nombre'],
     optionalFields: [
       'sku', 'codigo', 'codigo_barras', 'erp_id', 'codigo_equivalencia',
       'nombre', 'nombre_corto', 'descripcion', 'descripcion_web',

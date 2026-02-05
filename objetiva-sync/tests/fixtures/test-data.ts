@@ -33,7 +33,7 @@ export function createArticulo(overrides: Partial<IArticuloPayload> = {}): IArti
 
   return {
     erp_codigo: id,
-    erp_nombre2: `Articulo ${id}`,
+    erp_nombre: `Articulo ${id}`,
     nombre: `Producto de prueba ${id}`,
     nombre_corto: `Prod ${counter}`,
     sku: `SKU-${id}`,

@@ -82,7 +82,7 @@ describe('Validation Error Reporting Tests', () => {
     const queryResult = [
       {
         id: 1,
-        erp_nombre2: 'TEST-PRODUCT',
+        erp_nombre: 'TEST-PRODUCT',
         nombre: 'Test Product',
       },
     ];
@@ -108,7 +108,7 @@ describe('Validation Error Reporting Tests', () => {
       {
         id: 1,
         erp_codigo: 'ART-001',
-        erp_nombre2: 'TEST-PRODUCT',
+        erp_nombre: 'TEST-PRODUCT',
         unexpected_column: 'This field does not exist in schema',
       },
     ];
@@ -133,7 +133,7 @@ describe('Validation Error Reporting Tests', () => {
       {
         id: 1,
         erp_codi: 'ART-001', // Typo: missing 'go' at end
-        erp_nombre2: 'TEST-PRODUCT',
+        erp_nombre: 'TEST-PRODUCT',
       },
     ];
 
@@ -158,7 +158,7 @@ describe('Validation Error Reporting Tests', () => {
       {
         id: 1,
         erp_codigo: 'ART-001',
-        erp_nombre2: 'TEST-PRODUCT',
+        erp_nombre: 'TEST-PRODUCT',
         precio: { invalid: 'object' }, // Should be number, got object
       },
     ];
@@ -184,7 +184,7 @@ describe('Validation Error Reporting Tests', () => {
       {
         id: 1,
         // Missing: erp_codigo (required)
-        erp_nombre2: 'TEST-PRODUCT',
+        erp_nombre: 'TEST-PRODUCT',
         extra_field: 'Not in schema',
         precio: 'should-be-number', // Type mismatch (string instead of number, but compatible)
       },
