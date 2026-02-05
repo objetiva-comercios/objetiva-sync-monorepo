@@ -196,6 +196,8 @@ function getFieldExample(fieldName: string, type: string): string {
     'id': '1',
     'created_at': '"2026-01-15T10:30:00.000Z"',
     'updated_at': '"2026-01-15T10:30:00.000Z"',
+    'creado': '"2026-01-15T10:30:00.000Z"',
+    'actualizado': '"2026-01-15T10:30:00.000Z"',
     'erp_fecha_sync': '"2026-01-15T10:30:00.000Z"',
   };
 
@@ -251,7 +253,7 @@ function getFieldDescription(fieldName: string): string {
     'total_intereses_financieros': 'Total de intereses financieros cobrados (SUM(pagos.interes_financiero))',
     'total_cobrado': 'Total cobrado incluyendo intereses (total_venta + total_intereses_financieros)',
     'medio': 'Medio de pago utilizado',
-    'metodo_pago': 'Método de pago utilizado',
+    'metodo_pago': 'Medio de pago (campo renombrado a "medio" en PostgreSQL)',
     'monto': 'Monto del pago',
     'unidades': 'Cantidad de unidades',
     'codigo_articulo': 'Código del artículo',
@@ -288,8 +290,10 @@ function getFieldDescription(fieldName: string): string {
     'porc_descuento': 'Porcentaje de descuento (0-100)',
     // Server-managed fields
     'id': 'Identificador único auto-generado (servidor)',
-    'created_at': 'Fecha de creación del registro (servidor)',
-    'updated_at': 'Fecha de última actualización (servidor)',
+    'created_at': 'Fecha de creación (campo renombrado a "creado" en PostgreSQL)',
+    'updated_at': 'Fecha de actualización (campo renombrado a "actualizado" en PostgreSQL)',
+    'creado': 'Fecha de creación del registro (servidor)',
+    'actualizado': 'Fecha de última actualización (servidor)',
     'erp_fecha_sync': 'Fecha de última sincronización desde el ERP (servidor)',
   };
 
