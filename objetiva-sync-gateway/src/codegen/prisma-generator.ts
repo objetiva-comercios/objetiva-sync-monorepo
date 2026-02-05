@@ -339,20 +339,51 @@ function generateModelBlock(schema: SchemaResponse, existing: ExistingSchemaInfo
     }
   }
 
-  // Add @@unique constraints from metadata
+  // Add @@unique constraints from metadata (map column names to Prisma field names)
   const uniqueConstraints = schema.constraints.filter(c => c.constraint_type === 'UNIQUE');
   if (uniqueConstraints.length > 0) {
+    // Build column-to-prisma-name mapping
+    const colToPrismaName = new Map<string, string>();
+    for (const col of schema.columns) {
+      colToPrismaName.set(col.column_name, existingMaps.get(col.column_name) || col.column_name);
+    }
+
     modelText += '\n';
     for (const constraint of uniqueConstraints) {
-      const fields = constraint.columns.join(', ');
+      // Validate all columns exist and map to Prisma field names
+      const allColumnsExist = constraint.columns.every(c => colToPrismaName.has(c));
+      if (!allColumnsExist) {
+        const missing = constraint.columns.filter(c => !colToPrismaName.has(c));
+        console.warn(`  ⚠ Skipping stale unique constraint for ${tableName}: ${constraint.constraint_name} (missing columns: ${missing.join(', ')})`);
+        continue;
+      }
+      const fields = constraint.columns.map(c => colToPrismaName.get(c)!).join(', ');
       const name = constraint.constraint_name;
       modelText += `  @@unique([${fields}], name: "${name}")\n`;
     }
   }
 
-  // Add @@index directives from existing schema
+  // Add @@index directives from existing schema (validate fields still exist)
   if (existingIndexes.length > 0) {
+    // Build set of valid Prisma field names in this model
+    const validFieldNames = new Set<string>();
+    for (const col of schema.columns) {
+      const prismaName = existingMaps.get(col.column_name) || col.column_name;
+      validFieldNames.add(prismaName);
+    }
+
     for (const indexLine of existingIndexes) {
+      // Parse @@index([field1, field2], ...) to extract field names
+      const fieldMatch = indexLine.match(/@@index\(\[([^\]]+)\]/);
+      if (fieldMatch) {
+        const fields = fieldMatch[1].split(',').map(f => f.trim());
+        const allFieldsExist = fields.every(f => validFieldNames.has(f));
+        if (!allFieldsExist) {
+          const missing = fields.filter(f => !validFieldNames.has(f));
+          console.warn(`  ⚠ Skipping stale index for ${tableName}: ${indexLine} (missing fields: ${missing.join(', ')})`);
+          continue;
+        }
+      }
       modelText += `  ${indexLine}\n`;
     }
   }
