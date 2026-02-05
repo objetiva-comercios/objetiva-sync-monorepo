@@ -1,6 +1,6 @@
 // Auto-generated from PostgreSQL schema introspection
 // DO NOT EDIT - regenerate with: npm run regenerate-schemas
-// Generated: 2026-02-03T16:24:10.708Z
+// Generated: 2026-02-05T17:06:16.721Z
 
 import { z } from 'zod';
 
@@ -39,9 +39,9 @@ export const ArticulosDbSchema = z.object({
   precio: z.number().nullable().optional(),
   costo: z.number().nullable().optional(),
   unidades: z.number().int().nullable().optional(),
-  imagenes_producto: z.array(z.string()).default([]),
-  imagenes_etiqueta: z.array(z.string()).default([]),
-  etiquetas_ocr: z.array(z.string()).default([]),
+  imagenes_producto: z.array(z.string()).nullable().optional(),
+  imagenes_etiqueta: z.array(z.string()).nullable().optional(),
+  etiquetas_ocr: z.array(z.string()).nullable().optional(),
   json_articulo1: z.record(z.unknown()).nullable().optional(),
   erp_nombre2: z.string(),
   erp_extra3: z.string().nullable().optional(),

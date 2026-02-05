@@ -1,6 +1,6 @@
 // Auto-generated from PostgreSQL schema introspection
 // DO NOT EDIT - regenerate with: npm run regenerate-schemas
-// Generated: 2026-02-02T02:08:33.078Z
+// Generated: 2026-02-05T17:06:16.722Z
 
 import { z } from 'zod';
 
@@ -14,10 +14,9 @@ export const ComprobantesPagosDbSchema = z.object({
   comprobante_operacion: z.string(),
   comprobante_formulario: z.string(),
   comprobante_numero: z.string(),
-  metodo_pago: z.string(),
-  medio: z.string().optional(), // Backward compatibility alias for metodo_pago
+  medio: z.string(),
   monto: z.number(),
-  moneda: z.string().default('ARS'),
+  moneda: z.string().optional(),
   tarjeta_marca: z.string().nullable().optional(),
   tarjeta_cuotas: z.number().int().nullable().optional(),
   tarjeta_recargo: z.number().nullable().optional(),
