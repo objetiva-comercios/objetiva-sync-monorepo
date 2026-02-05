@@ -69,7 +69,7 @@ export interface ValidationResult {
  */
 function getRequiredFields(schema: SchemaResponse): string[] {
   return schema.columns
-    .filter(col => col.is_nullable === 'NO' && col.column_default === null)
+    .filter(col => !col.is_nullable && col.default_value === null)
     .map(col => col.column_name);
 }
 

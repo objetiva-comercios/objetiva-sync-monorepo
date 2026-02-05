@@ -8,6 +8,10 @@
 
 /**
  * Metadata for a single column in a table
+ *
+ * NOTE: Field names and types match the gateway's API response format:
+ * - is_nullable is boolean (gateway normalizes from 'YES'/'NO')
+ * - default_value (not column_default) matches gateway's field name
  */
 export interface ColumnMetadata {
   /** Name of the column */
@@ -16,11 +20,17 @@ export interface ColumnMetadata {
   /** PostgreSQL data type (normalized base type, e.g., 'text', 'integer', 'timestamp with time zone') */
   data_type: string;
 
-  /** Whether the column accepts NULL values ('YES' or 'NO' from information_schema) */
-  is_nullable: 'YES' | 'NO';
+  /** Whether the column accepts NULL values */
+  is_nullable: boolean;
 
   /** Default value expression for the column, if any */
-  column_default: string | null;
+  default_value: string | null;
+
+  /** Position of the column within the table (1-based) */
+  ordinal_position?: number;
+
+  /** Comment/description for the column, if any */
+  column_comment?: string | null;
 }
 
 /**

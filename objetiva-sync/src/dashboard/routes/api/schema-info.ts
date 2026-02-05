@@ -94,7 +94,7 @@ function transformGatewaySchema(entityType: string, gatewaySchema: GatewaySchema
   const optional: FieldInfo[] = [];
 
   for (const col of gatewaySchema.columns) {
-    const isRequired = col.is_nullable === 'NO' && col.column_default === null;
+    const isRequired = !col.is_nullable && col.default_value === null;
     const displayType = mapDataType(col.data_type);
 
     const fieldInfo: FieldInfo = {
