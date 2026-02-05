@@ -1,6 +1,6 @@
 // Auto-generated from PostgreSQL schema introspection
 // DO NOT EDIT - regenerate with: npm run regenerate-schemas
-// Generated: 2026-02-05T17:06:16.722Z
+// Generated: 2026-02-05T18:34:04.969Z
 
 import { z } from 'zod';
 

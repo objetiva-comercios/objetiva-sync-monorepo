@@ -16,6 +16,7 @@ datasource db {
 // ============================================
 
 
+
 model Articulo {
   id BigInt @id @default(autoincrement())
   sku String? @db.Text

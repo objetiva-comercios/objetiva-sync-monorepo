@@ -31,6 +31,7 @@ interface RelationInfo {
   fieldName: string;
   type: string;
   isArray: boolean;
+  isOptional: boolean;
   relationDirective?: string;
 }
 
@@ -135,10 +136,10 @@ export function parseExistingSchema(content: string): ExistingSchemaInfo {
       fieldMaps.get(currentTable)!.set(dbColumn, prismaField);
     }
 
-    // Extract relation fields
-    const relationMatch = line.match(/^(\w+)\s+(\w+)(\[\])?\s*(@relation.*)?$/);
+    // Extract relation fields (handles optional types like ComprobanteCabecera?)
+    const relationMatch = line.match(/^(\w+)\s+(\w+)(\??)(\[\])?\s*(@relation.*)?$/);
     if (relationMatch && !line.includes('@map')) {
-      const [, fieldName, typeName, isArray, directive] = relationMatch;
+      const [, fieldName, typeName, isOptional, isArray, directive] = relationMatch;
       // Check if this is a relation type (capitalized model name, not a scalar type)
       if (typeName[0] === typeName[0].toUpperCase() && typeName !== 'String' && typeName !== 'Int' && typeName !== 'BigInt' && typeName !== 'Boolean' && typeName !== 'DateTime' && typeName !== 'Decimal' && typeName !== 'Json') {
         if (!relations.has(currentTable)) {
@@ -148,6 +149,7 @@ export function parseExistingSchema(content: string): ExistingSchemaInfo {
           fieldName,
           type: typeName,
           isArray: !!isArray,
+          isOptional: isOptional === '?',
           relationDirective: directive?.trim(),
         });
       }
@@ -330,8 +332,9 @@ function generateModelBlock(schema: SchemaResponse, existing: ExistingSchemaInfo
   if (existingRelations.length > 0) {
     modelText += '\n  // Relaciones\n';
     for (const rel of existingRelations) {
+      const optionalMarker = rel.isOptional ? '?' : '';
       const arrayMarker = rel.isArray ? '[]' : '';
-      let relLine = `  ${rel.fieldName} ${rel.type}${arrayMarker}`;
+      let relLine = `  ${rel.fieldName} ${rel.type}${optionalMarker}${arrayMarker}`;
       if (rel.relationDirective) {
         relLine += ` ${rel.relationDirective}`;
       }
