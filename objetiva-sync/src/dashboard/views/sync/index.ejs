@@ -160,10 +160,21 @@
     <div class="mt-6">
       <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
-          <h3 class="card-title text-lg">
-            <i data-lucide="history" class="w-5 h-5"></i>
-            Historial de Sincronizaciones
-          </h3>
+          <div class="flex items-center justify-between w-full">
+            <h3 class="card-title text-lg">
+              <i data-lucide="history" class="w-5 h-5"></i>
+              Historial de Sincronizaciones
+            </h3>
+            <button
+              id="clear-history-btn"
+              onclick="clearSyncHistory()"
+              class="btn btn-ghost btn-sm text-red-500 hover:bg-red-50 gap-1"
+              title="Limpiar historial de sincronizaciones"
+            >
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+              Limpiar
+            </button>
+          </div>
           <div id="sync-history-container" class="overflow-x-auto">
             <div class="text-center py-4 text-sm opacity-60">Cargando historial...</div>
           </div>
@@ -1114,6 +1125,7 @@
   window.executeSync = executeSync;
   window.viewLogDetails = viewLogDetails;
   window.closeLogDetails = closeLogDetails;
+  window.clearSyncHistory = clearSyncHistory;
 
   // Refresh icons after HTMX swaps
   document.body.addEventListener('htmx:afterSwap', function() {
@@ -1132,6 +1144,30 @@
       }
     } catch (e) {
       console.error('Error restaurando resultados:', e);
+    }
+  }
+
+  /**
+   * Limpiar historial de sincronizaciones
+   */
+  async function clearSyncHistory() {
+    if (!confirm('Estas seguro de que deseas eliminar todo el historial de sincronizaciones?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/sync/history', { method: 'DELETE' });
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification(`Historial limpiado: ${result.deletedCount} registros eliminados`, 'success');
+        loadSyncHistory(); // Refresh the table
+      } else {
+        showNotification(result.error || 'Error al limpiar historial', 'error');
+      }
+    } catch (error) {
+      console.error('Error clearing sync history:', error);
+      showNotification('Error al limpiar historial', 'error');
     }
   }
 

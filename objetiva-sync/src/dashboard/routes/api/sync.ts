@@ -984,6 +984,31 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
       }
     }
   );
+
+  /**
+   * DELETE /api/sync/history - Limpiar historial de sincronizaciones
+   */
+  app.delete(
+    '/api/sync/history',
+    { preHandler: requireNoPasswordChange },
+    async (_request, reply) => {
+      try {
+        const deletedCount = await SyncLogsRepo.deleteAllLogs();
+        logger.info({ deletedCount }, 'Sync history cleared by user');
+        return reply.send({
+          success: true,
+          message: `${deletedCount} registros eliminados`,
+          deletedCount,
+        });
+      } catch (error) {
+        logger.error({ error }, 'Error al limpiar historial de sync');
+        return reply.status(500).send({
+          success: false,
+          error: 'Error al limpiar historial',
+        });
+      }
+    }
+  );
 }
 
 /**
