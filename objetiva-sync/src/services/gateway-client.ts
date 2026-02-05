@@ -12,9 +12,15 @@ import type { SchemaResponse } from '../types/schema.js';
 
 /**
  * Gateway configuration from environment variables
+ * Read lazily to ensure dotenv has loaded
  */
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:3002';
-const GATEWAY_JWT_SECRET = process.env.JWT_SECRET;
+function getGatewayUrl(): string {
+  return process.env.GATEWAY_URL || 'http://localhost:3335';
+}
+
+function getGatewayJwtSecret(): string | undefined {
+  return process.env.JWT_SECRET;
+}
 
 /**
  * Generate a JWT token for gateway authentication
@@ -26,7 +32,8 @@ const GATEWAY_JWT_SECRET = process.env.JWT_SECRET;
  * @throws Error if JWT_SECRET is not configured
  */
 function getJwtToken(): string {
-  if (!GATEWAY_JWT_SECRET) {
+  const secret = getGatewayJwtSecret();
+  if (!secret) {
     throw new Error(
       'JWT_SECRET environment variable is required for gateway authentication'
     );
@@ -35,7 +42,7 @@ function getJwtToken(): string {
   try {
     // Create JWT signer with 5-minute expiry
     const signer = createSigner({
-      key: GATEWAY_JWT_SECRET,
+      key: secret,
       expiresIn: '5m',
     });
 
@@ -62,7 +69,8 @@ function getJwtToken(): string {
 export async function fetchSchemaFromGateway(
   entity: string
 ): Promise<SchemaResponse> {
-  const url = `${GATEWAY_URL}/api/schemas/${entity}`;
+  const gatewayUrl = getGatewayUrl();
+  const url = `${gatewayUrl}/api/schemas/${entity}`;
 
   try {
     const token = getJwtToken();
@@ -92,7 +100,7 @@ export async function fetchSchemaFromGateway(
       // Try to get error details from response body
       let errorDetails = response.statusText;
       try {
-        const errorBody = await response.json();
+        const errorBody = (await response.json()) as Record<string, any>;
         errorDetails =
           errorBody.error || errorBody.message || JSON.stringify(errorBody);
       } catch {
@@ -104,7 +112,7 @@ export async function fetchSchemaFromGateway(
       );
     }
 
-    const schema: SchemaResponse = await response.json();
+    const schema = (await response.json()) as SchemaResponse;
 
     logger.debug(
       {
@@ -120,7 +128,7 @@ export async function fetchSchemaFromGateway(
     // Network errors (gateway unreachable)
     if (error instanceof TypeError && error.message.includes('fetch')) {
       throw new Error(
-        `Gateway unreachable at ${GATEWAY_URL} - is the gateway service running?`
+        `Gateway unreachable at ${gatewayUrl} - is the gateway service running?`
       );
     }
 
@@ -134,6 +142,36 @@ export async function fetchSchemaFromGateway(
 }
 
 /**
+ * Notify gateway that a sync job was cancelled
+ *
+ * Sends a POST to the gateway's cancel endpoint so the dashboard
+ * can update the job status immediately instead of waiting for timeout.
+ *
+ * @param syncId - The sync job ID to cancel
+ */
+export async function notifyGatewayCancellation(syncId: string): Promise<void> {
+  const gatewayUrl = getGatewayUrl();
+  const url = `${gatewayUrl}/api/sync/${syncId}/cancel`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    if (response.ok) {
+      logger.info({ syncId }, 'Gateway notified of sync cancellation');
+    } else {
+      logger.warn({ syncId, status: response.status }, 'Gateway cancel notification failed');
+    }
+  } catch (error) {
+    // Non-critical: gateway might be unreachable, timeout will handle it
+    logger.warn({ syncId, error }, 'Could not notify gateway of cancellation');
+  }
+}
+
+/**
  * Fetch schema metadata for all entities from gateway
  *
  * Retrieves schema information for all sync entities from the gateway's
@@ -143,7 +181,8 @@ export async function fetchSchemaFromGateway(
  * @throws Error on authentication failure or network error
  */
 export async function fetchAllSchemasFromGateway(): Promise<SchemaResponse[]> {
-  const url = `${GATEWAY_URL}/api/schemas`;
+  const gatewayUrl = getGatewayUrl();
+  const url = `${gatewayUrl}/api/schemas`;
 
   try {
     const token = getJwtToken();
@@ -169,7 +208,7 @@ export async function fetchAllSchemasFromGateway(): Promise<SchemaResponse[]> {
       // Try to get error details from response body
       let errorDetails = response.statusText;
       try {
-        const errorBody = await response.json();
+        const errorBody = (await response.json()) as Record<string, any>;
         errorDetails =
           errorBody.error || errorBody.message || JSON.stringify(errorBody);
       } catch {
@@ -181,7 +220,7 @@ export async function fetchAllSchemasFromGateway(): Promise<SchemaResponse[]> {
       );
     }
 
-    const schemas: SchemaResponse[] = await response.json();
+    const schemas = (await response.json()) as SchemaResponse[];
 
     logger.debug({ count: schemas.length }, 'All schemas fetched successfully');
 
@@ -190,7 +229,7 @@ export async function fetchAllSchemasFromGateway(): Promise<SchemaResponse[]> {
     // Network errors (gateway unreachable)
     if (error instanceof TypeError && error.message.includes('fetch')) {
       throw new Error(
-        `Gateway unreachable at ${GATEWAY_URL} - is the gateway service running?`
+        `Gateway unreachable at ${gatewayUrl} - is the gateway service running?`
       );
     }
 
