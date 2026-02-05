@@ -789,10 +789,10 @@ export class IngestionService {
         // Mapear campos normalizados de comprobante (del JSON al modelo Prisma)
         const createResult = await prisma.comprobantePagos.createMany({
           data: toCreate.map(({ data: pago, comprobante_id }) => {
-            const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
+            const medio_normalizado = pago.medio || 'EFECTIVO'
             return nullToUndefined({
               ...pago,
-              metodo_pago: metodo_pago_normalizado,
+              medio: medio_normalizado,
               comprobante_id,
               cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
               fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
@@ -807,11 +807,11 @@ export class IngestionService {
         logger.warn({ error }, 'createMany failed, falling back to individual creates')
         for (const [index, { data: pago, comprobante_id }] of toCreate.entries()) {
           try {
-            const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
+            const medio_normalizado = pago.medio || 'EFECTIVO'
             await prisma.comprobantePagos.create({
               data: nullToUndefined({
                 ...pago,
-                metodo_pago: metodo_pago_normalizado,
+                medio: medio_normalizado,
                 comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
@@ -832,7 +832,7 @@ export class IngestionService {
               errorCode = 'DATE_FORMAT_ERROR'
             }
 
-            const detailedError = `[${errorCode}] ${errorMessage} | Pago: ${pago.erp_operacion}/${pago.erp_formulario}/${pago.erp_numero} L${pago.linea_numero} - ${pago.medio || pago.metodo_pago}`
+            const detailedError = `[${errorCode}] ${errorMessage} | Pago: ${pago.erp_operacion}/${pago.erp_formulario}/${pago.erp_numero} L${pago.linea_numero} - ${pago.medio}`
 
             errors.push({
               index,
@@ -850,16 +850,16 @@ export class IngestionService {
       try {
         await prisma.$transaction(
           toUpdate.map(({ id, data: pago, comprobante_id }) => {
-            const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
+            const medio_normalizado = pago.medio || 'EFECTIVO'
             return prisma.comprobantePagos.update({
               where: { id },
               data: nullToUndefined({
                 ...pago,
-                metodo_pago: metodo_pago_normalizado,
+                medio: medio_normalizado,
                 comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
-                updated_at: new Date(),
+                actualizado: new Date(),
               }),
             })
           })
@@ -871,16 +871,16 @@ export class IngestionService {
         logger.warn({ error }, 'Transaction failed, falling back to individual updates')
         for (const [index, { id, data: pago, comprobante_id }] of toUpdate.entries()) {
           try {
-            const metodo_pago_normalizado = pago.metodo_pago || pago.medio || 'EFECTIVO'
+            const medio_normalizado = pago.medio || 'EFECTIVO'
             await prisma.comprobantePagos.update({
               where: { id },
               data: nullToUndefined({
                 ...pago,
-                metodo_pago: metodo_pago_normalizado,
+                medio: medio_normalizado,
                 comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
-                updated_at: new Date(),
+                actualizado: new Date(),
               }),
             })
             updated++
@@ -898,7 +898,7 @@ export class IngestionService {
               errorCode = 'DATE_FORMAT_ERROR'
             }
 
-            const detailedError = `[${errorCode}] ${errorMessage} | Pago: ${pago.erp_operacion}/${pago.erp_formulario}/${pago.erp_numero} L${pago.linea_numero} - ${pago.medio || pago.metodo_pago}`
+            const detailedError = `[${errorCode}] ${errorMessage} | Pago: ${pago.erp_operacion}/${pago.erp_formulario}/${pago.erp_numero} L${pago.linea_numero} - ${pago.medio}`
 
             errors.push({
               index,
