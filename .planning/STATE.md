@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 Phase: 12 of 12 (End-to-End Robustness)
 Plan: 3/3
 Status: Phase complete
-Last activity: 2026-02-05 -- Completed quick-003 (dashboard fixes: schema ref, stale state reset, clear history)
+Last activity: 2026-02-05 -- Completed quick-004 (schema regeneration from PostgreSQL, ingestion.ts field renames, zero TS errors)
 
 Progress: [█████████████████████] 100% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete, Phase 11 complete, Phase 12 complete)
 
@@ -77,7 +77,7 @@ All v1.0 decisions archived in \`.planning/archive/v1.0-MILESTONE.md\`.
 
 1. **Sync timeout bug** -- **FIXED** (root cause: JWT expiring in 86.4s not 24h, plus SSE/timeout improvements)
 2. **Gateway TypeScript errors** -- **FIXED** (Prisma schema updated to match IVA migration, bigint types corrected)
-3. **Generated schemas outdated** -- **FIXED** (manually updated to match Prisma schema, re-export from index.ts); regenerate after deployment recommended
+3. **Generated schemas outdated** -- **FIXED** (quick-004: regenerated from PostgreSQL, Prisma + Zod schemas match DB exactly)
 4. **Cancellation state bug** -- **FIXED** (10-04: CANCELED branch now resets status to IDLE)
 
 5. **Sync TypeScript errors** -- **FIXED** (quick-001 fixed 98 errors, quick-002 fixed remaining 57 errors). `npx tsc --noEmit` exits with 0 errors.
@@ -97,11 +97,12 @@ None.
 | 001 | Fix TS errors in objetiva-sync + clean test legacy imports | 2026-02-05 | 82f8498 | [001-fix-ts-errors-clean-test-imports](./quick/001-fix-ts-errors-clean-test-imports/) |
 | 002 | Fix remaining 57 TS errors to achieve zero | 2026-02-05 | a7aed70 | [002-fix-remaining-64-ts-errors](./quick/002-fix-remaining-64-ts-errors/) |
 | 003 | Dashboard fixes: schema ref, stale state reset, clear history | 2026-02-05 | 0a08fdf | [003-dashboard-fixes-schema-ref-state-h](./quick/003-dashboard-fixes-schema-ref-state-h/) |
+| 004 | Schema regeneration from PostgreSQL + fix ingestion field renames | 2026-02-05 | f4ed31a | [004-fix-schema-regeneration](./quick/004-fix-schema-regeneration/) |
 
 ## Session Continuity
 
-Last session: 2026-02-05 -- Quick task 003 execution complete
-Stopped at: Completed quick-003 (3 dashboard fixes: gateway schema ref, stale state reset, clear history button)
+Last session: 2026-02-05 -- Quick task 004 execution complete
+Stopped at: Completed quick-004 (schema regeneration from PostgreSQL, ingestion.ts field renames, zero TS errors)
 Resume file: None
 
 ### Phase 8 Summary (Completed 2026-02-04)
