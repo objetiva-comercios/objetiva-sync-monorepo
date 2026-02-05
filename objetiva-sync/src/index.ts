@@ -25,6 +25,7 @@ import { deleteOldLogs } from './store/repositories/sync-logs-repo.js';
 import { LOG_CONFIG } from './config/constants.js';
 import { initScheduler, stopScheduler } from './sync/scheduler-instance.js';
 import { initializeSchemaCache } from './services/schema-cache.js';
+import { resetStaleStates } from './store/repositories/sync-state-repo.js';
 
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -168,6 +169,10 @@ export async function createApp() {
 
     return app;
   } catch (error) {
+    console.error('Error al crear aplicación Fastify:');
+    console.error('  Tipo:', error instanceof Error ? 'Error' : typeof error);
+    console.error('  Mensaje:', error instanceof Error ? error.message : String(error));
+    console.error('  Stack:', error instanceof Error ? error.stack : 'N/A');
     logger.error({ error }, 'Error al crear aplicación Fastify');
     throw error;
   }
@@ -187,6 +192,13 @@ async function start() {
     // 2. Asegurar que existe el usuario admin
     logger.info('👤 Verificando usuario admin...');
     await ensureAdminExists();
+
+    // 2.5. Reset stale sync states (running -> idle)
+    logger.info('Resetting stale sync states...');
+    const staleCount = await resetStaleStates();
+    if (staleCount > 0) {
+      logger.info(`Reset ${staleCount} stale 'running' state(s) to 'idle'`);
+    }
 
     // 3. Limpiar logs antiguos y programar limpieza diaria
     logger.info('🧹 Ejecutando limpieza de logs antiguos...');
