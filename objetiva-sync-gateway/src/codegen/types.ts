@@ -29,6 +29,12 @@ export interface RegenerateOptions {
 
   /** If specified, only regenerate schemas for this entity */
   entity?: string;
+
+  /** If true, skip running prisma generate (useful when gateway is running) */
+  skipPrismaGenerate?: boolean;
+
+  /** If true, skip writing files to disk (caller handles writing via pendingWrites) */
+  skipFileWrites?: boolean;
 }
 
 /**
@@ -38,7 +44,7 @@ export interface RegenerateResult {
   /** Whether any changes were detected */
   hasChanges: boolean;
 
-  /** Number of files written (0 if dryRun) */
+  /** Number of files written (0 if dryRun or skipFileWrites) */
   filesWritten: number;
 
   /** Number of entities checked */
@@ -46,6 +52,9 @@ export interface RegenerateResult {
 
   /** Diff results for all checked files */
   diffs: DiffResult[];
+
+  /** Pending file writes (populated when skipFileWrites=true) */
+  pendingWrites?: Array<{ filePath: string; content: string }>;
 }
 
 /**

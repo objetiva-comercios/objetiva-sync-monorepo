@@ -2,14 +2,15 @@
 /**
  * CLI tool for regenerating Prisma and Zod schemas from PostgreSQL
  *
- * Automatically:
- * - Stops gateway if running (to avoid file locks)
- * - Regenerates all schemas
- * - Runs prisma generate
- * - Restarts gateway in background
+ * Flow:
+ * 1. Fetch schema metadata from running gateway (gateway must be alive)
+ * 2. Generate content in-memory, compute diffs (no file writes yet)
+ * 3. Kill gateway + tsx watch (prevents DLL lock + file-change respawn)
+ * 4. Write all files to disk
+ * 5. Run prisma generate (DLL is now unlocked)
  *
  * Usage:
- *   npm run regenerate-schemas                    # Full regeneration (automatic gateway restart)
+ *   npm run regenerate-schemas                    # Full regeneration
  *   npm run regenerate-schemas -- --dry-run       # Preview changes without writing
  *   npm run regenerate-schemas -- --entity articulos  # Regenerate only one entity
  */
@@ -18,6 +19,7 @@ import { config } from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import { writeFileSync, existsSync, mkdirSync, accessSync, constants } from 'node:fs';
 import { regenerateSchemas } from '../src/codegen/index.js';
 
 // Get current directory from import.meta.url
@@ -41,17 +43,19 @@ if (entityIndex !== -1 && !entity) {
   process.exit(1);
 }
 
+const GATEWAY_CWD = resolve(__dirname, '..');
+const DLL_PATH = resolve(GATEWAY_CWD, '..', 'node_modules', '.prisma', 'client', 'query_engine-windows.dll.node');
+
 /**
  * Stop gateway if running, return true if it was running
  */
 function stopGatewayIfRunning(): boolean {
   try {
     execSync('node scripts/kill-gateway-process.mjs', {
-      cwd: resolve(__dirname, '..'),
+      cwd: GATEWAY_CWD,
       encoding: 'utf-8',
-      stdio: 'inherit'  // Show kill script output directly
+      stdio: 'inherit'
     });
-
     // Exit code 0 means gateway was running and was stopped
     return true;
   } catch (error: any) {
@@ -59,8 +63,85 @@ function stopGatewayIfRunning(): boolean {
     if (error.status === 1) {
       return false;
     }
-    // Other errors should be thrown
-    throw error;
+    // Other errors — log warning but don't abort
+    console.warn(`  Warning: kill script exited with code ${error.status}`);
+    return false;
+  }
+}
+
+/**
+ * Check if the Prisma DLL file is writable (not locked by another process)
+ */
+function isDllUnlocked(): boolean {
+  if (!existsSync(DLL_PATH)) return true;
+  try {
+    accessSync(DLL_PATH, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Busy-wait sleep
+ */
+function sleep(ms: number): void {
+  const start = Date.now();
+  while (Date.now() - start < ms) { /* wait */ }
+}
+
+/**
+ * Wait for DLL to be unlocked, killing any remaining gateway processes
+ */
+function waitForDllUnlock(maxRetries = 5, intervalMs = 2000): void {
+  for (let i = 0; i < maxRetries; i++) {
+    if (isDllUnlocked()) return;
+
+    console.log(`  DLL still locked, retrying (${i + 1}/${maxRetries})...`);
+
+    // Try to kill any remaining process on the port
+    try {
+      execSync('node scripts/kill-gateway-process.mjs', {
+        cwd: GATEWAY_CWD,
+        encoding: 'utf-8',
+        stdio: 'pipe'
+      });
+    } catch {
+      // Ignore — process may already be dead
+    }
+
+    sleep(intervalMs);
+  }
+
+  if (!isDllUnlocked()) {
+    throw new Error(
+      'E006: Prisma query engine DLL is locked by another process. ' +
+      'Close any running gateway instances and try again.'
+    );
+  }
+}
+
+/**
+ * Run prisma generate with retry on EPERM
+ */
+function runPrismaGenerate(): void {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      execSync('npx prisma generate', {
+        cwd: GATEWAY_CWD,
+        stdio: 'inherit'
+      });
+      return; // Success
+    } catch (error: any) {
+      const msg = String(error.stderr || error.stdout || error.message || '');
+      if (msg.includes('EPERM') && attempt < maxAttempts) {
+        console.log(`\n  EPERM on attempt ${attempt}/${maxAttempts}, waiting for DLL release...`);
+        waitForDllUnlock(3, 2000);
+        continue;
+      }
+      throw error;
+    }
   }
 }
 
@@ -76,39 +157,62 @@ async function main() {
     console.log(`Filter: ${entity} only\n`);
   }
 
-  let gatewayWasRunning = false;
-
   try {
-    // First pass: fetch schemas and compute changes (gateway must be running)
-    // This uses skipPrismaGenerate=true to avoid file lock
-    const firstPassResult = await regenerateSchemas({
+    // ── Phase 1: Fetch + compute (gateway must be alive) ──
+    // skipFileWrites=true → compute diffs and content in memory, don't touch disk
+    // skipPrismaGenerate=true → don't run prisma generate yet
+    const result = await regenerateSchemas({
       dryRun,
       entity,
-      skipPrismaGenerate: true  // Don't run prisma generate yet
+      skipPrismaGenerate: true,
+      skipFileWrites: true
     });
 
-    // If dry-run or no changes, we're done
-    if (dryRun || !firstPassResult.hasChanges) {
-      if (!firstPassResult.hasChanges) {
-        console.log(`\n${'='.repeat(50)}`);
-        console.log(`✅ All ${firstPassResult.entitiesChecked} entities are up-to-date`);
-        console.log('   No changes detected');
-      }
+    // If dry-run, we're done (regenerateSchemas already displayed diffs)
+    if (dryRun) {
       process.exit(0);
       return;
     }
 
-    // Changes detected - need to run prisma generate
-    // Stop gateway if running
-    console.log('\nPreparing to generate Prisma client...');
-    gatewayWasRunning = stopGatewayIfRunning();
+    // If no changes, we're done
+    if (!result.hasChanges) {
+      console.log(`\n${'='.repeat(50)}`);
+      console.log(`✅ All ${result.entitiesChecked} entities are up-to-date`);
+      console.log('   No changes detected');
+      process.exit(0);
+      return;
+    }
 
-    // Run prisma generate
-    console.log('Running prisma generate...\n');
-    execSync('npx prisma generate', {
-      cwd: resolve(__dirname, '..'),
-      stdio: 'inherit'
-    });
+    // ── Phase 2: Kill gateway BEFORE writing any files ──
+    // tsx watch monitors prisma/ and shared/schemas/ — writing files would trigger
+    // an immediate gateway restart, locking the Prisma DLL before prisma generate runs
+    console.log('\nStopping gateway before writing files...');
+    const gatewayWasRunning = stopGatewayIfRunning();
+
+    // Verify DLL is unlocked
+    if (!isDllUnlocked()) {
+      console.log('  Waiting for Prisma DLL to be released...');
+      waitForDllUnlock();
+    }
+
+    // ── Phase 3: Write files (safe — no tsx watch to respawn) ──
+    const pendingWrites = result.pendingWrites || [];
+    console.log('\nWriting files...');
+
+    // Create generated directory if needed
+    const generatedDir = resolve(GATEWAY_CWD, 'shared/schemas/generated');
+    if (!existsSync(generatedDir)) {
+      mkdirSync(generatedDir, { recursive: true });
+    }
+
+    for (const { filePath, content } of pendingWrites) {
+      writeFileSync(filePath, content, 'utf-8');
+      console.log(`  Written: ${filePath}`);
+    }
+
+    // ── Phase 4: Run prisma generate (DLL is unlocked) ──
+    console.log('\nRunning prisma generate...\n');
+    runPrismaGenerate();
 
     console.log(`\n${'='.repeat(50)}`);
     console.log(`✅ Success! All schemas updated`);

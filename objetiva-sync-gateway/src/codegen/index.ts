@@ -135,22 +135,22 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
   console.log(chalk.cyan('Computing diffs...\n'));
   const diffs: DiffResult[] = [];
 
-  // Diff Prisma schema
+  // Diff Prisma schema (normalize line endings to avoid CRLF vs LF false positives)
   const oldPrismaContent = existsSync(prismaSchemaPath)
-    ? readFileSync(prismaSchemaPath, 'utf-8')
+    ? readFileSync(prismaSchemaPath, 'utf-8').replace(/\r\n/g, '\n')
     : '';
-  const prismaDiff = computeDiff('prisma/schema.prisma', oldPrismaContent, prismaContent);
+  const prismaDiff = computeDiff('prisma/schema.prisma', oldPrismaContent, prismaContent.replace(/\r\n/g, '\n'));
   diffs.push(prismaDiff);
 
   // Diff each Zod schema
   for (const zodSchema of zodSchemas) {
     const oldZodContent = existsSync(zodSchema.filePath)
-      ? readFileSync(zodSchema.filePath, 'utf-8')
+      ? readFileSync(zodSchema.filePath, 'utf-8').replace(/\r\n/g, '\n')
       : '';
     const zodDiff = computeDiff(
       `shared/schemas/generated/${zodSchema.entity}.generated.ts`,
       oldZodContent,
-      zodSchema.content
+      zodSchema.content.replace(/\r\n/g, '\n')
     );
     diffs.push(zodDiff);
   }
@@ -186,15 +186,35 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
     };
   }
 
+  // Collect all pending writes
+  const pendingWrites: Array<{ filePath: string; content: string }> = [];
+
+  if (prismaDiff.hasChanges) {
+    pendingWrites.push({ filePath: prismaSchemaPath, content: prismaContent });
+  }
+
+  for (let i = 0; i < zodSchemas.length; i++) {
+    const zodSchema = zodSchemas[i];
+    const zodDiff = diffs[i + 1]; // Prisma diff is first, Zod diffs follow
+    if (zodDiff.hasChanges) {
+      pendingWrites.push({ filePath: zodSchema.filePath, content: zodSchema.content });
+    }
+  }
+
+  // If skipFileWrites, return pending writes for caller to handle
+  if (options.skipFileWrites) {
+    return {
+      hasChanges,
+      filesWritten: 0,
+      entitiesChecked: schemas.length,
+      diffs,
+      pendingWrites,
+    };
+  }
+
+  // Write files to disk
   console.log(chalk.cyan('\nWriting files...'));
   let filesWritten = 0;
-
-  // Write Prisma schema if changed
-  if (prismaDiff.hasChanges) {
-    writeFileSync(prismaSchemaPath, prismaContent, 'utf-8');
-    console.log(chalk.green(`Written: ${prismaSchemaPath}`));
-    filesWritten++;
-  }
 
   // Create generated directory if it doesn't exist
   const generatedDir = resolve(process.cwd(), 'shared/schemas/generated');
@@ -202,19 +222,13 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
     mkdirSync(generatedDir, { recursive: true });
   }
 
-  // Write Zod schemas if changed
-  for (let i = 0; i < zodSchemas.length; i++) {
-    const zodSchema = zodSchemas[i];
-    const zodDiff = diffs[i + 1]; // Prisma diff is first, Zod diffs follow
-
-    if (zodDiff.hasChanges) {
-      writeFileSync(zodSchema.filePath, zodSchema.content, 'utf-8');
-      console.log(chalk.green(`Written: ${zodSchema.filePath}`));
-      filesWritten++;
-    }
+  for (const { filePath, content } of pendingWrites) {
+    writeFileSync(filePath, content, 'utf-8');
+    console.log(chalk.green(`Written: ${filePath}`));
+    filesWritten++;
   }
 
-  // Step 9: Run prisma generate (only if schema.prisma was written and not skipped)
+  // Run prisma generate (only if schema.prisma was written and not skipped)
   if (prismaDiff.hasChanges && !options.skipPrismaGenerate) {
     console.log(chalk.cyan('\nRunning prisma generate...'));
     try {
@@ -230,7 +244,7 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
     }
   }
 
-  // Step 10: Return result
+  // Return result
   return {
     hasChanges,
     filesWritten,
