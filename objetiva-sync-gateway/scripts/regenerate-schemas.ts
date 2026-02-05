@@ -46,13 +46,13 @@ if (entityIndex !== -1 && !entity) {
  */
 function stopGatewayIfRunning(): boolean {
   try {
-    const result = execSync('node scripts/kill-gateway-process.mjs', {
+    execSync('node scripts/kill-gateway-process.mjs', {
       cwd: resolve(__dirname, '..'),
       encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: 'inherit'  // Show kill script output directly
     });
 
-    // Check exit code via try/catch - if it returns 0, gateway was running
+    // Exit code 0 means gateway was running and was stopped
     return true;
   } catch (error: any) {
     // Exit code 1 means gateway was not running
@@ -117,10 +117,9 @@ async function main() {
     console.log('   • Zod schemas (shared/schemas/generated/*.ts)');
     console.log('   • Prisma client (node_modules/.prisma/client/)');
 
-    // tsx watch will auto-restart the gateway when it detects schema.prisma changes
     if (gatewayWasRunning) {
-      console.log('\n💡 Gateway will auto-restart (tsx watch mode)');
-      console.log('   Wait a few seconds for it to reload...');
+      console.log('\n⚠️  Gateway was stopped for Prisma generation.');
+      console.log('   Restart it with: npm run dev');
     }
 
     process.exit(0);
