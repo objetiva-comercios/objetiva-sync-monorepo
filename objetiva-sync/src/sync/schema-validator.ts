@@ -9,7 +9,7 @@
  */
 
 import { closest, distance } from 'fastest-levenshtein';
-import type { SchemaResponse, ColumnMetadata } from '../types/schema.js';
+import type { SchemaResponse } from '../types/schema.js';
 import { schemaCache } from '../services/schema-cache.js';
 import { logger } from '../utils/logger.js';
 

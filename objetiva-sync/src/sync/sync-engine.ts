@@ -47,9 +47,9 @@ export interface SyncEngineConfig {
   dataSourceAdapter: IDataSourceAdapter;
 
   /**
-   * Cliente de API remota
+   * Cliente de API remota (optional for scheduler-only initialization)
    */
-  apiClient: APIClient;
+  apiClient?: APIClient;
 
   /**
    * Tamaño de batch por defecto
@@ -116,14 +116,16 @@ function entityTypeToTableName(entityType: string): string {
 
 export class SyncEngine {
   private adapter: IDataSourceAdapter;
-  private apiClient: APIClient;
+  private apiClient!: APIClient;
   private retryQueueManager: RetryQueueManager;
   private config: SyncEngineConfig;
 
   constructor(config: SyncEngineConfig) {
     this.config = config;
     this.adapter = config.dataSourceAdapter;
-    this.apiClient = config.apiClient;
+    if (config.apiClient) {
+      this.apiClient = config.apiClient;
+    }
     this.retryQueueManager = new RetryQueueManager();
   }
 
@@ -358,7 +360,7 @@ export class SyncEngine {
       throw new Error(`Query no está activa: "${query.name}" (ID: ${queryId})`);
     }
 
-    const entityType = query.entityType;
+    const entityType = query.entityType as EntityType;
 
     logger.info(
       { queryId: query.id, queryName: query.name, entityType },
@@ -504,17 +506,16 @@ export class SyncEngine {
 
         // Update log and state
         await SyncLogsRepo.updateLog(logId, {
-          status: 'failed',
-          error: errorMsg,
-          finishedAt: new Date(),
+          status: LogStatus.FAILED,
+          errorMessage: errorMsg,
         });
 
         await SyncStateRepo.updateSyncState(query.id, {
-          lastSync: new Date(),
-          lastRecordsSynced: 0,
+          lastSyncAt: new Date().toISOString(),
+          lastSyncCount: 0,
         });
 
-        result.status = 'failed';
+        result.status = LogStatus.FAILED;
         result.error = errorMsg;
         result.recordsFetched = queryResult.rowCount;
         result.recordsSent = 0;
