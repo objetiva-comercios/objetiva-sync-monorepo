@@ -9,10 +9,9 @@ import {
   getLogs,
   getRecentStats,
   getLogById,
-  getLogDetails,
   deleteAllLogs,
 } from '../../../store/repositories/sync-logs-repo.js';
-import { readBatch, countBatches, getBatchesMetadata } from '../../../utils/batch-storage.js';
+import { readBatch, countBatches } from '../../../utils/batch-storage.js';
 import { logger } from '../../../utils/logger.js';
 import type { EntityType, SyncType, LogStatus } from '../../../types/common.js';
 
@@ -462,7 +461,7 @@ export async function registerLogsApiRoutes(app: FastifyInstance) {
                           ${batchData.records.map((record: any, idx: number) => `
                             <tr class="hover:bg-gray-50">
                               <td class="px-3 py-2 text-xs text-gray-500 sticky left-0 bg-white z-10">${(currentBatch - 1) * (details?.batchSize || 100) + idx + 1}</td>
-                              ${Object.entries(record).map(([key, value]) => `
+                              ${Object.entries(record).map(([_key, value]) => `
                                 <td class="px-3 py-2 text-xs text-gray-900 whitespace-nowrap">${escapeHtml(String(value) || '-')}</td>
                               `).join('')}
                             </tr>

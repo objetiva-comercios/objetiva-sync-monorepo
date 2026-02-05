@@ -146,7 +146,7 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
 
         activeQueries.forEach((q) => {
           if (q.entityType in byEntity) {
-            byEntity[q.entityType].push(q);
+            byEntity[q.entityType]!.push(q);
           }
         });
 
@@ -241,7 +241,7 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
         }
 
         // Crear adaptador de base de datos
-        const adapter = createAdapter(activeConnection.adapterType, activeConnection.config);
+        const adapter = createAdapter(activeConnection.adapterType);
 
         try {
           // Conectar al adaptador (pasarle la configuración)
@@ -300,15 +300,12 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
                   continue;
               }
 
-              results.push({
-                entityType,
-                ...result,
-              });
+              results.push(result);
             } catch (error) {
               logger.error({ error, entityType }, 'Error en sincronización de entidad');
               results.push({
                 entityType,
-                status: 'failed',
+                status: 'failed' as const,
                 error: error instanceof Error ? error.message : String(error),
               });
             }
@@ -317,8 +314,8 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
           // Calcular resumen
           const totalSuccess = results.filter((r) => r.status === 'success').length;
           const totalFailed = results.filter((r) => r.status === 'failed').length;
-          const totalRecords = results.reduce((sum, r) => sum + (r.recordsProcessed || 0), 0);
-          const totalSent = results.reduce((sum, r) => sum + (r.recordsSent || 0), 0);
+          const totalRecords = results.reduce((sum, r) => sum + (('recordsFetched' in r ? r.recordsFetched : 0) || 0), 0);
+          const totalSent = results.reduce((sum, r) => sum + (('recordsSent' in r ? r.recordsSent : 0) || 0), 0);
 
           logger.info(
             { totalSuccess, totalFailed, totalRecords, totalSent },
@@ -558,7 +555,7 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
         }
 
         // Crear adaptador y cliente
-        const adapter = createAdapter(activeConnection.adapterType, activeConnection.config);
+        const adapter = createAdapter(activeConnection.adapterType);
         await adapter.connect(activeConnection.config);
 
         const password = decrypt(apiPassword.value);
@@ -630,10 +627,9 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
               const result = await syncEngine.syncQuery(query.id, syncOptions, syncId);
 
               results.push({
+                ...result,
                 queryId: query.id,
                 queryName: query.name,
-                entityType: query.entityType,
-                ...result,
               });
 
               logger.info(
@@ -646,7 +642,7 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
                 queryId: query.id,
                 queryName: query.name,
                 entityType: query.entityType,
-                status: 'failed',
+                status: 'failed' as const,
                 error: error instanceof Error ? error.message : String(error),
               });
             }
@@ -685,15 +681,12 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
                   continue;
               }
 
-              results.push({
-                entityType,
-                ...result,
-              });
+              results.push(result);
             } catch (error) {
               logger.error({ error, entityType }, 'Error en sincronización de entidad');
               results.push({
                 entityType,
-                status: 'failed',
+                status: 'failed' as const,
                 error: error instanceof Error ? error.message : String(error),
               });
             }
@@ -705,8 +698,8 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
         // Calcular resumen
         const totalSuccess = results.filter((r) => r.status === 'success').length;
         const totalFailed = results.filter((r) => r.status === 'failed').length;
-        const totalRecords = results.reduce((sum, r) => sum + (r.recordsProcessed || 0), 0);
-        const totalSent = results.reduce((sum, r) => sum + (r.recordsSent || 0), 0);
+        const totalRecords = results.reduce((sum, r) => sum + (('recordsFetched' in r ? r.recordsFetched : 0) || 0), 0);
+        const totalSent = results.reduce((sum, r) => sum + (('recordsSent' in r ? r.recordsSent : 0) || 0), 0);
 
         // Determinar si la sincronización fue exitosa
         // Solo es exitosa si al menos una entidad tuvo éxito y ninguna falló

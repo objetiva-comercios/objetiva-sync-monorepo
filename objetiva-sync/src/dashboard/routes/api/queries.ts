@@ -6,7 +6,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { requireNoPasswordChange } from '../../middleware/auth.js';
 import {
-  getAllQueries,
   getQuery,
   createQuery,
   updateQuery,

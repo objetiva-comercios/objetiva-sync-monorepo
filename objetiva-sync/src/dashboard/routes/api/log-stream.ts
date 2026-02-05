@@ -3,7 +3,7 @@
  * Broadcasts new sync logs to connected dashboard clients
  */
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { EventEmitter } from 'node:events';
 import { requireNoPasswordChange } from '../../middleware/auth.js';
 import type { SyncLog } from '../../../store/schema.js';
@@ -18,9 +18,9 @@ interface StreamQuery {
 }
 
 export async function registerLogStreamRoutes(app: FastifyInstance) {
-  app.get('/api/logs/stream', {
+  app.get<{ Querystring: StreamQuery }>('/api/logs/stream', {
     preHandler: requireNoPasswordChange
-  }, async (request: FastifyRequest<{ Querystring: StreamQuery }>, reply: FastifyReply) => {
+  }, async (request, reply) => {
     const { entityType, status } = request.query;
 
     // Set SSE headers
