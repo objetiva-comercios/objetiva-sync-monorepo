@@ -122,11 +122,11 @@ Plans:
   2. When gateway is temporarily unreachable, sync retries with backoff and recovers when connection restores
   3. When a batch fails mid-sync, the sync engine retries failed batches and continues processing remaining data
   4. Error recovery does not produce duplicate records or corrupt data
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 12-01-PLAN.md - End-to-end workflow validation (schema change through sync)
-- [ ] 12-02-PLAN.md - Error recovery and graceful degradation testing
+- [ ] 12-01-PLAN.md -- Workflow validation: test infrastructure, Zod schema validation, API client batch flow, error classifier completeness
+- [ ] 12-02-PLAN.md -- Error recovery and data integrity: gateway unreachable recovery, batch retry with backoff, cancellation handling, no duplicates on retry
 
 ## Progress
 
