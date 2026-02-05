@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Milestone v1.1-rc -- Phase 12: End-to-End Robustness
+**Current focus:** Post v1.1-rc -- Cleanup tasks
 
 ## Current Position
 
 Phase: 12 of 12 (End-to-End Robustness)
 Plan: 3/3
 Status: Phase complete
-Last activity: 2026-02-05 -- Completed 12-03-PLAN.md
+Last activity: 2026-02-05 -- Completed quick-001 (fix TS errors and clean test imports)
 
 Progress: [█████████████████████] 100% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete, Phase 11 complete, Phase 12 complete)
 
@@ -80,6 +80,8 @@ All v1.0 decisions archived in \`.planning/archive/v1.0-MILESTONE.md\`.
 3. **Generated schemas outdated** -- **FIXED** (manually updated to match Prisma schema, re-export from index.ts); regenerate after deployment recommended
 4. **Cancellation state bug** -- **FIXED** (10-04: CANCELED branch now resets status to IDLE)
 
+5. **Sync TypeScript errors** -- Reduced from 162 to 64 (quick-001 fixed 98 errors in api-client, types/index, tests). Remaining 64 errors in dashboard routes, sync engine, scheduler, gateway-client, store/schema. Non-blocking (transpileOnly build).
+
 ### Pending Todos
 
 None.
@@ -90,8 +92,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-05 -- Phase 12 plan 12-03 execution complete
-Stopped at: Completed 12-03-PLAN.md (end-to-end pipeline integration tests, 20 tests passing, ROBU-01 gap closed, Phase 12 complete)
+Last session: 2026-02-05 -- Quick task 001 execution complete
+Stopped at: Completed quick-001 (98 TS errors fixed across api-client, types/index, and 4 test files)
 Resume file: None
 
 ### Phase 8 Summary (Completed 2026-02-04)
