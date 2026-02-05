@@ -107,10 +107,11 @@ Plans:
   2. Deployment script for objetiva-sync builds and starts the service with correct gateway connection
   3. `.env.example` files in both modules list every required environment variable with descriptions and example values
   4. A fresh deployment using only the scripts and .env.example files succeeds without undocumented manual steps
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 11-01-PLAN.md - Deployment scripts and environment configuration for both modules
+- [ ] 11-01-PLAN.md -- Gateway deployment script, PM2 ecosystem, .env.example enhancement, DEPLOYMENT.md update for AlmaLinux
+- [ ] 11-02-PLAN.md -- Sync deployment script, PM2 ecosystem, .env.example enhancement for Windows/Git Bash
 
 ### Phase 12: End-to-End Robustness
 **Goal**: Complete sync pipeline validated from schema change through regeneration, validation, and sync with reliable error recovery
@@ -138,5 +139,5 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 8. Sync Reliability | v1.1-rc | 3/3 | Complete | 2026-02-04 |
 | 9. Tech Debt Cleanup | v1.1-rc | 3/3 | Complete | 2026-02-04 |
 | 10. Incremental Sync | v1.1-rc | 4/4 | Complete | 2026-02-04 |
-| 11. Deployment Configuration | v1.1-rc | 0/1 | Not started | - |
+| 11. Deployment Configuration | v1.1-rc | 0/2 | Not started | - |
 | 12. End-to-End Robustness | v1.1-rc | 0/2 | Not started | - |
