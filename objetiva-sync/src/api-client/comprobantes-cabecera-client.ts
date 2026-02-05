@@ -3,9 +3,10 @@
  */
 
 import { fetch } from 'undici';
+import type { Dispatcher } from 'undici';
 import type { AuthManager } from './auth.js';
 import type { IComprobanteCabeceraPayload } from '../types/comprobantes-cabecera.js';
-import type { BatchResult, APIResponse } from '../types/common.js';
+import type { BatchResult } from '../types/common.js';
 import { comprobanteCabeceraPayloadSchema } from '../types/comprobantes-cabecera.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
@@ -20,10 +21,12 @@ const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 export class ComprobantesCabeceraClient {
   private baseUrl: string;
   private authManager: AuthManager;
+  private dispatcher?: Dispatcher;
 
-  constructor(baseUrl: string, authManager: AuthManager) {
+  constructor(baseUrl: string, authManager: AuthManager, dispatcher?: Dispatcher) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.authManager = authManager;
+    this.dispatcher = dispatcher;
   }
 
   /**
@@ -103,10 +106,11 @@ export class ComprobantesCabeceraClient {
         headers,
         body: JSON.stringify({ comprobantes }),
         signal: combinedSignal,
+        dispatcher: this.dispatcher,
       });
 
       // Siempre leer el cuerpo de la respuesta primero
-      const data = (await response.json()) as APIResponse<BatchResult>;
+      const data = (await response.json()) as any;
 
       // ✅ Manejo de 207 Multi-Status (éxito parcial)
       if (response.status === 207) {
@@ -266,7 +270,9 @@ export class ComprobantesCabeceraClient {
       if (!validation.success) {
         errors.push({
           index: i,
-          identifier: comprobante?.comprobante ?? `COMPROBANTE_${i}`,
+          identifier: comprobante
+            ? `${comprobante.erp_operacion}-${comprobante.erp_formulario}-${comprobante.erp_numero}`
+            : `COMPROBANTE_${i}`,
           error: 'Validación fallida: ' + validation.error.message,
           code: 'VALIDATION_ERROR',
         });

@@ -3,9 +3,10 @@
  */
 
 import { fetch } from 'undici';
+import type { Dispatcher } from 'undici';
 import type { AuthManager } from './auth.js';
 import type { IArticuloPayload } from '../types/articulos.js';
-import type { BatchResult, APIResponse } from '../types/common.js';
+import type { BatchResult } from '../types/common.js';
 import { articuloPayloadSchema } from '../types/articulos.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
@@ -20,10 +21,12 @@ const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 export class ArticulosClient {
   private baseUrl: string;
   private authManager: AuthManager;
+  private dispatcher?: Dispatcher;
 
-  constructor(baseUrl: string, authManager: AuthManager) {
+  constructor(baseUrl: string, authManager: AuthManager, dispatcher?: Dispatcher) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.authManager = authManager;
+    this.dispatcher = dispatcher;
   }
 
   /**
@@ -106,6 +109,7 @@ export class ArticulosClient {
         headers,
         body: JSON.stringify({ articulos: transformedArticulos }),
         signal: combinedSignal,
+        dispatcher: this.dispatcher,
       });
 
       // Siempre leer el cuerpo de la respuesta primero
@@ -195,14 +199,29 @@ export class ArticulosClient {
     } catch (error) {
       const classified = classifyError(error);
 
-      // Log with classification
+      // Log with full error introspection
+      const errorDump = deepErrorInfo(error);
       logger.error({
         errorCode: classified.code,
         errorMessage: classified.message,
         rootCause: classified.rootCause,
         isRetryable: classified.isRetryable,
-        errorType: error?.constructor?.name,
+        ...errorDump,
       }, `[ArticulosClient] Error al enviar batch: [${classified.code}] ${classified.message}`);
+
+      // Quick health check - is the gateway still responding?
+      try {
+        const healthResp = await fetch(`${this.baseUrl}/health`, {
+          signal: AbortSignal.timeout(3000),
+          dispatcher: this.dispatcher,
+        });
+        logger.info({ status: healthResp.status }, '[ArticulosClient] Gateway health check after error: REACHABLE');
+      } catch (healthErr) {
+        logger.error({
+          healthError: healthErr instanceof Error ? healthErr.message : String(healthErr),
+          healthCause: healthErr instanceof Error ? (healthErr as any).cause?.message : undefined,
+        }, '[ArticulosClient] Gateway health check after error: UNREACHABLE');
+      }
 
       return {
         success: false,
@@ -318,6 +337,8 @@ export class ArticulosClient {
     try {
       const testArticulo: IArticuloPayload = {
         sku: 'TEST-001',
+        erp_codigo: 'TEST-001',
+        erp_nombre2: 'Articulo de prueba',
         nombre: 'Artículo de prueba',
         objeto: 'producto',
       };
@@ -346,4 +367,50 @@ export class ArticulosClient {
       };
     }
   }
+}
+
+/**
+ * Extract all possible information from an error, including nested causes
+ */
+function deepErrorInfo(err: unknown): Record<string, unknown> {
+  const info: Record<string, unknown> = {};
+  if (!(err instanceof Error)) {
+    info.rawError = String(err);
+    return info;
+  }
+
+  info.errorName = err.name;
+  info.errorMessage = err.message;
+  info.errorStack = err.stack?.split('\n').slice(0, 5).join('\n');
+
+  // Extract all non-standard properties (code, errno, syscall, etc.)
+  for (const key of Object.getOwnPropertyNames(err)) {
+    if (!['name', 'message', 'stack'].includes(key)) {
+      info[`err_${key}`] = (err as any)[key];
+    }
+  }
+
+  // Traverse cause chain (up to 5 levels deep)
+  let cause: unknown = (err as any).cause;
+  let depth = 0;
+  while (cause && depth < 5) {
+    depth++;
+    const prefix = `cause${depth}`;
+    if (cause instanceof Error) {
+      info[`${prefix}_name`] = cause.name;
+      info[`${prefix}_message`] = cause.message;
+      info[`${prefix}_stack`] = cause.stack?.split('\n').slice(0, 3).join('\n');
+      for (const key of Object.getOwnPropertyNames(cause)) {
+        if (!['name', 'message', 'stack'].includes(key)) {
+          info[`${prefix}_${key}`] = (cause as any)[key];
+        }
+      }
+      cause = (cause as any).cause;
+    } else {
+      info[`${prefix}_raw`] = String(cause);
+      break;
+    }
+  }
+
+  return info;
 }

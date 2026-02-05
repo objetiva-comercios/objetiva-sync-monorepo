@@ -3,9 +3,10 @@
  */
 
 import { fetch } from 'undici';
+import type { Dispatcher } from 'undici';
 import type { AuthManager } from './auth.js';
 import type { IComprobanteDetallePayload } from '../types/comprobantes-detalle.js';
-import type { BatchResult, APIResponse } from '../types/common.js';
+import type { BatchResult } from '../types/common.js';
 import { comprobanteDetallePayloadSchema } from '../types/comprobantes-detalle.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
@@ -20,10 +21,12 @@ const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 export class ComprobantesDetalleClient {
   private baseUrl: string;
   private authManager: AuthManager;
+  private dispatcher?: Dispatcher;
 
-  constructor(baseUrl: string, authManager: AuthManager) {
+  constructor(baseUrl: string, authManager: AuthManager, dispatcher?: Dispatcher) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.authManager = authManager;
+    this.dispatcher = dispatcher;
   }
 
   /**
@@ -128,6 +131,7 @@ export class ComprobantesDetalleClient {
         headers,
         body: jsonBody,
         signal: combinedSignal,
+        dispatcher: this.dispatcher,
       });
 
       // IMPORTANTE: Siempre leer el body primero, incluso si hay error
@@ -303,7 +307,9 @@ export class ComprobantesDetalleClient {
       if (!validation.success) {
         errors.push({
           index: i,
-          identifier: `${detalle?.erp_operacion}-${detalle?.erp_formulario}-${detalle?.erp_numero}-${detalle?.linea_numero}` ?? `DETALLE_${i}`,
+          identifier: detalle
+            ? `${detalle.erp_operacion}-${detalle.erp_formulario}-${detalle.erp_numero}-${detalle.linea_numero}`
+            : `DETALLE_${i}`,
           error: 'Validación fallida: ' + validation.error.message,
           code: 'VALIDATION_ERROR',
         });
@@ -322,9 +328,18 @@ export class ComprobantesDetalleClient {
         erp_operacion: 'TEST',
         erp_formulario: 'TEST',
         erp_numero: '00001',
+        comprobante_operacion: 'TEST',
+        comprobante_formulario: 'TEST',
+        comprobante_numero: '00001',
         linea_numero: 1,
         unidades: 1,
-        total: 100.0,
+        precio_unitario: 100.0,
+        importe_bruto: 100.0,
+        importe_descuento: 0,
+        importe_neto: 100.0,
+        alicuota_iva: 21,
+        importe_iva: 21.0,
+        importe_total: 121.0,
       };
 
       // Solo validar, no enviar realmente

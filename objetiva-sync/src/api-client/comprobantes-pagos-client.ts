@@ -3,9 +3,10 @@
  */
 
 import { fetch } from 'undici';
+import type { Dispatcher } from 'undici';
 import type { AuthManager } from './auth.js';
 import type { IComprobantePagosPayload } from '../types/comprobantes-pagos.js';
-import type { BatchResult, APIResponse } from '../types/common.js';
+import type { BatchResult } from '../types/common.js';
 import { comprobantePagoPayloadSchema } from '../types/comprobantes-pagos.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
@@ -20,10 +21,12 @@ const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 export class ComprobantesPagosClient {
   private baseUrl: string;
   private authManager: AuthManager;
+  private dispatcher?: Dispatcher;
 
-  constructor(baseUrl: string, authManager: AuthManager) {
+  constructor(baseUrl: string, authManager: AuthManager, dispatcher?: Dispatcher) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.authManager = authManager;
+    this.dispatcher = dispatcher;
   }
 
   /**
@@ -69,25 +72,43 @@ export class ComprobantesPagosClient {
       // Obtener token
       const token = await this.authManager.getToken();
 
+      // Preparar headers con metadata de query
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      // Agregar headers de query metadata si están disponibles
+      if (metadata) {
+        headers['X-Query-Id'] = metadata.queryId.toString();
+        headers['X-Query-Name'] = metadata.queryName;
+
+        if (metadata.syncId) {
+          headers['X-Sync-Id'] = metadata.syncId;
+        }
+        if (metadata.batchNumber !== undefined && metadata.totalBatches !== undefined) {
+          headers['X-Batch-Number'] = metadata.batchNumber.toString();
+          headers['X-Total-Batches'] = metadata.totalBatches.toString();
+        }
+      }
+
       // Combine cancellation signal with timeout signal
       const timeoutSignal = AbortSignal.timeout(BATCH_REQUEST_TIMEOUT_MS);
       const combinedSignal = abortSignal
         ? AbortSignal.any([abortSignal, timeoutSignal])
         : timeoutSignal;
 
-      // Enviar request
+      // Enviar request con metadata headers
       const response = await fetch(`${this.baseUrl}/api/comprobantes/pagos/batch`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify({ comprobantes_pagos: pagos }),
         signal: combinedSignal,
+        dispatcher: this.dispatcher,
       });
 
       // Siempre leer el cuerpo de la respuesta primero
-      const data = (await response.json()) as APIResponse<BatchResult>;
+      const data = (await response.json()) as any;
 
       // ✅ Manejo de 207 Multi-Status (éxito parcial)
       if (response.status === 207) {
@@ -247,7 +268,9 @@ export class ComprobantesPagosClient {
       if (!validation.success) {
         errors.push({
           index: i,
-          identifier: `${pago?.erp_operacion}-${pago?.erp_formulario}-${pago?.erp_numero}` ?? `PAGO_${i}`,
+          identifier: pago
+            ? `${pago.erp_operacion}-${pago.erp_formulario}-${pago.erp_numero}`
+            : `PAGO_${i}`,
           error: 'Validación fallida: ' + validation.error.message,
           code: 'VALIDATION_ERROR',
         });
@@ -266,6 +289,10 @@ export class ComprobantesPagosClient {
         erp_operacion: 'TEST',
         erp_formulario: 'TEST',
         erp_numero: '00001',
+        comprobante_operacion: 'TEST',
+        comprobante_formulario: 'TEST',
+        comprobante_numero: '00001',
+        linea_numero: 1,
         medio: 'efectivo',
         monto: 100.0,
       };

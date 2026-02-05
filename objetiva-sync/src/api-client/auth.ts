@@ -3,6 +3,7 @@
  */
 
 import { fetch } from 'undici';
+import type { Dispatcher } from 'undici';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -25,23 +26,21 @@ export class AuthManager {
   private baseUrl: string;
   private username: string;
   private password: string;
+  private dispatcher?: Dispatcher;
 
   private accessToken: string | null = null;
-  private refreshToken: string | null = null;
   private tokenExpiresAt: number | null = null; // Timestamp en ms
-
-  private isRefreshing: boolean = false;
-  private refreshPromise: Promise<string> | null = null;
 
   /**
    * Margen de seguridad para refresh (5 minutos antes de expirar)
    */
   private readonly REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
-  constructor(baseUrl: string, username: string, password: string) {
+  constructor(baseUrl: string, username: string, password: string, dispatcher?: Dispatcher) {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remover trailing slash
     this.username = username;
     this.password = password;
+    this.dispatcher = dispatcher;
   }
 
   /**
@@ -60,6 +59,7 @@ export class AuthManager {
           username: this.username,
           password: this.password,
         }),
+        dispatcher: this.dispatcher,
       });
 
       if (!response.ok) {
@@ -72,9 +72,8 @@ export class AuthManager {
         throw new Error(`Login failed: ${data.message ?? 'Unknown error'}`);
       }
 
-      // Guardar token (la gateway no proporciona refresh token)
+      // Guardar token
       this.accessToken = data.token;
-      this.refreshToken = null;
 
       // Establecer expiración por defecto (1 hora) ya que la gateway no proporciona expires_in
       const defaultExpiresInMs = 60 * 60 * 1000; // 1 hora
@@ -94,75 +93,6 @@ export class AuthManager {
         baseUrl: this.baseUrl,
         username: this.username
       }, '[AuthManager] ❌ Error en login');
-      this.clearTokens();
-      throw error;
-    }
-  }
-
-  /**
-   * Refresca el access token usando el refresh token
-   */
-  private async refreshAccessToken(): Promise<string> {
-    // Si ya hay un refresh en progreso, esperar a que termine
-    if (this.isRefreshing && this.refreshPromise) {
-      return this.refreshPromise;
-    }
-
-    this.isRefreshing = true;
-    this.refreshPromise = this.doRefreshToken();
-
-    try {
-      const token = await this.refreshPromise;
-      return token;
-    } finally {
-      this.isRefreshing = false;
-      this.refreshPromise = null;
-    }
-  }
-
-  /**
-   * Realiza el refresh del token
-   */
-  private async doRefreshToken(): Promise<string> {
-    if (!this.refreshToken) {
-      throw new Error('No refresh token available. Login required.');
-    }
-
-    try {
-      logger.info('[AuthManager] Refrescando access token...');
-
-      const response = await fetch(`${this.baseUrl}/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.refreshToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Token refresh failed: ${response.status}`);
-      }
-
-      const data = (await response.json()) as LoginResponse;
-
-      if (!data.success || !data.data) {
-        throw new Error(`Token refresh failed: ${data.message ?? 'Unknown error'}`);
-      }
-
-      // Actualizar access token
-      this.accessToken = data.data.access_token;
-
-      // Actualizar expiración
-      const expiresInMs = data.data.expires_in * 1000;
-      this.tokenExpiresAt = Date.now() + expiresInMs;
-
-      logger.info({
-        expiresIn: data.data.expires_in,
-      }, '[AuthManager] ✅ Token refrescado');
-
-      return this.accessToken;
-    } catch (error) {
-      logger.error({ error }, '[AuthManager] ❌ Error al refrescar token');
       this.clearTokens();
       throw error;
     }
@@ -218,7 +148,6 @@ export class AuthManager {
    */
   clearTokens(): void {
     this.accessToken = null;
-    this.refreshToken = null;
     this.tokenExpiresAt = null;
     logger.info('[AuthManager] Tokens cleared');
   }
