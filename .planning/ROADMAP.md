@@ -3,7 +3,7 @@
 ## Milestones
 
 - **v1.0 Schema-Driven Control** - Phases 1-7 (shipped 2026-02-03)
-- **v1.1-rc Release Candidate** - Phases 8-12 (in progress)
+- **v1.1-rc Release Candidate** - Phases 8-12 (shipped 2026-02-05)
 
 ## Phases
 
@@ -44,7 +44,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Tech Debt Cleanup** - Resolve TypeScript errors, switch to generated schemas, remove development garbage *(completed 2026-02-04)*
 - [x] **Phase 10: Incremental Sync** - Implement timestamp-based delta sync for all entity types *(completed 2026-02-04)*
 - [x] **Phase 11: Deployment Configuration** - Production deployment scripts and environment templates *(completed 2026-02-04)*
-- [ ] **Phase 12: End-to-End Robustness** - Validate complete workflow and error recovery across the pipeline
+- [x] **Phase 12: End-to-End Robustness** - Validate complete workflow and error recovery across the pipeline *(completed 2026-02-05)*
 
 ## Phase Details
 
@@ -127,7 +127,7 @@ Plans:
 Plans:
 - [x] 12-01-PLAN.md -- Workflow validation: test infrastructure, Zod schema validation, API client batch flow, error classifier completeness (EXECUTED, COMPLETE)
 - [x] 12-02-PLAN.md -- Error recovery and data integrity: gateway unreachable recovery, batch retry with backoff, cancellation handling, no duplicates on retry (EXECUTED, COMPLETE)
-- [ ] 12-03-PLAN.md -- Gap closure: end-to-end pipeline integration test (schema metadata -> codegen -> cross-schema validation -> API send)
+- [x] 12-03-PLAN.md -- Gap closure: end-to-end pipeline integration test (schema metadata -> codegen -> cross-schema validation -> API send) (EXECUTED, COMPLETE)
 
 ## Progress
 
@@ -141,4 +141,4 @@ Phases execute in numeric order: 8 -> 9 -> 10 -> 11 -> 12
 | 9. Tech Debt Cleanup | v1.1-rc | 3/3 | Complete | 2026-02-04 |
 | 10. Incremental Sync | v1.1-rc | 4/4 | Complete | 2026-02-04 |
 | 11. Deployment Configuration | v1.1-rc | 2/2 | Complete | 2026-02-04 |
-| 12. End-to-End Robustness | v1.1-rc | 2/3 | In progress | - |
+| 12. End-to-End Robustness | v1.1-rc | 3/3 | Complete | 2026-02-05 |

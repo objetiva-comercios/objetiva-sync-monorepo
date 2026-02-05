@@ -30,13 +30,13 @@ Requirements for release candidate. Each maps to roadmap phases.
 
 ### Deployment
 
-- [ ] **DEPL-01**: Deployment scripts for both sync and gateway modules
-- [ ] **DEPL-02**: Environment configuration templates (.env.example) complete and documented
+- [x] **DEPL-01**: Deployment scripts for both sync and gateway modules *(Plan 11-01, 11-02)*
+- [x] **DEPL-02**: Environment configuration templates (.env.example) complete and documented *(Plan 11-01, 11-02)*
 
 ### Robustness
 
-- [ ] **ROBU-01**: End-to-end workflow validated: schema change → regeneration → validation → sync
-- [ ] **ROBU-02**: Error recovery works across the pipeline (retry, graceful degradation)
+- [x] **ROBU-01**: End-to-end workflow validated: schema change → regeneration → validation → sync *(Plan 12-01, 12-03)*
+- [x] **ROBU-02**: Error recovery works across the pipeline (retry, graceful degradation) *(Plan 12-02)*
 
 ## Future Requirements
 
@@ -97,10 +97,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEBT-02 | Phase 9: Tech Debt Cleanup | Complete |
 | DEBT-03 | Phase 9: Tech Debt Cleanup | Complete |
 | DEBT-04 | Phase 9: Tech Debt Cleanup | Complete |
-| DEPL-01 | Phase 11: Deployment Configuration | Pending |
-| DEPL-02 | Phase 11: Deployment Configuration | Pending |
-| ROBU-01 | Phase 12: End-to-End Robustness | Pending |
-| ROBU-02 | Phase 12: End-to-End Robustness | Pending |
+| DEPL-01 | Phase 11: Deployment Configuration | Complete |
+| DEPL-02 | Phase 11: Deployment Configuration | Complete |
+| ROBU-01 | Phase 12: End-to-End Robustness | Complete |
+| ROBU-02 | Phase 12: End-to-End Robustness | Complete |
 
 **Coverage:**
 - v1.1-rc requirements: 16 total
@@ -109,4 +109,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-04 after Phase 10 completion*
+*Last updated: 2026-02-05 after Phase 12 completion (v1.1-rc complete)*
