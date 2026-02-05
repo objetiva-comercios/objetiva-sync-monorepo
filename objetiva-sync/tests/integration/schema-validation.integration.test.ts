@@ -40,7 +40,7 @@ const mockArticulosSchema: SchemaResponse = {
       column_default: null,
     },
     {
-      column_name: 'erp_nombre',
+      column_name: 'erp_nombre2',
       data_type: 'character varying',
       is_nullable: 'NO',
       column_default: null,
@@ -100,7 +100,7 @@ describe('Schema Validation Tests', () => {
     const queryResult = [
       {
         id: 1,
-        erp_nombre: 'TEST-PRODUCT',
+        erp_nombre2: 'TEST-PRODUCT',
         nombre: 'Test Product',
         precio: 50000,
       },
@@ -123,7 +123,7 @@ describe('Schema Validation Tests', () => {
       {
         id: 1,
         erp_codigo: 'ART-001',
-        erp_nombre: 'TEST-PRODUCT',
+        erp_nombre2: 'TEST-PRODUCT',
         nombre: 'Test Product',
         nonexistent_field: 'This should not be here',
       },
@@ -150,7 +150,7 @@ describe('Schema Validation Tests', () => {
       {
         id: 1,
         erp_codigo: 'ART-001',
-        erp_nombre: 'TEST-PRODUCT',
+        erp_nombre2: 'TEST-PRODUCT',
         nombre: 'Test Product',
         descripcion: 'Test description',
         precio: 50000,
@@ -211,7 +211,7 @@ describe('Schema Validation Tests', () => {
       // Note: Prisma may have additional fields like relations, indexes
       // We check that key fields exist in both
 
-      const coreFields = ['erp_codigo', 'erp_nombre', 'nombre'];
+      const coreFields = ['erp_codigo', 'erp_nombre2', 'nombre'];
 
       for (const field of coreFields) {
         expect(prismaFields).toContain(field);
@@ -336,7 +336,7 @@ const skipPropagation = !TEST_DATABASE_URL;
       {
         id: 1,
         erp_codigo: 'ART-001',
-        erp_nombre: 'TEST',
+        erp_nombre2: 'TEST',
         test_propagation_column: 'Test value',
       },
     ];
