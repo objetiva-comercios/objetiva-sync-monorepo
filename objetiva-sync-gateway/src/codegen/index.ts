@@ -24,13 +24,18 @@ import { getSyncEntities } from '../config/entities.js';
  * Authenticate with the gateway and return JWT token
  */
 async function authenticate(gatewayUrl: string, username: string, password: string): Promise<string> {
-  const response = await fetch(`${gatewayUrl}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ username, password }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${gatewayUrl}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ username, password }),
+    });
+  } catch (error) {
+    throw new Error(`E003: Cannot connect to gateway at ${gatewayUrl}. Is it running? Start it with: npm run dev`);
+  }
 
   if (!response.ok) {
     throw new Error('E003: Authentication failed. Check SYNC_USERNAME and SYNC_PASSWORD credentials.');
@@ -50,7 +55,7 @@ async function fetchSchema(
 ): Promise<SchemaResponse> {
   console.log(chalk.cyan(`Fetching schema for ${entity}...`));
 
-  const response = await fetch(`${gatewayUrl}/api/schemas/${entity}`, {
+  const response = await fetch(`${gatewayUrl}/api/schemas/${entity}?force=true`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -209,8 +214,8 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
     }
   }
 
-  // Step 9: Run prisma generate (only if schema.prisma was written)
-  if (prismaDiff.hasChanges) {
+  // Step 9: Run prisma generate (only if schema.prisma was written and not skipped)
+  if (prismaDiff.hasChanges && !options.skipPrismaGenerate) {
     console.log(chalk.cyan('\nRunning prisma generate...'));
     try {
       const output = execSync('npx prisma generate', {
