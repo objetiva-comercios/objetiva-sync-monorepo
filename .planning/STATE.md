@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 ## Current Position
 
-Phase: 11 of 12 (Deployment Configuration)
-Plan: 2/2
-Status: Phase complete
-Last activity: 2026-02-04 -- Completed Phase 11 (both plans 11-01, 11-02)
+Phase: 12 of 12 (End-to-End Robustness)
+Plan: 1/3
+Status: In progress
+Last activity: 2026-02-05 -- Completed 12-01-PLAN.md
 
-Progress: [####################] 97% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete, Phase 11 complete)
+Progress: [████████████████████░] 98% (v1.0 complete, Phase 8 complete, Phase 9 complete, Phase 10 complete, Phase 11 complete, 12-01 complete)
 
 ## Performance Metrics
 
@@ -25,8 +25,9 @@ Progress: [####################] 97% (v1.0 complete, Phase 8 complete, Phase 9 c
 
 **v1.1-rc:**
 - Plans estimated: 9 across 5 phases
-- Plans completed: 13 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03, 10-01, 10-02, 10-03, 10-04, 11-01, 11-02)
+- Plans completed: 14 (08-01, 08-02, 08-03, 09-01, 09-02, 09-03, 10-01, 10-02, 10-03, 10-04, 11-01, 11-02, 12-01)
 - Phases completed: 4 (Phase 8, Phase 9, Phase 10, Phase 11)
+- Phase 12 in progress: 1/3 plans complete
 
 ## Accumulated Context
 
@@ -89,8 +90,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-04 -- Phase 11 execution complete (both plans)
-Stopped at: Completed Phase 11 - Deployment Configuration verified (6/6 must-haves)
+Last session: 2026-02-05 -- Phase 12 plan 12-01 execution complete
+Stopped at: Completed 12-01-PLAN.md (workflow validation tests, 33 tests passing)
 Resume file: None
 
 ### Phase 8 Summary (Completed 2026-02-04)
@@ -126,3 +127,13 @@ Resume file: None
 ### Phase 11 Summary (Completed 2026-02-04)
 - 11-01: Gateway deployment automation (deploy.sh with pre-flight checks, env validation, PostgreSQL backup, Prisma migrations, PM2 fork mode, AlmaLinux DEPLOYMENT.md)
 - 11-02: Sync deployment automation (deploy.sh for Windows/Git Bash, PM2 fork mode, .env.example with 17 vars, Git Bash-compatible commands)
+
+**v1.1-rc decisions (Phase 12):**
+
+| Decision | Phase-Plan | Rationale |
+|----------|----------|------------|
+| Fixed test fixture field name (erp_nombre → erp_nombre2) | 12-01 | Prisma schema is source of truth; test data must match actual schema |
+| Reused existing test infrastructure | 12-01 | Plan explicitly required reusing gateway-mock.ts and test-data.ts; avoids duplication |
+
+### Phase 12 Summary (In Progress)
+- 12-01: Workflow validation tests (33 tests: Zod validation for all 4 entity types, API client mock, error classifier completeness, full send-validate-persist flow)
