@@ -90,6 +90,12 @@ None.
 
 None.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 001 | Fix TS errors in objetiva-sync + clean test legacy imports | 2026-02-05 | 82f8498 | [001-fix-ts-errors-clean-test-imports](./quick/001-fix-ts-errors-clean-test-imports/) |
+
 ## Session Continuity
 
 Last session: 2026-02-05 -- Quick task 001 execution complete
