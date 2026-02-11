@@ -122,13 +122,18 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 | v1.0 | Schema-driven synchronization control | 2026-02-03 | `.planning/milestones/v1.0-ROADMAP.md` |
 | v1.1-rc | Release candidate with sync reliability | 2026-02-05 | `.planning/milestones/v1.1-rc-ROADMAP.md` |
 
-## Next Steps
+## Current Milestone: v1.1-rc2 — Multi-Source & Hardening
 
-Human acceptance testing required before v1.1 stable:
-1. Run sync with 100K+ records, verify completion
-2. Test batch sizes 200 and 500
-3. Execute real PostgreSQL schema change E2E
-4. Validate incremental sync with live database
+**Goal:** Enable multi-origin sync (PostgreSQL as data source) and harden the system with modern UI, simplified auth, and observability.
+
+**Target features:**
+- PostgreSQL adapter for data extraction (alongside SQL Server)
+- Free-form multi-source entity enrichment (any origin can upsert)
+- Dashboard modernization: HTMX → shadcn/ui (staged migration)
+- Simplified gateway auth workflow (easier setup, token rotation, diagnostics)
+- Observability improvements (metrics, structured logging)
+
+**Priority order:** Multi-source → Dashboard → Auth → Observability
 
 ---
-*Last updated: 2026-02-05 after v1.1-rc milestone*
+*Last updated: 2026-02-11 after v1.1-rc2 milestone start*
