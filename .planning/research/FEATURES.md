@@ -1,504 +1,239 @@
-# FEATURES.md
-## Schema-Driven Synchronization Control System
+# Features Research: v1.1-rc2
 
-**Research Date:** 2026-01-26
-**Research Focus:** Feature categorization for schema-driven sync control capabilities
-**Context:** Production schema management, validation systems, and sync pipeline reliability
-
----
-
-## Executive Summary
-
-Schema-driven sync control systems bridge the gap between database schema definitions and runtime validation/code generation. Based on analysis of production tools (Prisma, Drizzle, TypeORM, Zapatos, Kysely) and schema validation libraries (Zod, Yup, AJV), this document categorizes features into three tiers:
-
-- **Table Stakes**: Core features required for any schema-driven system to function
-- **Differentiators**: Features that provide competitive advantage and solve real pain points
-- **Anti-Features**: Capabilities that sound appealing but introduce risk or complexity
+**Domain:** Multi-source data synchronization with dashboard modernization
+**Researched:** 2026-02-11
+**Overall Confidence:** MEDIUM
 
 ---
 
-## Table Stakes Features
+## Multi-Source Sync
 
-These features are non-negotiable for a production schema-driven sync control system.
+Adding PostgreSQL as an additional data origin alongside SQL Server, enabling free-form upsert where any source can write any entity.
 
-### 1. PostgreSQL Schema Introspection
-**Complexity:** Medium
-**Dependencies:** None (foundation feature)
+### Table Stakes
 
-**Capabilities:**
-- Read table definitions (columns, types, constraints)
-- Extract foreign key relationships
-- Identify primary keys and unique constraints
-- Detect indexes
-- Parse column nullability and default values
-- Read custom types (enums, composite types)
-- Support for multiple schemas (public, custom)
+| Feature | Description | Complexity | Dependencies |
+|---------|-------------|------------|--------------|
+| **PostgreSQL Adapter** | Implement `IDataSourceAdapter` for PostgreSQL using `pg` library following existing SQLServerAdapter pattern | Medium | Existing adapter pattern in `src/adapters/` |
+| **Adapter Registry** | Extend adapter selection to support multiple registered adapters (sqlserver, postgres) | Low | Existing `IAdapterRegistry` interface |
+| **Connection Configuration UI** | Dashboard UI to configure PostgreSQL connections (host, port, database, credentials) | Medium | Existing connection.ejs pattern |
+| **Connection Testing** | Test connection button for PostgreSQL with meaningful error messages | Low | Existing `testConnection()` pattern |
+| **Entity Resolution** | Consistent entity identification across sources using `erp_codigo` as the natural key | Medium | Existing sync-engine.ts |
+| **Last-Write-Wins Conflict Resolution** | When same entity arrives from multiple sources, most recent timestamp wins | Low | Timestamps already tracked in PostgreSQL gateway |
 
-**Why Table Stakes:**
-Without introspection, there's no source of truth. Every schema-driven tool (Prisma, TypeORM, Drizzle) starts here.
+### Differentiators
 
----
+| Feature | Description | Value Proposition | Complexity |
+|---------|-------------|-------------------|------------|
+| **Source Tracking** | Store `source_adapter_type` with each synced record for audit trail | Debug/audit capability | Low |
+| **Per-Source Sync Status** | Track last sync time and status independently per source | Granular monitoring | Medium |
+| **Source Priority Override** | Optional: Allow certain sources to take precedence for specific entities | Advanced conflict control | High |
+| **Cross-Source Validation** | Detect when same entity exists in multiple sources with different values | Data quality insight | Medium |
 
-### 2. SQL Query Validation Against Schema
-**Complexity:** High
-**Dependencies:** Schema introspection
+### Anti-Features
 
-**Capabilities:**
-- Parse SQL SELECT queries
-- Validate column references exist in schema
-- Verify JOIN relationships match foreign keys
-- Type-check WHERE clause predicates
-- Detect SELECT * and flag missing columns
-- Validate aggregate functions and GROUP BY
-- Check subquery column compatibility
-
-**Why Table Stakes:**
-The core problem statement is "schema drift breaks queries without warning." Query validation is the minimum viable solution.
-
-**Implementation Notes:**
-- Requires SQL parser (consider `pgsql-parser` or `node-sql-parser`)
-- Must handle SQL dialects (PostgreSQL-specific syntax)
-- Complex feature: CTEs, window functions, LATERAL joins add significant complexity
+| Anti-Feature | Why NOT to Build |
+|--------------|------------------|
+| **Bidirectional sync back to sources** | Project scope is pull-only ETL; writing back introduces complexity, locking, transaction issues |
+| **Custom conflict resolution rules per field** | Over-engineering for the use case; last-write-wins is sufficient |
+| **Real-time CDC from PostgreSQL** | Polling-based sync is established pattern; CDC adds infrastructure complexity |
+| **Automatic schema inference** | Query-based sync with explicit SQL already works; inference is error-prone |
 
 ---
 
-### 3. Zod Schema Code Generation
-**Complexity:** Medium
-**Dependencies:** Schema introspection
+## Dashboard Modernization
 
-**Capabilities:**
-- Generate Zod schemas from PostgreSQL column types
-- Map PostgreSQL types to Zod validators:
-  - `VARCHAR(n)` → `z.string().max(n)`
-  - `INTEGER` → `z.number().int()`
-  - `TIMESTAMP` → `z.date()` or `z.string().datetime()`
-  - `JSONB` → `z.record()` or custom schema
-  - `ENUM` → `z.enum([...])`
-- Handle nullable columns → `.nullable()` or `.optional()`
-- Generate validation for constraints (min/max, regex patterns from CHECK constraints)
-- Support for composite types → nested Zod objects
+Migrating HTMX + EJS dashboard (objetiva-sync) to shadcn/ui staged, while preserving working controls.
 
-**Why Table Stakes:**
-Current system already uses Zod validation. Generated schemas ensure validation matches database schema.
+### Table Stakes
 
-**Implementation Notes:**
-- Type mapping requires opinionated decisions (TIMESTAMP as Date vs ISO string)
-- CHECK constraints may not parse cleanly into Zod validators
-- Custom PostgreSQL types need fallback handling
+| Feature | Description | Complexity | Dependencies |
+|---------|-------------|------------|--------------|
+| **shadcn/ui Component Setup** | Initialize shadcn/ui in objetiva-sync dashboard with Tailwind, cn() utility | Low | Existing Tailwind setup |
+| **Staged Migration Strategy** | Migrate page-by-page rather than all-at-once to minimize risk | Low | None (process, not code) |
+| **Preserve Existing Routes** | Keep all existing `/config/*`, `/sync/*`, `/scheduler/*` routes working | Low | Existing route handlers |
+| **Component Parity** | Migrate each EJS view to React with equivalent functionality | High | Multiple views (~15 EJS files) |
+| **HTMX Partial Replacement** | Replace `hx-get`/`hx-post` with React Query or SWR for data fetching | Medium | Current HTMX patterns |
+| **Form Handling Migration** | Replace HTMX form submissions with React Hook Form or similar | Medium | Existing form patterns |
 
----
+### Differentiators
 
-### 4. Prisma Schema Code Generation
-**Complexity:** Medium-High
-**Dependencies:** Schema introspection
+| Feature | Description | Value Proposition | Complexity |
+|---------|-------------|-------------------|------------|
+| **Unified Design System** | Single component library (shadcn/ui) across both dashboards | Consistency, maintainability | Medium |
+| **Dark Mode Toggle** | shadcn/ui comes with dark mode support built-in | Modern UX | Low |
+| **Responsive Layout Improvements** | Current EJS views are functional but not optimized; React components can be more polished | Better mobile experience | Medium |
+| **Component Reuse** | Share components between objetiva-sync and gateway dashboards | DRY, faster development | Medium |
+| **Loading State Skeletons** | Replace "Cargando..." text with proper skeleton loaders | Perceived performance | Low |
 
-**Capabilities:**
-- Generate Prisma schema file from PostgreSQL schema
-- Map tables to `model` definitions
-- Define relationships (`@relation` attributes)
-- Handle indexes and constraints
-- Support for composite primary keys
-- Generate enums from PostgreSQL ENUMs
-- Handle schema namespaces (multi-schema support)
+### Anti-Features
 
-**Why Table Stakes:**
-Current system uses Prisma for persistence. Generated Prisma schema ensures ORM matches database schema.
-
-**Implementation Notes:**
-- Prisma schema DSL has specific conventions (naming, relation inference)
-- Bidirectional relations require careful handling
-- Prisma migration workflow vs. external schema changes (introspection mode)
+| Anti-Feature | Why NOT to Build |
+|--------------|------------------|
+| **Full SPA with client-side routing** | Overkill for admin dashboard; server-rendered with React islands is sufficient |
+| **State Management Library (Redux, Zustand)** | Dashboard is mostly CRUD forms; local state + React Query is enough |
+| **Mobile App** | Dashboard is admin-only; web-responsive is sufficient |
+| **Complete Rewrite in One Phase** | High risk; staged migration preserves working functionality |
+| **Base UI Migration (instead of Radix)** | shadcn/ui just added Base UI support in Feb 2026, but Radix is more stable and documented |
 
 ---
 
-### 5. TypeScript Type Generation
-**Complexity:** Low-Medium
-**Dependencies:** Schema introspection
+## Auth Simplification
 
-**Capabilities:**
-- Generate TypeScript interfaces/types from tables
-- Map PostgreSQL types to TypeScript types
-- Handle nullable → `| null` union types
-- Generate types for query result shapes
-- Support for JSON column type definitions
-- Export types for use across sync pipeline
+Reducing initial setup complexity, token rotation pain, and debugging issues.
 
-**Why Table Stakes:**
-Type safety across the sync pipeline requires TypeScript types that match database schema.
+### Table Stakes
 
----
+| Feature | Description | Complexity | Dependencies |
+|---------|-------------|------------|--------------|
+| **First-Time Setup Wizard** | Guided flow for initial admin setup instead of env vars + manual steps | Medium | Existing auth-service.ts |
+| **Clear Error Messages** | When JWT fails, show exactly what went wrong (expired, wrong secret, invalid signature) | Low | Existing JWT validation |
+| **Token Status Dashboard** | Show current token expiry, last refresh, upcoming expiration warning | Low | Current JWT handling |
+| **Automatic Token Refresh** | Background refresh before expiry to prevent mid-sync failures | Medium | Existing gateway-client.ts |
+| **Connection Test with Auth** | Single "Test Full Connection" button that validates auth + connectivity | Low | Existing test patterns |
 
-## Differentiating Features
+### Differentiators
 
-These features solve real pain points and provide competitive advantage over manual schema management.
+| Feature | Description | Value Proposition | Complexity |
+|---------|-------------|-------------------|------------|
+| **One-Click Auth Setup** | Generate shared secret between modules, auto-configure both sides | Major DX improvement | Medium |
+| **Auth Troubleshooting Page** | Dedicated page showing: token validity, gateway reachability, last successful auth | Debug productivity | Medium |
+| **JWT Debugging Mode** | Optional verbose logging for auth flow during setup | Setup assistance | Low |
+| **Session Persistence Across Restarts** | Store session state so service restart doesn't require re-login | Convenience | Low |
 
-### 6. Schema Drift Detection
-**Complexity:** Medium
-**Dependencies:** Schema introspection, persistent schema snapshots
+### Anti-Features
 
-**Capabilities:**
-- Compare current database schema against last known snapshot
-- Detect added/removed tables
-- Detect added/removed/renamed columns
-- Detect type changes (e.g., VARCHAR(50) → VARCHAR(100))
-- Detect constraint changes (nullable → not null)
-- Flag breaking vs. non-breaking changes
-- Generate human-readable diff reports
-
-**Why Differentiating:**
-This is the proactive solution to "schema drift breaks queries without warning." Detecting drift before it causes failures is a major value-add.
-
-**Implementation Notes:**
-- Requires persisted schema snapshot (JSON file or database table)
-- Breaking change classification requires domain logic
-- Must handle schema evolution patterns (additive changes are often safe)
-
-**Complexity Drivers:**
-- Schema comparison algorithms (structural diff)
-- Breaking vs. non-breaking change heuristics
-- Handling renamed columns vs. removed + added columns (ambiguity)
+| Anti-Feature | Why NOT to Build |
+|--------------|------------------|
+| **OAuth2/OIDC Integration** | Over-engineering for single-tenant admin dashboard; simple JWT is sufficient |
+| **Multi-User Access Control** | Current single admin user is sufficient for the use case |
+| **SSO/LDAP Integration** | Enterprise feature not needed for this deployment model |
+| **Passwordless/Magic Link Auth** | Adds complexity; password-based is fine for admin dashboard |
+| **API Key Management UI** | JWT between modules is already working; API keys add another auth mechanism |
 
 ---
 
-### 7. Field-Level Error Reporting
-**Complexity:** Medium-High
-**Dependencies:** Query validation, schema introspection
+## Observability
 
-**Capabilities:**
-- Report specific line/column where query validation fails
-- Identify which table/column is missing or mismatched
-- Suggest corrections (e.g., "Did you mean `customer_id`?")
-- Show expected vs. actual types in type mismatches
-- Link errors to schema definitions
-- Stack multiple errors (don't fail on first error)
+Adding metrics, logging, and monitoring capabilities for production reliability.
 
-**Why Differentiating:**
-Developer experience. Generic "query invalid" errors are frustrating. Precise, actionable errors accelerate debugging.
+### Table Stakes
 
-**Implementation Notes:**
-- Requires SQL parser with position tracking
-- Fuzzy matching for suggestions (Levenshtein distance)
-- Error message design is UX-critical
+| Feature | Description | Complexity | Dependencies |
+|---------|-------------|------------|--------------|
+| **Structured Logging** | JSON logs with correlation IDs across sync operations | Low | Existing pino logger |
+| **Sync Duration Metrics** | Track time per sync operation, per entity type, per batch | Low | Existing timing in sync-engine.ts |
+| **Error Rate Tracking** | Count and categorize errors (network, validation, timeout) | Low | Existing error handling |
+| **Health Check Endpoint** | `/health` endpoint returning service status, dependencies, metrics summary | Low | Standard pattern |
+| **Sync Progress Events** | Emit progress updates during long-running syncs for UI feedback | Medium | Existing `onProgress` callback |
 
----
+### Differentiators
 
-### 8. Schema Change Impact Analysis
-**Complexity:** High
-**Dependencies:** Schema drift detection, query validation, query inventory
+| Feature | Description | Value Proposition | Complexity |
+|---------|-------------|-------------------|------------|
+| **Prometheus Metrics Export** | `/metrics` endpoint in Prometheus format for external monitoring | Industry standard observability | Medium |
+| **OpenTelemetry Traces** | Distributed tracing across objetiva-sync -> gateway | Debug cross-service issues | High |
+| **RED Metrics Dashboard** | Rate, Errors, Duration metrics visualized in gateway dashboard | SRE best practice | Medium |
+| **Log Correlation** | TraceId/SpanId in logs for correlating across components | Debug productivity | Medium |
+| **Grafana Dashboard Templates** | Pre-built Grafana dashboards for sync monitoring | Fast observability setup | Low |
 
-**Capabilities:**
-- Identify which queries are affected by schema changes
-- Classify impact severity (breaking, warning, info)
-- Generate migration checklist (queries to update, schemas to regenerate)
-- Estimate blast radius (how many sync jobs affected)
-- Provide before/after query comparisons
+### Anti-Features
 
-**Why Differentiating:**
-Goes beyond detection to prescription. Answers "What breaks if I apply this schema migration?"
-
-**Implementation Notes:**
-- Requires inventory of all queries in the system
-- Must parse queries and track column dependencies
-- Complex feature: cross-query impact (e.g., shared staging tables)
-
-**Complexity Drivers:**
-- Query dependency graph construction
-- Impact severity classification logic
-- Handling indirect impacts (e.g., Zod validation of downstream data)
+| Anti-Feature | Why NOT to Build |
+|--------------|------------------|
+| **Full APM Integration (Datadog, New Relic)** | Vendor lock-in; Prometheus + Grafana is sufficient and free |
+| **Custom Metrics Database** | Use existing PostgreSQL or external Prometheus; don't reinvent |
+| **Real-Time Alerting System** | External tool (Grafana Alerting, PagerDuty) handles this better |
+| **Log Aggregation Service** | Loki or external service; don't build log storage |
+| **Distributed Tracing Infrastructure** | Just export OTLP; let external systems (Jaeger, Tempo) handle storage |
 
 ---
 
-### 9. Incremental Codegen with Change Tracking
-**Complexity:** Medium
-**Dependencies:** Schema drift detection, codegen features
-
-**Capabilities:**
-- Regenerate only affected Zod/Prisma/TypeScript code
-- Preserve custom modifications (via protected regions or separate files)
-- Track which generated files are stale
-- Provide opt-in regeneration (confirm before overwrite)
-- Version generated code (git-friendly diffs)
-
-**Why Differentiating:**
-Production systems need codegen that doesn't clobber custom logic. Incremental updates reduce friction.
-
-**Implementation Notes:**
-- Protected region comments (e.g., `// CUSTOM CODE START/END`)
-- File hashing to detect staleness
-- Git integration for change visibility
-
----
-
-### 10. Multi-Schema/Multi-Database Support
-**Complexity:** Medium
-**Dependencies:** Schema introspection
-
-**Capabilities:**
-- Introspect multiple PostgreSQL schemas (public, erp, analytics)
-- Handle cross-schema queries and foreign keys
-- Support multiple database connections (multi-tenant, sharded)
-- Namespace generated code by schema/database
-- Detect schema conflicts (same table name in different schemas)
-
-**Why Differentiating:**
-Enterprise ERP systems often use multiple schemas. Supporting this pattern unlocks complex use cases.
-
-**Implementation Notes:**
-- Schema-qualified table references (`erp.customers`)
-- Codegen namespacing (avoid type name collisions)
-- Connection pooling for multi-database scenarios
-
----
-
-### 11. Custom Type Mapping Configuration
-**Complexity:** Low-Medium
-**Dependencies:** Codegen features
-
-**Capabilities:**
-- Override default PostgreSQL → Zod/TypeScript mappings
-- Define custom validators for specific columns (e.g., email regex)
-- Map PostgreSQL types to domain types (e.g., `citext` → email string)
-- Configure JSON column schemas (nested Zod validation)
-- Handle proprietary PostgreSQL extensions
-
-**Why Differentiating:**
-One-size-fits-all type mapping doesn't work for complex domains. Customization enables precision validation.
-
-**Implementation Notes:**
-- Configuration file (YAML/JSON) for type overrides
-- Column-level and type-level overrides
-- Must integrate with codegen pipeline
-
----
-
-### 12. Schema Documentation Generation
-**Complexity:** Low
-**Dependencies:** Schema introspection
-
-**Capabilities:**
-- Generate Markdown/HTML docs from schema
-- Include table/column descriptions (from PostgreSQL comments)
-- Document relationships and constraints
-- Link to generated types/schemas
-- Export ERD diagrams (Mermaid, PlantUML)
-
-**Why Differentiating:**
-Self-documenting schemas improve onboarding and reduce tribal knowledge.
-
-**Implementation Notes:**
-- PostgreSQL `COMMENT ON` extraction
-- Diagram generation libraries (Mermaid integration)
-
----
-
-## Anti-Features
-
-These features sound appealing but introduce risk, complexity, or misalignment with the problem domain.
-
-### A1. Automatic Query Rewriting
-**Why Anti-Feature:**
-- High complexity, low reliability
-- SQL rewriting requires deep understanding of query semantics
-- Risk of silent correctness bugs (query runs but returns wrong data)
-- Better to fail loudly than fix incorrectly
-
-**Alternative Approach:**
-- Provide suggested query fixes in error messages
-- Require manual confirmation before applying rewrites
-
----
-
-### A2. Real-Time Schema Synchronization
-**Why Anti-Feature:**
-- Sync pipelines should be deliberate, not reactive
-- Real-time sync implies automatic codegen/deployment (dangerous)
-- Schema changes should go through review/testing
-- Polling database for changes adds latency and resource overhead
-
-**Alternative Approach:**
-- Explicit schema refresh command (manual trigger)
-- CI/CD integration for schema validation on deployment
-
----
-
-### A3. Automatic Migration Generation
-**Why Anti-Feature:**
-- Database migrations are high-risk operations
-- Generated migrations may not match intended logic (data backfills, complex transforms)
-- Prisma/TypeORM migration tools already exist (don't reinvent)
-- Out of scope for sync control (schema introspection, not schema authoring)
-
-**Alternative Approach:**
-- Detect drift and warn, but don't auto-migrate
-- Integrate with existing migration tools (Prisma Migrate, Flyway)
-
----
-
-### A4. Schema Rollback/Time Travel
-**Why Anti-Feature:**
-- Adds significant complexity (schema versioning, snapshot storage)
-- Database-level feature (use PostgreSQL backups, point-in-time recovery)
-- Sync system should adapt to schema, not manage schema history
-
-**Alternative Approach:**
-- Store schema snapshots for drift detection only
-- Rely on database backup/restore for rollback
-
----
-
-### A5. Cross-Database Schema Unification
-**Why Anti-Feature:**
-- Attempting to merge schemas from MySQL, PostgreSQL, SQL Server is fraught
-- Type systems differ fundamentally (no clean mapping)
-- Out of scope for PostgreSQL-specific sync system
-
-**Alternative Approach:**
-- Focus on PostgreSQL (current ERP database)
-- Provide extension points if multi-database support is needed later
-
----
-
-### A6. Visual Schema Editor/Designer
-**Why Anti-Feature:**
-- Sync system should consume schema, not author it
-- Schema design is a separate concern (use pgAdmin, DBeaver, DBDiagram.io)
-- High UI complexity for limited value in this context
-
-**Alternative Approach:**
-- Generate visual documentation (read-only ERDs)
-- Integrate with existing schema design tools
-
----
-
-### A7. Embedded SQL Query Builder
-**Why Anti-Feature:**
-- Users already write SQL queries (existing workflow)
-- Query builders abstract away SQL, reducing control
-- Validation is the goal, not query construction
-
-**Alternative Approach:**
-- Validate user-written SQL queries
-- Provide query templates/examples in documentation
-
----
-
-## Feature Dependencies Map
+## Feature Dependencies
 
 ```
-Schema Introspection (F1)
-├── SQL Query Validation (F2)
-│   ├── Field-Level Error Reporting (F7)
-│   └── Schema Change Impact Analysis (F8)
-├── Zod Schema Codegen (F3)
-│   └── Incremental Codegen (F9)
-├── Prisma Schema Codegen (F4)
-│   └── Incremental Codegen (F9)
-├── TypeScript Type Codegen (F5)
-│   └── Incremental Codegen (F9)
-├── Schema Drift Detection (F6)
-│   └── Schema Change Impact Analysis (F8)
-├── Multi-Schema Support (F10)
-├── Custom Type Mapping (F11)
-└── Schema Documentation (F12)
+Multi-Source Sync
+    |
+    +-- PostgreSQL Adapter (requires adapter pattern understanding)
+    |
+    +-- Connection Configuration UI (requires dashboard)
+    |
+    +-- Source Tracking (optional, enhances debugging)
+
+Dashboard Modernization
+    |
+    +-- shadcn/ui Setup (foundational)
+    |
+    +-- Component Migration (page-by-page)
+    |       |
+    |       +-- Login/Auth pages
+    |       +-- Configuration pages
+    |       +-- Sync pages
+    |       +-- Scheduler pages
+    |
+    +-- HTMX Replacement (per-page)
+
+Auth Simplification
+    |
+    +-- Error Message Improvements (low risk, do first)
+    |
+    +-- Token Status Dashboard (requires dashboard migration?)
+    |
+    +-- Setup Wizard (depends on improved error messages)
+
+Observability
+    |
+    +-- Structured Logging (foundational, do first)
+    |
+    +-- Health Endpoint (standalone)
+    |
+    +-- Metrics Export (depends on structured logging)
+    |
+    +-- Tracing (optional, highest complexity)
 ```
 
 ---
 
-## Implementation Complexity Estimates
+## MVP Recommendation
 
-| Feature | Complexity | Effort (Story Points) | Risk Level |
-|---------|------------|----------------------|------------|
-| F1: Schema Introspection | Medium | 5 | Low |
-| F2: Query Validation | High | 13 | Medium |
-| F3: Zod Codegen | Medium | 8 | Low |
-| F4: Prisma Codegen | Medium-High | 8 | Medium |
-| F5: TypeScript Codegen | Low-Medium | 3 | Low |
-| F6: Schema Drift Detection | Medium | 5 | Low |
-| F7: Field-Level Errors | Medium-High | 8 | Medium |
-| F8: Impact Analysis | High | 13 | High |
-| F9: Incremental Codegen | Medium | 5 | Medium |
-| F10: Multi-Schema | Medium | 5 | Low |
-| F11: Custom Type Mapping | Low-Medium | 3 | Low |
-| F12: Documentation | Low | 2 | Low |
+For v1.1-rc2 milestone, prioritize:
 
-**Total Effort (Table Stakes):** 37 points
-**Total Effort (Differentiators):** 41 points
-**Total Effort (All Features):** 78 points
+1. **Multi-Source: PostgreSQL Adapter + Config UI** - Core feature request
+2. **Auth: Error Messages + Token Status** - Quick wins for setup pain
+3. **Observability: Structured Logging + Health Endpoint** - Production readiness
+4. **Dashboard: shadcn/ui Setup + 1-2 Page Migrations** - Prove the pattern
+
+Defer to future milestones:
+
+- **Dashboard: Full Migration** - Too risky in one milestone
+- **Observability: OpenTelemetry Tracing** - High complexity, not blocking
+- **Multi-Source: Source Priority Override** - Over-engineering for initial release
+- **Auth: One-Click Setup** - Nice-to-have, not critical
 
 ---
 
-## Recommended Phasing
+## Sources
 
-### Phase 1: MVP (Table Stakes)
-**Goal:** Solve "schema drift breaks queries without warning"
+### Multi-Source Sync
+- [10 Common Data Integration Patterns: A Complete Guide for 2026](https://blog.skyvia.com/common-data-integration-patterns/)
+- [Two-Way Sync Architecture: Essential Knowledge for Data Professionals](https://www.stacksync.com/blog/two-way-sync-architecture-essential-knowledge-for-data-professionals)
+- [node-postgres documentation](https://node-postgres.com/)
+- [pg library on npm](https://www.npmjs.com/package/pg)
 
-- F1: Schema Introspection
-- F2: SQL Query Validation (basic)
-- F3: Zod Codegen (basic)
-- F5: TypeScript Codegen
+### Dashboard Modernization
+- [shadcn/ui Changelog - February 2026](https://ui.shadcn.com/docs/changelog/2026-02-blocks)
+- [Shadcn UI Best Practices for 2026](https://medium.com/write-a-catalyst/shadcn-ui-best-practices-for-2026-444efd204f44)
+- [HTMX vs React: A First Look and Comparison](https://www.builder.io/blog/htmx-vs-react)
+- [Integrating HTMX with React and Next.js](https://www.syncfusion.com/blogs/post/htmx-with-react-nextjs-server-driven-ui)
 
-**Deliverable:** Validate queries against introspected schema, generate basic validation code.
+### Auth Simplification
+- [JWT Validation: A Developer's Pain Point and the Solution](https://medium.com/@davidlogicballs/jwt-validation-a-developers-pain-point-and-the-solution-ca9f0da40008)
+- [How to Build Authentication Flow Design](https://oneuptime.com/blog/post/2026-01-30-authentication-flow-design/view)
 
-### Phase 2: Proactive Drift Management
-**Goal:** Detect schema changes before they cause failures
-
-- F6: Schema Drift Detection
-- F4: Prisma Codegen (if needed for persistence layer)
-- F7: Field-Level Error Reporting (improve DX)
-
-**Deliverable:** Automated drift detection, actionable error messages.
-
-### Phase 3: Production Hardening
-**Goal:** Handle complex schemas and reduce maintenance friction
-
-- F8: Schema Change Impact Analysis
-- F9: Incremental Codegen
-- F10: Multi-Schema Support (if needed)
-- F11: Custom Type Mapping
-
-**Deliverable:** Production-grade schema management with impact analysis.
-
-### Phase 4: Documentation & Polish
-**Goal:** Improve discoverability and onboarding
-
-- F12: Schema Documentation
-- Enhanced error messages (suggestions, examples)
-
----
-
-## Open Questions for Requirements Phase
-
-1. **Query Inventory:** How are SQL queries currently stored? (code files, database, config?)
-2. **Schema Change Frequency:** How often does the ERP schema change? (daily, weekly, monthly?)
-3. **Validation Scope:** Validate queries at authoring time (IDE) or runtime (sync execution)?
-4. **Codegen Workflow:** One-time generation or continuous regeneration on schema change?
-5. **Multi-Tenant Considerations:** Single ERP database or multiple customer databases?
-6. **Performance Requirements:** How many queries need validation? How large are schemas?
-7. **Breaking Change Policy:** Who approves schema changes? Rollback process?
-
----
-
-## References
-
-**Production Schema Tools Analyzed:**
-- Prisma (schema introspection, codegen, ORM)
-- Drizzle ORM (type-safe SQL, schema introspection)
-- Kysely (type-safe query builder)
-- Zapatos (PostgreSQL codegen)
-- TypeORM (decorators, introspection)
-
-**Validation Libraries:**
-- Zod (runtime validation, TypeScript inference)
-- Yup (schema validation)
-- AJV (JSON Schema validation)
-
-**SQL Parsing:**
-- `pgsql-parser` (PostgreSQL-specific, libpg_query bindings)
-- `node-sql-parser` (multi-dialect SQL parser)
-
-**Schema Diff Tools:**
-- Migra (schema diff for PostgreSQL)
-- Atlas (schema management and migration)
+### Observability
+- [Essential OpenTelemetry Best Practices for Robust Observability](https://betterstack.com/community/guides/observability/opentelemetry-best-practices/)
+- [Go Observability Stack: Prometheus, Grafana, and OpenTelemetry](https://dasroot.net/posts/2026/02/go-observability-stack-prometheus-grafana-opentelemetry/)
+- [OpenTelemetry Metrics: Types, Examples & Best Practices](https://www.groundcover.com/opentelemetry/opentelemetry-metrics)
 
 ---
 
@@ -506,7 +241,7 @@ Schema Introspection (F1)
 
 - [x] Categories are clear (table stakes vs differentiators vs anti-features)
 - [x] Complexity noted for each feature
-- [x] Dependencies between features identified
-- [x] Implementation notes provided for high-complexity features
-- [x] Phasing recommendations included
-- [x] Open questions flagged for requirements phase
+- [x] Dependencies on existing features identified
+
+---
+*Researched: 2026-02-11*

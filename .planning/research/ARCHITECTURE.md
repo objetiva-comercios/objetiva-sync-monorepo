@@ -1,787 +1,555 @@
-# Architecture Research: Schema-Driven Validation Systems
+# Architecture Research: v1.1-rc2 Multi-Source & Hardening
 
-**Research Question:** How are schema-driven validation systems typically structured? What are the key components and data flows?
-
-**Context:** Integration of schema introspection and validation into objetiva-sync monorepo architecture where sync and gateway run on separate physical servers.
+**Domain:** Multi-source sync system enhancement
+**Researched:** 2026-02-11
+**Confidence:** HIGH (based on comprehensive codebase analysis)
 
 ---
 
 ## Executive Summary
 
-Schema-driven validation systems establish a database as the single source of truth and propagate structural metadata through automated tooling to maintain consistency across validation layers, ORM models, and API contracts. The architecture consists of four primary components:
+The v1.1-rc2 features integrate cleanly with the existing objetiva-sync architecture. The adapter pattern already supports multiple data sources; PostgreSQL adapter slots in alongside SQLServerAdapter. Multi-source upsert requires gateway ingestion changes (origin tracking), not sync-side changes. Dashboard modernization can proceed incrementally with shadcn/ui integration into the existing gateway React dashboard. Auth simplification and observability are additive layers that don't modify existing flows.
 
-1. **Schema Introspection Layer** - Reads database metadata
-2. **Schema Distribution Endpoint** - Exposes metadata via HTTP API
-3. **Code Generation Pipeline** - Transforms metadata into type-safe schemas
-4. **Runtime Validation Layer** - Enforces contracts during data flow
-
-For the objetiva-sync system, this maps to: PostgreSQL → Gateway Schema API → CLI Introspection Tool → Prisma/Zod Regeneration → Query Validator.
+**Key finding:** The existing architecture was designed for extensibility. All v1.1-rc2 features map to existing extension points.
 
 ---
 
-## Component Architecture
+## Current Architecture Overview
 
-### 1. Schema Introspection Layer
-
-**Purpose:** Extract authoritative structural metadata from the database system.
-
-**Location in Project:** Gateway server (has direct PostgreSQL access)
-
-**Key Responsibilities:**
-- Query database information schema (columns, types, constraints, nullability)
-- Extract foreign key relationships and indexes
-- Format metadata into structured representation
-- Handle database-specific type mappings
-
-**Implementation Approach:**
 ```
-PostgreSQL Information Schema
-       ↓
-Introspection Query Engine
-       ↓
-Normalized Schema Metadata (JSON)
++------------------+     HTTP/JWT      +--------------------+
+|   objetiva-sync  | ----------------> | objetiva-sync-     |
+|   (Sync Module)  |                   | gateway            |
++------------------+                   +--------------------+
+        |                                      |
+        |                                      |
+  +-----v------+                        +------v------+
+  | SQL Server |                        | PostgreSQL  |
+  | (ERP)      |                        | (Dest)      |
+  +------------+                        +-------------+
+        ^
+        |
+  BaseAdapter <---- SQLServerAdapter (current)
+              <---- PostgreSQLAdapter (v1.1-rc2 NEW)
 ```
+
+**Key Existing Patterns:**
+| Pattern | Location | Purpose |
+|---------|----------|---------|
+| **Adapter Pattern** | `adapters/` | Pluggable data source connectors |
+| **Query-Based Sync** | `sync/sync-engine.ts` | SQL queries drive extraction |
+| **Batch Processing** | `sync/batch-processor.ts` | Chunked sends with retry |
+| **Schema Validation** | `sync/schema-validator.ts` | Zod schemas from PostgreSQL |
+| **Entity Routing** | `api-client/*.ts` | Per-entity HTTP clients |
+| **Job Tracking** | `lib/job-tracker.ts` | Multi-batch sync aggregation |
+
+---
+
+## Integration Analysis by Feature
+
+### 1. PostgreSQL Adapter
 
 **Integration Points:**
-- **Input:** PostgreSQL connection via Prisma
-- **Output:** Schema metadata object containing:
-  - Table names
-  - Column definitions (name, type, nullable, default)
-  - Primary/foreign keys
-  - Indexes and constraints
 
-**Technology Stack:**
-- Prisma's introspection utilities (`prisma db pull` internals)
-- Direct PostgreSQL system catalog queries
-- TypeScript schema metadata interfaces
+| Component | File | Integration Type |
+|-----------|------|------------------|
+| AbstractAdapter | `adapters/base-adapter.ts` | INHERIT (no changes) |
+| IDataSourceAdapter | `adapters/types.ts` | IMPLEMENTS (no changes) |
+| ADAPTER_REGISTRY | `adapters/index.ts` | ADD entry |
+| createAdapter() | `adapters/index.ts` | USES (no changes) |
+| Connection config UI | `views/config/connection.ejs` | EXTEND template |
+| SyncEngine | `sync/sync-engine.ts` | USES (no changes) |
 
-**Build Order:** Phase 1 - Foundation (must exist before schema endpoint)
+**New Components:**
+```
+objetiva-sync/src/adapters/postgres/
+  postgres-adapter.ts    # PostgreSQLAdapter extends AbstractAdapter
+  index.ts               # Re-exports
+```
+
+**Data Flow (unchanged pattern):**
+```
+Connection Config (SQLite)
+    |
+    v
+PostgreSQLAdapter.connect()
+    |
+    v
+Query SQL --> PostgreSQLAdapter.executeQuery()
+    |
+    v
+IQueryResult (same interface as SQLServer)
+    |
+    v
+[Same downstream: QueryValidator -> BatchProcessor -> APIClient -> Gateway]
+```
+
+**Interface compliance (AbstractAdapter methods to implement):**
+```typescript
+// All methods defined in AbstractAdapter, must implement:
+protected abstract doConnect(config: IConnectionConfig): Promise<void>;
+protected abstract doDisconnect(): Promise<void>;
+protected abstract doTestConnection(config: IConnectionConfig): Promise<TestResult>;
+protected abstract doExecuteQuery(sql: string, params?: IQueryParams): Promise<IQueryResult>;
+protected abstract doGetTables(): Promise<string[]>;
+protected abstract doGetColumns(tableName: string): Promise<IColumnInfo[]>;
+protected abstract doGetSampleData(tableName: string, limit: number): Promise<IQueryResult>;
+```
+
+**Config schema (new Zod schema):**
+```typescript
+const postgresConfigSchema = z.object({
+  host: z.string().min(1, 'Host es requerido'),
+  port: z.number().int().min(1).max(65535).default(5432),
+  database: z.string().min(1, 'Base de datos es requerida'),
+  user: z.string().min(1, 'Usuario es requerido'),
+  password: z.string().min(1, 'Password es requerido'),
+  ssl: z.boolean().default(false),
+  schema: z.string().default('public'),
+  options: z.object({
+    connectionTimeout: z.number().int().min(1000).default(30000),
+    statementTimeout: z.number().int().min(1000).default(120000),
+  }).optional(),
+});
+```
+
+**Driver recommendation:** `pg` (node-postgres) - industry standard, well-maintained, no native compilation required.
 
 ---
 
-### 2. Schema Distribution Endpoint
-
-**Purpose:** Expose schema metadata via authenticated HTTP endpoint for consumption by remote sync instances.
-
-**Location in Project:** Gateway server (`objetiva-sync-gateway`)
-
-**Key Responsibilities:**
-- Authenticate incoming schema requests (JWT)
-- Retrieve current schema metadata on-demand
-- Return structured JSON schema representation
-- Support entity-specific or full schema queries
-- Cache schema metadata for performance
-
-**API Contract:**
-```
-GET /api/schemas
-Authorization: Bearer <jwt-token>
-
-Response: {
-  "articulos": {
-    "table": "articulos",
-    "columns": [
-      { "name": "id", "type": "integer", "nullable": false, "isPrimaryKey": true },
-      { "name": "codigo", "type": "varchar", "nullable": false, "maxLength": 50 },
-      { "name": "descripcion", "type": "text", "nullable": true }
-    ]
-  },
-  "comprobantes_cabecera": { ... }
-}
-
-GET /api/schemas/:entity
-Returns schema for specific entity only
-```
+### 2. Free-Form Multi-Source Upsert
 
 **Integration Points:**
-- **Input:** HTTP request with JWT authentication
-- **Dependencies:** Schema Introspection Layer, JWT auth middleware
-- **Output:** JSON schema metadata payload
-- **Consumers:** Sync application query validator, CLI introspection tool
 
-**Technology Stack:**
-- Fastify route handler (`/routes/schemas.ts`)
-- JWT authentication middleware (existing)
-- Response caching (Node.js Map or Redis)
+| Component | File | Integration Type |
+|-----------|------|------------------|
+| Prisma schema | `prisma/schema.prisma` | ADD columns |
+| IngestionService | `services/ingestion.ts` | MODIFY methods |
+| API routes | `routes/articulos.ts`, etc. | MODIFY header extraction |
+| Zod schemas | `shared/schemas/` | ADD optional fields |
+| Metrics | `lib/metrics.ts` | EXTEND event type |
+| Dashboard activity | `dashboard/src/components/ActivityFeed.tsx` | DISPLAY origin |
 
-**Build Order:** Phase 2 - Gateway Schema Endpoint (depends on introspection layer)
+**Current Ingestion State:**
+- Upsert uses composite keys (e.g., `erp_codigo_erp_nombre`)
+- No origin tracking - all data assumed from single ERP
+- `last write wins` already in effect (UPDATE overwrites all fields)
+- `erp_fecha_sync` timestamp tracks when synced
+
+**New Prisma Columns (per entity):**
+```prisma
+model Articulo {
+  // ... existing fields ...
+
+  // v1.1-rc2: Multi-source tracking
+  origin_source    String?   // e.g., "sql-server-erp-01", "postgres-warehouse"
+  origin_sync_id   String?   // Links to specific sync job
+  origin_synced_at DateTime? // When this origin last wrote
+}
+```
+
+**Data Flow Change:**
+```
+BEFORE:
+  Sync -> POST /api/articulos/batch
+       -> IngestionService.ingestArticulos(articulos, metadata)
+       -> INSERT/UPDATE
+
+AFTER:
+  Sync -> POST /api/articulos/batch
+          Headers: { X-Origin-Source: "sql-server-erp-01" }
+       -> Route extracts origin from headers
+       -> IngestionService.ingestArticulos(articulos, { ...metadata, origin: "sql-server-erp-01" })
+       -> INSERT/UPDATE with origin_source, origin_sync_id, origin_synced_at
+```
+
+**Conflict Resolution:** Unchanged - last write wins. The `origin_synced_at` field provides audit trail.
+
+**Backward Compatibility:**
+- New columns are nullable
+- Existing data gets `origin_source: NULL` (legacy/unknown)
+- X-Origin-Source header is optional (defaults to NULL)
 
 ---
 
-### 3. Code Generation Pipeline
-
-**Purpose:** Transform database schema metadata into type-safe code artifacts (Prisma models, Zod validators).
-
-**Location in Project:** CLI command executed on gateway server, outputs to gateway codebase
-
-**Key Responsibilities:**
-- Fetch schema metadata from introspection layer
-- Generate Prisma schema file from metadata
-- Run `prisma generate` to update TypeScript client
-- Generate Zod schemas matching Prisma models
-- Update shared schema files used by both sync and gateway
-- Provide diff summary of changes
-
-**Data Flow:**
-```
-PostgreSQL Metadata
-       ↓
-CLI Command: regenerate-schemas
-       ↓
-Generate prisma/schema.prisma
-       ↓
-Run: prisma generate (updates @prisma/client)
-       ↓
-Generate Zod schemas (shared/schemas/*.ts)
-       ↓
-Commit changes (manual user action)
-```
-
-**Implementation Approach:**
-
-**Phase 1: Prisma Regeneration**
-```typescript
-// CLI command: npm run regenerate-schemas
-1. Query introspection layer for current schema
-2. Generate Prisma schema file using template:
-   - datasource db block
-   - generator client block
-   - model definitions from metadata
-3. Execute: npx prisma generate
-4. Verify client regeneration
-```
-
-**Phase 2: Zod Schema Generation**
-```typescript
-// After Prisma client regenerated
-1. Read Prisma schema file (or use metadata directly)
-2. For each model, generate Zod schema:
-   - Map Prisma types to Zod validators
-   - Handle nullable fields (.nullable() / .optional())
-   - Apply string length constraints
-   - Add custom validation rules
-3. Write to shared/schemas/ directory
-4. Update index.ts exports
-```
-
-**Type Mapping Strategy:**
-```
-PostgreSQL → Prisma → Zod
-VARCHAR → String → z.string()
-INTEGER → Int → z.number().int()
-BOOLEAN → Boolean → z.boolean()
-TIMESTAMP → DateTime → z.date()
-TEXT → String → z.string()
-DECIMAL → Decimal → z.number()
-```
+### 3. Dashboard Modernization (shadcn/ui)
 
 **Integration Points:**
-- **Input:** Schema metadata from introspection layer
-- **Output:**
-  - `prisma/schema.prisma` (updated)
-  - `shared/schemas/*.ts` (Zod validators)
-  - `@prisma/client` TypeScript types (regenerated)
-- **Consumers:** Gateway ingestion service, sync query validator
 
-**Technology Stack:**
-- Node.js CLI script (TypeScript)
-- Prisma CLI (`prisma generate`)
-- Template engine for code generation (handlebars or template literals)
-- File system operations (fs/promises)
+| Component | File | Integration Type |
+|-----------|------|------------------|
+| Gateway React dashboard | `dashboard/src/` | ENHANCE |
+| Tailwind config | `dashboard/tailwind.config.js` | EXTEND |
+| Package.json | `dashboard/package.json` | ADD deps |
+| Vite config | `dashboard/vite.config.ts` | NO CHANGE |
+| Sync HTMX dashboard | `objetiva-sync/src/dashboard/` | NO CHANGE (preserve) |
 
-**Build Order:** Phase 3 - CLI Introspection & Regeneration (depends on schema endpoint)
+**Current Dashboard State:**
 
----
+| Dashboard | Technology | Status | Location |
+|-----------|------------|--------|----------|
+| Sync Dashboard | HTMX + EJS | Working, 19 templates | `objetiva-sync/src/dashboard/views/` |
+| Gateway Dashboard | React + Tailwind + Vite | Working, 10 components | `objetiva-sync-gateway/dashboard/` |
 
-### 4. Runtime Validation Layer
+**Discovery:** Gateway already has React infrastructure:
+- React 18 with Vite
+- Tailwind CSS configured
+- Custom hooks (`useGatewayData`)
+- Lucide icons
+- Custom `card.tsx` component exists
 
-**Purpose:** Enforce schema contracts during data synchronization using generated validators.
+**Recommended Approach: Staged Migration**
 
-**Location in Project:**
-- Sync application (`objetiva-sync`) - Query result validation
-- Gateway application (`objetiva-sync-gateway`) - Batch ingestion validation
-
-**Key Responsibilities:**
-
-**In Sync Application:**
-- Fetch current schemas from gateway endpoint
-- Validate SQL query results against expected schema
-- Detect field mismatches (missing, extra, type mismatch)
-- Provide detailed validation errors
-- Block invalid data from reaching gateway
-
-**In Gateway Application:**
-- Validate incoming batch payloads using Zod schemas
-- Ensure data conforms to PostgreSQL expectations
-- Return validation errors to sync client
-
-**Data Flow:**
-```
-SQL Server Query Result
-       ↓
-Query Validator (Sync)
-  - Fetch schema from gateway /api/schemas
-  - Compare result fields vs. expected schema
-  - Validate field types and nullability
-       ↓
-Zod Validation (Sync)
-  - Apply entity-specific Zod schema
-  - Transform to typed payload
-       ↓
-HTTP POST to Gateway
-       ↓
-Zod Validation (Gateway)
-  - Validate batch structure
-  - Validate individual records
-       ↓
-Prisma Persistence
-```
-
-**Enhanced Query Validator Design:**
-
-```typescript
-// Location: objetiva-sync/src/sync/query-validator.ts
-
-interface SchemaField {
-  name: string;
-  type: string;
-  nullable: boolean;
-}
-
-interface EntitySchema {
-  table: string;
-  columns: SchemaField[];
-}
-
-class QueryValidator {
-  private schemaCache: Map<string, EntitySchema>;
-  private apiClient: SchemaApiClient;
-
-  // Fetch schemas from gateway
-  async refreshSchemas(entityType?: string): Promise<void> {
-    const schemas = await this.apiClient.getSchemas(entityType);
-    this.schemaCache.set(entityType, schemas);
-  }
-
-  // Validate query result structure
-  validateResultStructure(
-    entityType: string,
-    queryResult: Record<string, any>
-  ): ValidationResult {
-    const schema = this.schemaCache.get(entityType);
-
-    // Check for missing required fields
-    // Check for unexpected extra fields
-    // Validate field types match expected schema
-    // Validate nullability constraints
-
-    return {
-      valid: boolean,
-      errors: ValidationError[],
-      warnings: string[]
-    };
-  }
-
-  // Existing Zod validation (enhanced)
-  validateWithZod(entityType: string, data: unknown): TypedPayload {
-    // Apply Zod schema validation
-    // Return typed payload or throw
-  }
-}
-```
-
-**Integration Points:**
-- **Input (Sync):**
-  - SQL query results from adapter
-  - Schema metadata from gateway endpoint
-- **Input (Gateway):**
-  - HTTP batch payload from sync
-- **Dependencies:**
-  - Generated Zod schemas
-  - Schema API client
-- **Output:**
-  - Validated, typed payloads
-  - Detailed validation error messages
-
-**Technology Stack:**
-- Zod validators (generated)
-- HTTP client for schema endpoint (axios/native fetch)
-- Schema caching (in-memory Map)
-- Error formatting utilities
-
-**Build Order:** Phase 4 - Enhanced Query Validation (depends on schema endpoint and Zod generation)
-
----
-
-## Data Flow Architecture
-
-### End-to-End Schema Propagation Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. DATABASE SCHEMA (Source of Truth)                            │
-│                                                                  │
-│  PostgreSQL Database                                             │
-│    └─ information_schema                                         │
-│    └─ pg_catalog                                                 │
-└──────────────────────┬──────────────────────────────────────────┘
-                       │
-                       ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 2. INTROSPECTION LAYER (Gateway Server)                          │
-│                                                                  │
-│  Schema Introspection Service                                    │
-│    ├─ Query information_schema                                   │
-│    ├─ Extract table/column metadata                              │
-│    └─ Format as JSON schema object                               │
-└──────────────────────┬──────────────────────────────────────────┘
-                       │
-                       ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 3. SCHEMA DISTRIBUTION (Gateway HTTP API)                        │
-│                                                                  │
-│  GET /api/schemas                                                │
-│    ├─ Authentication: JWT                                        │
-│    ├─ Response: JSON schema metadata                             │
-│    └─ Caching: In-memory                                         │
-└──────────────┬───────────────────────────┬──────────────────────┘
-               │                           │
-               ↓                           ↓
-┌──────────────────────────┐  ┌────────────────────────────────────┐
-│ 4a. CLI REGENERATION     │  │ 4b. RUNTIME VALIDATION (Sync)      │
-│     (Gateway Server)     │  │     (Sync Server)                  │
-│                          │  │                                    │
-│  CLI: regenerate-schemas │  │  Query Validator                   │
-│    ↓                     │  │    ├─ Fetch schemas from endpoint  │
-│  Update Prisma schema    │  │    ├─ Cache schemas locally        │
-│    ↓                     │  │    ├─ Validate query results       │
-│  Run: prisma generate    │  │    └─ Detect schema mismatches     │
-│    ↓                     │  │                                    │
-│  Generate Zod schemas    │  │  Query Execution                   │
-│    ↓                     │  │    ├─ Structure validation         │
-│  Commit changes          │  │    ├─ Zod validation               │
-│                          │  │    └─ Type-safe payload            │
-└──────────────┬───────────┘  └────────────────┬───────────────────┘
-               │                               │
-               ↓                               ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 5. CODE ARTIFACTS                                                │
-│                                                                  │
-│  prisma/schema.prisma          shared/schemas/*.ts               │
-│  @prisma/client (types)        Zod validators                    │
-└──────────────┬──────────────────────────────────────────────────┘
-               │
-               ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 6. RUNTIME VALIDATION (Gateway)                                  │
-│                                                                  │
-│  Batch Ingestion                                                 │
-│    ├─ Validate with generated Zod schemas                        │
-│    ├─ Enforce data contracts                                     │
-│    └─ Persist via Prisma ORM                                     │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Schema Change Propagation Sequence
-
-**Scenario:** Developer adds new column to PostgreSQL table
-
-```
-Step 1: Database Migration
-  └─ Developer runs Prisma migration
-  └─ PostgreSQL schema updated
-
-Step 2: Schema Regeneration (Manual Trigger)
-  └─ Developer runs: npm run regenerate-schemas
-  └─ CLI fetches new schema from introspection layer
-  └─ Prisma schema file updated
-  └─ Prisma client regenerated
-  └─ Zod schemas regenerated
-  └─ Developer reviews diff and commits changes
-
-Step 3: Deployment
-  └─ Gateway deployed with updated Prisma client
-  └─ Gateway deployed with updated Zod schemas
-  └─ Sync application queries /api/schemas
-  └─ Sync validator cache refreshed
-
-Step 4: Runtime Validation
-  └─ Sync queries include new column
-  └─ Query validator passes (structure matches schema)
-  └─ Zod validation passes (new field validated)
-  └─ Gateway ingestion succeeds
-  └─ Prisma persists new field
-```
-
----
-
-## Component Boundaries
-
-### Gateway Schema Endpoint Component
-
-**Boundary Definition:**
-- **Input Interface:** HTTP GET request with JWT token
-- **Output Interface:** JSON schema metadata
-- **Dependencies:** Schema introspection service, JWT auth middleware
-- **Isolation:** Stateless, cacheable, versioned response format
-
-**File Locations:**
-```
-objetiva-sync-gateway/
-├─ src/routes/schemas.ts          # Route handler
-├─ src/services/schema-introspection.ts  # Introspection logic
-└─ src/middleware/auth.ts         # JWT validation (existing)
-```
-
-**API Contract:**
-```typescript
-// Request
-GET /api/schemas
-Headers: { Authorization: "Bearer <token>" }
-
-// Response
-{
-  "version": "1.0",
-  "entities": {
-    "articulos": { columns: [...] },
-    "comprobantes_cabecera": { columns: [...] },
-    ...
-  }
-}
-```
-
----
-
-### Sync Query Validator Component
-
-**Boundary Definition:**
-- **Input Interface:** SQL query results (raw objects), entity type identifier
-- **Output Interface:** Validated typed payload or validation errors
-- **Dependencies:** Schema API client, Zod schemas, logger
-- **Isolation:** Stateful (caches schemas), synchronous validation
-
-**File Locations:**
-```
-objetiva-sync/
-├─ src/sync/query-validator.ts         # Enhanced validator
-├─ src/api-client/schema-client.ts     # Schema endpoint client
-└─ src/types/*.ts                      # Entity type definitions (existing)
-```
-
-**Validation Pipeline:**
-```typescript
-queryResult (unknown)
-  → validateStructure() → StructureValidationResult
-  → validateWithZod() → TypedPayload
-  → Output: IArticuloPayload | ValidationError
-```
-
----
-
-### CLI Introspection Tool Component
-
-**Boundary Definition:**
-- **Input Interface:** Command-line invocation, optional flags
-- **Output Interface:** Updated files, console output summary
-- **Dependencies:** Schema introspection service, Prisma CLI, file system
-- **Isolation:** Stateless, idempotent, can run offline with cached schema
-
-**File Locations:**
-```
-objetiva-sync-gateway/
-├─ scripts/regenerate-schemas.ts       # CLI entry point
-├─ scripts/generators/prisma-generator.ts    # Prisma schema builder
-├─ scripts/generators/zod-generator.ts       # Zod schema builder
-└─ package.json                        # Script: "regenerate-schemas"
-```
-
-**Command Interface:**
+**Phase 1 - Add shadcn to gateway React dashboard:**
 ```bash
-npm run regenerate-schemas           # Full regeneration
-npm run regenerate-schemas -- --entity articulos  # Single entity
-npm run regenerate-schemas -- --dry-run  # Show diff without writing
+cd objetiva-sync-gateway/dashboard
+npx shadcn@latest init
+npx shadcn@latest add button card table badge dialog input select alert toast
+```
+
+**New component structure:**
+```
+dashboard/src/
+  components/
+    ui/                    # shadcn components (auto-generated)
+      button.tsx
+      card.tsx             # Replace custom card
+      table.tsx
+      badge.tsx
+      dialog.tsx
+      input.tsx
+      select.tsx
+      alert.tsx
+      toast.tsx
+    Dashboard.tsx          # Uses shadcn components
+    ActivityFeed.tsx       # Shows origin_source
+    BatchList.tsx          # Enhanced with origin
+    MetricCard.tsx         # Uses shadcn card
+```
+
+**Phase 2 (future) - Unified dashboard:**
+- Expose sync status API endpoints with JWT auth
+- Gateway dashboard fetches both gateway and sync data
+- Single dashboard for complete observability
+
+---
+
+### 4. Auth Simplification
+
+**Integration Points:**
+
+| Component | File | Integration Type |
+|-----------|------|------------------|
+| Login route | `routes/auth.ts` | MODIFY |
+| Setup route | `routes/setup.ts` | MODIFY |
+| Auth middleware | `middleware/auth.ts` | ENHANCE error messages |
+| Sync AuthManager | `api-client/auth.ts` | ADD refresh support |
+| Sync gateway-client | `services/gateway-client.ts` | ADD refresh support |
+| .env.example | `.env.example` | UPDATE documentation |
+
+**Current Auth Flow:**
+```
+1. Admin generates bcrypt hash manually (outside system)
+2. Admin sets SYNC_PASSWORD_HASH in gateway .env
+3. Gateway restart required
+4. Sync calls POST /auth/login with username/password
+5. Gateway returns JWT token (24h expiry)
+6. Sync uses Bearer token for all requests
+7. On expiry, sync must re-login
+```
+
+**Pain Points:**
+- Manual bcrypt hash generation is confusing
+- No token refresh (full re-login required)
+- No auth diagnostics
+- Setup requires restart
+
+**Simplified Flow (v1.1-rc2):**
+```
+1. Admin sets SYNC_ADMIN_PASSWORD (plaintext) in gateway .env
+2. Gateway hashes on startup (auto-detected from .env)
+3. Optional: /setup endpoint for password change without restart
+4. Sync calls POST /auth/login, gets access + refresh tokens
+5. On access token expiry, sync calls POST /auth/refresh
+6. Diagnostics available at GET /api/auth/diagnostics
+```
+
+**New Endpoints:**
+```
+POST /auth/refresh
+  Request: { refreshToken: "..." }
+  Response: { accessToken: "...", expiresIn: 3600 }
+
+GET /api/auth/diagnostics (protected, admin only)
+  Response: {
+    jwtConfigured: true,
+    passwordHashSet: true,
+    tokenExpiresIn: "24h",
+    lastSuccessfulLogin: "2026-02-11T10:30:00Z",
+    failedAttempts24h: 0
+  }
+
+POST /setup/change-password (protected, admin only)
+  Request: { currentPassword: "...", newPassword: "..." }
+  Response: { success: true, message: "Password updated" }
 ```
 
 ---
 
-## Integration with Existing Architecture
+### 5. Observability Layer
 
-### Current Architecture Layers
+**Integration Points:**
 
-**Existing Layers (from .planning/codebase/ARCHITECTURE.md):**
-1. Presentation Layer (Dashboard)
-2. Configuration Layer (env, constants)
-3. Adapter Layer (data source abstraction)
-4. API Client Layer (gateway communication)
-5. Sync Engine Layer (orchestration)
-6. Data Access Layer (SQLite store)
-7. Auth Layer (JWT, sessions)
-8. Ingestion Layer (gateway persistence)
-9. API Gateway Layer (routes, middleware)
-10. Utilities Layer (logger, helpers)
+| Component | File | Integration Type |
+|-----------|------|------------------|
+| MetricsCollector | `lib/metrics.ts` | ENHANCE |
+| Logger (gateway) | `lib/logger.ts` | ADD trace context |
+| Logger (sync) | `utils/logger.ts` | ADD trace context |
+| API routes | `routes/*.ts` | ADD metrics endpoint |
+| Sync API client | `api-client/*.ts` | PROPAGATE trace headers |
+| Gateway middleware | `middleware/` | INJECT trace context |
 
-**New Schema-Driven Layers:**
-11. **Schema Introspection Layer** (Gateway) - Peers with Ingestion Layer
-12. **Schema Distribution Layer** (Gateway) - Peers with API Gateway Layer
-13. **Code Generation Layer** (Gateway) - Build-time, not runtime
-14. **Schema Validation Layer** (Sync) - Enhances Sync Engine Layer
+**Current Observability State:**
+- `MetricsCollector` class tracks sync events, login events, entity stats
+- In-memory storage (lost on restart)
+- No Prometheus/OpenTelemetry integration
+- Structured logging via Pino (JSON format in production)
+- `X-Sync-ID`, `X-Query-ID` headers already used
 
-### Integration Points
-
-**Sync Engine Layer Enhancement:**
+**New Components:**
 ```
-Current: Adapter → Query → Transform → Validate (Zod) → Batch → Send
-New:     Adapter → Query → Validate (Structure) → Validate (Zod) → Batch → Send
-                             ↑
-                    Schema Endpoint (cache)
-```
+objetiva-sync-gateway/src/lib/
+  observability/
+    prometheus-exporter.ts  # Formats metrics for /metrics endpoint
+    trace-context.ts        # Request tracing middleware
 
-**API Gateway Layer Enhancement:**
-```
-Current Routes:           New Routes:
-/api/articulos            /api/schemas
-/api/comprobantes/*       /api/schemas/:entity
-/api/health               (existing routes unchanged)
+objetiva-sync/src/lib/
+  observability/
+    trace-propagation.ts    # Passes trace IDs to gateway
 ```
 
-**Gateway Ingestion Layer:**
+**Prometheus Metrics (example):**
 ```
-No changes required - continues using existing Zod schemas
-Zod schemas are now generated instead of manually maintained
+# HELP gateway_sync_batches_total Total sync batches received
+# TYPE gateway_sync_batches_total counter
+gateway_sync_batches_total{entity="articulo",status="success"} 150
+gateway_sync_batches_total{entity="articulo",status="partial"} 12
+gateway_sync_batches_total{entity="articulo",status="failed"} 3
+
+# HELP gateway_sync_records_total Total records processed
+# TYPE gateway_sync_records_total counter
+gateway_sync_records_total{entity="articulo",operation="insert"} 45000
+gateway_sync_records_total{entity="articulo",operation="update"} 12000
+gateway_sync_records_total{entity="articulo",operation="failed"} 50
+
+# HELP gateway_sync_batch_duration_seconds Batch processing duration
+# TYPE gateway_sync_batch_duration_seconds histogram
+gateway_sync_batch_duration_seconds_bucket{le="0.5"} 100
+gateway_sync_batch_duration_seconds_bucket{le="1"} 140
+gateway_sync_batch_duration_seconds_bucket{le="5"} 160
 ```
 
-**Auth Layer:**
+**Trace Context Enhancement:**
+```typescript
+// Request middleware adds trace context
+app.addHook('onRequest', (request, reply, done) => {
+  const traceId = request.headers['x-trace-id'] || generateTraceId();
+  const spanId = generateSpanId();
+  request.traceContext = { traceId, spanId };
+  reply.header('x-trace-id', traceId);
+  done();
+});
+
+// Logger includes trace context
+logger.info({
+  traceId: request.traceContext.traceId,
+  spanId: request.traceContext.spanId,
+  syncId: metadata?.syncId,
+  ...
+}, 'Batch processed');
 ```
-Schema endpoint reuses existing JWT middleware
-No changes to authentication logic
+
+---
+
+## Component Diagram (v1.1-rc2 Changes)
+
+```
+                                 v1.1-rc2 ADDITIONS
+                                 (marked with +)
+                                        |
++===============================================================================+
+|                              objetiva-sync                                     |
++===============================================================================+
+|                                                                               |
+|  +----------------+     +-------------------+     +-------------------+        |
+|  | Config Layer   |     | Adapter Layer     |     | Sync Layer        |        |
+|  |                |     |                   |     |                   |        |
+|  | - connection   |---->| - AbstractAdapter |---->| - SyncEngine      |        |
+|  |   config repo  |     | - SQLServerAdapter|     | - Scheduler       |        |
+|  | + postgres     |     | + PostgresAdapter |     | - BatchProcessor  |        |
+|  |   config UI    |     |   [NEW]           |     | + trace context   |        |
+|  +----------------+     +-------------------+     +-------------------+        |
+|                                                           |                   |
+|  +----------------+                                       |                   |
+|  | Dashboard      |     +-------------------+             v                   |
+|  | (HTMX+EJS)     |     | API Client        |     +-------------------+        |
+|  | [NO CHANGES]   |     |                   |---->| Gateway Client    |        |
+|  +----------------+     | - AuthManager     |     | + X-Origin-Source |        |
+|                         | + RefreshToken    |     | + X-Trace-ID      |        |
+|                         |   [NEW]           |     +-------------------+        |
+|                         +-------------------+                                 |
++===============================================================================+
+                                        |
+                                   HTTP/JWT
+                                        |
+                                        v
++===============================================================================+
+|                           objetiva-sync-gateway                               |
++===============================================================================+
+|                                                                               |
+|  +----------------+     +-------------------+     +-------------------+        |
+|  | Auth Layer     |     | API Routes        |     | Ingestion Service |        |
+|  |                |     |                   |     |                   |        |
+|  | - auth.ts      |---->| - articulos.ts    |---->| - ingestArticulos |        |
+|  | + diagnostics  |     | - comprobantes.ts |     | + origin tracking |        |
+|  | + refresh      |     | + /metrics        |     |   [MODIFY]        |        |
+|  |   [NEW]        |     |   [NEW]           |     +-------------------+        |
+|  +----------------+     +-------------------+             |                   |
+|                                                           v                   |
+|  +----------------+     +-------------------+     +-------------------+        |
+|  | Dashboard      |     | Lib Layer         |     | Prisma + PG       |        |
+|  | (React)        |     |                   |     |                   |        |
+|  | + shadcn/ui    |     | - metrics.ts      |     | + origin_source   |        |
+|  |   [ENHANCE]    |     | + prometheus      |     | + origin_sync_id  |        |
+|  | + origin view  |     | + trace context   |     | + origin_synced_at|        |
+|  +----------------+     |   [NEW]           |     |   [ADD COLUMNS]   |        |
+|                         +-------------------+     +-------------------+        |
++===============================================================================+
 ```
 
 ---
 
-## Build Order & Dependencies
+## Suggested Build Order
 
-### Phase 1: Schema Introspection Foundation
-**Goal:** Ability to query PostgreSQL schema metadata programmatically
+### Phase 1: PostgreSQL Adapter
+**Priority:** HIGH | **Risk:** LOW | **Dependencies:** None
 
-**Components:**
-- Schema introspection service (gateway)
-- Metadata type definitions
-- Unit tests for introspection
+| Step | Component | Why |
+|------|-----------|-----|
+| 1.1 | PostgreSQLAdapter class | Clean extension, well-defined interface |
+| 1.2 | Adapter registry update | Enables createAdapter('postgres') |
+| 1.3 | Connection UI extension | Users can configure postgres sources |
+| 1.4 | Integration tests | Verify adapter works with SyncEngine |
 
-**Dependencies:** None (uses existing Prisma connection)
+**Files created/modified:**
+- `objetiva-sync/src/adapters/postgres/postgres-adapter.ts` (NEW)
+- `objetiva-sync/src/adapters/postgres/index.ts` (NEW)
+- `objetiva-sync/src/adapters/index.ts` (MODIFY - add registry)
+- `objetiva-sync/src/dashboard/views/config/connection.ejs` (MODIFY - add postgres fields)
 
-**Deliverables:**
-- `src/services/schema-introspection.ts`
-- Unit tests
-- Documentation
+### Phase 2: Multi-Source Origin Tracking
+**Priority:** HIGH | **Risk:** LOW | **Dependencies:** None (Phase 1 optional)
 
-**Why First:** All other components depend on ability to read schema metadata
+| Step | Component | Why |
+|------|-----------|-----|
+| 2.1 | Prisma schema columns | Database change first |
+| 2.2 | Run migration | Apply to PostgreSQL |
+| 2.3 | IngestionService changes | Accept and store origin |
+| 2.4 | API route header extraction | Pass origin to ingestion |
+| 2.5 | Zod schema updates | Add optional origin fields |
 
----
+**Files created/modified:**
+- `objetiva-sync-gateway/prisma/schema.prisma` (MODIFY - add columns)
+- `objetiva-sync-gateway/src/services/ingestion.ts` (MODIFY)
+- `objetiva-sync-gateway/src/routes/articulos.ts` (MODIFY)
+- `objetiva-sync-gateway/src/routes/comprobantes.ts` (MODIFY)
+- `shared/schemas/generated/*.ts` (REGENERATE)
 
-### Phase 2: Schema Distribution Endpoint
-**Goal:** Expose schema metadata via authenticated HTTP API
+### Phase 3: Auth Simplification
+**Priority:** MEDIUM | **Risk:** LOW | **Dependencies:** None
 
-**Components:**
-- GET /api/schemas route handler
-- GET /api/schemas/:entity route handler
-- Schema response caching
-- Integration with existing JWT auth
+| Step | Component | Why |
+|------|-----------|-----|
+| 3.1 | Token refresh endpoint | Better DX |
+| 3.2 | Auth diagnostics endpoint | Easier troubleshooting |
+| 3.3 | Setup enhancement | Password change without restart |
+| 3.4 | Sync AuthManager update | Use refresh tokens |
 
-**Dependencies:** Phase 1 (introspection service)
+**Files created/modified:**
+- `objetiva-sync-gateway/src/routes/auth.ts` (MODIFY)
+- `objetiva-sync-gateway/src/routes/setup.ts` (MODIFY)
+- `objetiva-sync-gateway/src/lib/token-manager.ts` (NEW)
+- `objetiva-sync/src/api-client/auth.ts` (MODIFY)
 
-**Deliverables:**
-- `src/routes/schemas.ts`
-- Route registration in server.ts
-- Integration tests
-- API documentation
+### Phase 4: Observability
+**Priority:** MEDIUM | **Risk:** LOW | **Dependencies:** None
 
-**Why Second:** Sync validator and CLI tool both need HTTP access to schemas
+| Step | Component | Why |
+|------|-----------|-----|
+| 4.1 | Prometheus metrics exporter | Industry standard |
+| 4.2 | /metrics endpoint | Scrape target |
+| 4.3 | Trace context middleware | Request correlation |
+| 4.4 | Logger enhancement | Include trace in logs |
+| 4.5 | Sync trace propagation | Pass X-Trace-ID |
 
----
+**Files created/modified:**
+- `objetiva-sync-gateway/src/lib/observability/prometheus-exporter.ts` (NEW)
+- `objetiva-sync-gateway/src/lib/observability/trace-context.ts` (NEW)
+- `objetiva-sync-gateway/src/routes/metrics.ts` (NEW)
+- `objetiva-sync-gateway/src/lib/logger.ts` (MODIFY)
+- `objetiva-sync/src/api-client/*.ts` (MODIFY)
 
-### Phase 3: CLI Introspection & Regeneration
-**Goal:** Automated Prisma and Zod schema generation from live database
+### Phase 5: Dashboard Modernization
+**Priority:** LOW | **Risk:** MEDIUM | **Dependencies:** Phases 1-4 for full features
 
-**Components:**
-- CLI script entry point
-- Prisma schema generator
-- Zod schema generator
-- Diff visualization
-- File writer utilities
+| Step | Component | Why |
+|------|-----------|-----|
+| 5.1 | shadcn/ui setup | Foundation |
+| 5.2 | Replace custom components | Consistency |
+| 5.3 | Add origin display | Show multi-source data |
+| 5.4 | Add trace links | Navigate to logs |
 
-**Dependencies:** Phase 1 (introspection), Phase 2 (optional - can use introspection directly)
-
-**Deliverables:**
-- `scripts/regenerate-schemas.ts`
-- `scripts/generators/prisma-generator.ts`
-- `scripts/generators/zod-generator.ts`
-- npm script in package.json
-- Documentation and usage guide
-
-**Why Third:** Generates artifacts needed by validation layer, independent of runtime
-
----
-
-### Phase 4: Enhanced Query Validation
-**Goal:** Runtime validation of query results against live schema
-
-**Components:**
-- Enhanced QueryValidator class
-- Schema API client
-- Schema cache manager
-- Structure validation logic
-- Error formatting utilities
-
-**Dependencies:** Phase 2 (schema endpoint), Phase 3 (generated Zod schemas)
-
-**Deliverables:**
-- `src/sync/query-validator.ts` (enhanced)
-- `src/api-client/schema-client.ts`
-- Unit and integration tests
-- Dashboard validation error display
-
-**Why Fourth:** Requires both schema endpoint (runtime) and generated schemas (build-time)
-
----
-
-### Phase 5: Testing & Integration
-**Goal:** End-to-end validation of schema-driven flow
-
-**Components:**
-- Integration tests for full sync pipeline
-- Schema change simulation tests
-- Dashboard UI for validation errors
-- Schema drift detection alerts
-
-**Dependencies:** All previous phases
-
-**Deliverables:**
-- Integration test suite
-- Dashboard UI enhancements
-- Monitoring/alerting setup
-- Documentation
-
-**Why Last:** Validates entire system working together
+**Files created/modified:**
+- `objetiva-sync-gateway/dashboard/components.json` (NEW)
+- `objetiva-sync-gateway/dashboard/src/components/ui/*.tsx` (NEW - shadcn)
+- `objetiva-sync-gateway/dashboard/src/components/*.tsx` (MODIFY)
 
 ---
 
-## Technology Decisions
+## Risk Assessment
 
-### Why Prisma for Introspection?
-- Already integrated in gateway
-- Built-in introspection capabilities (`prisma db pull`)
-- Type-safe database access
-- Migration management
-
-### Why HTTP Endpoint vs. Shared Database?
-- Sync and gateway on separate physical servers (constraint)
-- HTTP enables authentication and authorization
-- Cacheable, stateless, versionable
-- Clear separation of concerns
-
-### Why Manual Regeneration Command?
-- User controls when schema changes propagate (safety)
-- Allows review of generated code changes
-- Prevents accidental breaking changes
-- Fits development workflow (schema change → regenerate → test → commit)
-
-### Why Cache Schemas in Sync?
-- Reduce HTTP calls during sync operations
-- Improve performance
-- Enable offline validation during development
-- TTL-based cache refresh for schema changes
-
-### Why Generate Zod Instead of Manual?
-- Single source of truth (PostgreSQL)
-- Eliminates manual synchronization errors
-- Consistent type mapping
-- Reduces maintenance burden
+| Feature | Technical Risk | Integration Risk | Mitigation |
+|---------|---------------|------------------|------------|
+| PostgreSQL Adapter | LOW | LOW | Follow SQLServerAdapter pattern exactly |
+| Multi-Source Upsert | LOW | MEDIUM | Nullable columns, backward compatible |
+| Auth Simplification | LOW | LOW | Additive endpoints, existing flow unchanged |
+| Observability | LOW | LOW | Additive only, no changes to existing code |
+| Dashboard shadcn | MEDIUM | LOW | Don't touch sync HTMX dashboard |
 
 ---
 
-## Risk Considerations
+## Open Questions
 
-### Schema Endpoint Security
-**Risk:** Exposing schema metadata could aid attackers
+1. **PostgreSQL Driver:** Use `pg` package directly, or use Prisma as read-only client?
+   - **Recommendation:** Use `pg` for adapter consistency with SQLServerAdapter pattern
 
-**Mitigation:**
-- JWT authentication required
-- Rate limiting on endpoint
-- Schema metadata doesn't include sensitive data values
-- Audit logging of schema requests
+2. **Origin Source Format:** Free-form string, or constrained enum?
+   - **Recommendation:** Free-form string, document conventions (e.g., `{type}-{identifier}`)
 
-### Cache Staleness
-**Risk:** Sync using outdated cached schema after database change
+3. **Metrics Persistence:** Continue in-memory, or add Redis/persistent storage?
+   - **Recommendation:** In-memory is fine; Prometheus scrapes frequently enough
 
-**Mitigation:**
-- TTL-based cache expiration (default: 1 hour)
-- Manual cache refresh command
-- Schema version header in API response
-- Dashboard warning when cache is stale
-
-### Code Generation Failures
-**Risk:** Regeneration script produces invalid code
-
-**Mitigation:**
-- Dry-run mode to preview changes
-- Automated syntax validation (TypeScript compiler)
-- Unit tests for generator functions
-- Rollback capability (git revert)
-- Manual review before commit
-
-### Breaking Schema Changes
-**Risk:** Database changes break existing sync configurations
-
-**Mitigation:**
-- Validation layer detects missing fields
-- Detailed error messages guide users
-- Backwards compatibility checks in tests
-- Schema migration documentation
+4. **Trace ID Format:** UUID vs W3C Trace Context?
+   - **Recommendation:** UUID for simplicity; W3C Trace Context if OpenTelemetry planned
 
 ---
 
-## Performance Considerations
+## Previous Research Reference
 
-### Schema Introspection
-- **Operation:** Query PostgreSQL information_schema
-- **Frequency:** On-demand (CLI) or per-request (endpoint with caching)
-- **Cost:** ~50-200ms for 4 tables
-- **Optimization:** Cache at endpoint level, 1-hour TTL
-
-### Schema Endpoint Response
-- **Payload Size:** ~5-15KB JSON for 4 entities
-- **Caching:** In-memory Map, invalidate on cache timeout
-- **Concurrent Requests:** Read-only, highly cacheable
-
-### Query Validation
-- **Structure Validation:** O(n) field comparison, <1ms per record
-- **Zod Validation:** Existing overhead, no change
-- **Schema Fetch:** Once per sync run, cached thereafter
-
-### Code Generation
-- **Frequency:** Manual, triggered by developer
-- **Duration:** ~2-5 seconds (introspect + generate + prisma generate)
-- **Impact:** Build-time only, no runtime cost
+This research builds on v1.0 schema-driven validation architecture (see prior content in this file for Phase 1-5 schema introspection design).
 
 ---
 
-## Conclusion
-
-The schema-driven validation architecture establishes PostgreSQL as the authoritative source of truth and propagates structural changes through a well-defined pipeline:
-
-1. **Schema Introspection Layer** reads database metadata
-2. **Schema Distribution Endpoint** exposes metadata to remote sync instances
-3. **Code Generation Pipeline** produces type-safe Prisma and Zod artifacts
-4. **Runtime Validation Layer** enforces contracts during synchronization
-
-This architecture maintains the existing deployment model (separate servers) while eliminating manual schema synchronization, reducing validation errors, and providing robust tooling for schema evolution.
-
-**Key Build Order:**
-1. Introspection foundation
-2. Schema HTTP endpoint
-3. CLI regeneration tooling
-4. Enhanced query validation
-5. Integration testing
-
-Each component has clear boundaries, defined interfaces, and explicit dependencies, enabling incremental development and testing.
+*Architecture Research: v1.1-rc2*
+*Researched: 2026-02-11*
+*Confidence: HIGH - Based on comprehensive codebase analysis of existing patterns*

@@ -1,491 +1,633 @@
-# PITFALLS: Schema-Driven Validation Systems
+# PITFALLS: v1.1-rc2 Multi-Source & Hardening
 
-**Research Focus**: Common mistakes when adding schema introspection and validation to existing TypeScript sync systems
+**Research Focus**: Common mistakes when adding multi-source sync, dashboard modernization, auth simplification, and observability to existing objetiva-sync system
 
-**Project Context**: PostgreSQL → Prisma/Zod codegen → Query validation in distributed environment
+**Project Context**: Adding PostgreSQL adapter, HTMX->shadcn migration, JWT simplification, structured logging/metrics
 
----
-
-## 1. CODEGEN PITFALLS
-
-### 1.1 Stale Generated Code After Schema Changes
-
-**Warning Signs:**
-- Runtime type errors despite "valid" TypeScript compilation
-- Prisma Client methods returning unexpected column types
-- Zod validation passing but database rejecting values
-- CI passes but production fails with schema mismatches
-- Generated files have older timestamps than schema files
-
-**Prevention Strategy:**
-- **Never commit generated code to version control** (Prisma client, Zod schemas)
-- Add pre-commit hooks that verify generated code is fresh
-- Implement `postinstall` script that regenerates all schemas
-- Add CI step that fails if generated code differs from fresh generation
-- Use file watchers in development to auto-regenerate on schema changes
-- Include generation timestamp comments in generated files for auditing
-
-**Phase Mapping:**
-- **Phase 1-2**: Establish codegen pipeline with staleness detection
-- **Phase 3**: Add automated regeneration triggers
-- **Testing Phase**: Verify staleness detection catches schema drift
-
-**Critical Mistake:**
-Treating generated Prisma/Zod files as "source code" rather than build artifacts. They must be regenerated atomically with schema changes.
+**Previous Version**: v1.0 research focused on schema-driven validation systems (still relevant, preserved below)
 
 ---
 
-### 1.2 Type Mismatches Between Layers
+## v1.1-rc2 SPECIFIC PITFALLS
 
-**Warning Signs:**
-- Prisma types differ from Zod schemas for same table
-- Database allows NULL but generated types are non-nullable
-- Enum values in DB don't match TypeScript string literals
-- Optional fields in Zod conflict with required fields in Prisma
-- Date/timestamp types inconsistent across layers
-
-**Prevention Strategy:**
-- **Single source of truth**: Introspect from PostgreSQL, never manual schemas
-- Use Prisma's `prisma db pull` instead of manually editing `schema.prisma`
-- Generate Zod from Prisma schema using `zod-prisma-types` or similar
-- Never maintain parallel schema definitions
-- Add integration tests that compare actual DB schema to generated types
-- Use strict TypeScript modes: `strictNullChecks`, `strictPropertyInitialization`
-
-**Phase Mapping:**
-- **Phase 1**: Establish PostgreSQL → Prisma → Zod generation chain
-- **Phase 2**: Add cross-layer type consistency tests
-- **Phase 4**: Implement continuous validation between layers
-
-**Critical Mistake:**
-Manually maintaining Zod schemas separately from Prisma. This creates divergence over time as developers update one but forget the other.
+### Part A: Multi-Source Sync Pitfalls
 
 ---
 
-### 1.3 Ignoring Database Constraints During Generation
+#### MSS-01: Per-Query State Breaks with Multi-Origin Writes
 
-**Warning Signs:**
-- Generated schemas allow invalid data that DB rejects
-- Foreign key constraints missing from type definitions
-- Unique constraints not reflected in validation logic
-- Check constraints ignored (e.g., `age > 0` not in Zod schema)
-- Partial indexes causing unexpected validation failures
+**Risk:** Current `sync_state` table tracks `lastSyncValue` per query, assuming single origin. When PostgreSQL adapter writes to same entities, timestamps from two sources will collide.
 
-**Prevention Strategy:**
-- Configure Prisma introspection to capture all constraint types
-- Extend Zod generation to include DB-level constraints
-- Map PostgreSQL CHECK constraints to Zod refinements
-- Document constraints that can't be represented in types
-- Add runtime validation layer for constraints types can't capture
-- Use DB comments to annotate special validation rules
+**Warning signs:**
+- Incremental sync misses records written by other sources
+- `lastSyncValue` jumps backward when switching origins
+- Records appear in full sync but not incremental
 
-**Phase Mapping:**
-- **Phase 2**: Capture basic constraints (NOT NULL, UNIQUE, FK)
-- **Phase 3**: Extend to complex constraints (CHECK, partial indexes)
-- **Later**: Runtime enforcement of unrepresentable constraints
+**Prevention:**
+- Track `lastSyncValue` per source+entity combination, not per query
+- Add `sourceId` column to `sync_state` table
+- Store separate watermarks: `lastSyncValue_sqlserver`, `lastSyncValue_postgres`
 
-**Critical Mistake:**
-Assuming TypeScript types provide the same guarantees as database constraints. Types are erased at runtime; constraints are enforced permanently.
+**Phase:** Multi-source adapter implementation (Phase 1-2)
+
+**Codebase reference:** Current implementation in `src/store/repositories/sync-state-repo.ts` assumes queryId uniqueness, but multi-source means same entity receives writes from different queries.
 
 ---
 
-## 2. INTROSPECTION RELIABILITY
+#### MSS-02: Last-Write-Wins Without Clock Sync Creates Silent Data Loss
 
-### 2.1 Connection Failures in Distributed Systems
+**Risk:** "Free-form upsert, any origin can insert/update, last write wins" model assumes clocks are synchronized. ERP and PostgreSQL sources may have clock skew exceeding the existing 5-minute overlap protection.
 
-**Warning Signs:**
-- Introspection works locally but fails in CI/staging
-- Intermittent "connection refused" errors during schema regeneration
-- Network partitions causing stale schema snapshots
-- VPN/firewall blocking gateway → PostgreSQL connection
-- Connection pool exhaustion during introspection
+**Warning signs:**
+- Legitimate updates from slower source get overwritten
+- `erp_fecha_sync` timestamps don't match actual write order
+- User reports "my update disappeared"
 
-**Prevention Strategy:**
-- **Never introspect in production builds** - use cached schema snapshot
-- Implement retry logic with exponential backoff for introspection
-- Add connection health checks before introspection
-- Use service discovery for PostgreSQL host (not hardcoded IPs)
-- Configure connection timeouts appropriate for network latency
-- Implement fallback to last-known-good schema snapshot
-- Log introspection failures with full connection diagnostics
+**Prevention:**
+- Use logical clocks (version counters) instead of/alongside timestamps
+- Add `origin` column to gateway tables to track write source
+- Log conflicts: record when two sources touch same record within overlap window
+- Consider adding `version` or `revision` field to detect concurrent updates
 
-**Phase Mapping:**
-- **Phase 1**: Basic connection with retry logic
-- **Phase 2**: Health checks and fallback mechanisms
-- **Phase 5**: Production-ready schema caching
+**Phase:** Gateway ingestion service modification (Phase 1-2)
 
-**Critical Mistake:**
-Introspecting synchronously during application startup in production. This creates a hard dependency on PostgreSQL availability for your sync service to boot.
+**External source:** [Multi-Master Conflicts](https://arpitbhayani.me/blogs/conflict-resolution/) - "This approach will not guarantee the actual ordering of writes, so it is possible that the actual Last Write got overwritten"
 
 ---
 
-### 2.2 Permission and Access Issues
+#### MSS-03: PostgreSQL Adapter Mismatch with SQL Server Adapter Interface
 
-**Warning Signs:**
-- Introspection succeeds but misses tables (insufficient grants)
-- System tables inaccessible causing incomplete schema
-- Row-level security policies interfering with introspection
-- Different schema views for different database users
-- Missing columns due to column-level permissions
+**Risk:** Current `IDataSourceAdapter` interface was designed for SQL Server extraction. PostgreSQL has different connection semantics, transaction models, and query patterns.
 
-**Prevention Strategy:**
-- Create dedicated introspection user with `USAGE` on all schemas
-- Grant `SELECT` on `information_schema` and `pg_catalog`
-- Test introspection with minimum required permissions
-- Document exact GRANT statements needed for introspection
-- Add validation that compares introspected schema to expected baseline
-- Detect "partial introspection" by tracking table/column counts
-- Use PostgreSQL roles consistently across environments
+**Warning signs:**
+- PostgreSQL adapter feels awkward to implement
+- Connection pool exhaustion in PostgreSQL vs SQL Server
+- Query parameter syntax differs (`@lastSync` vs `$1`)
 
-**Phase Mapping:**
-- **Phase 1**: Define introspection user permissions
-- **Phase 2**: Add permission validation tests
-- **Phase 3**: Detect and alert on partial introspection
+**Prevention:**
+- Review `IDataSourceAdapter` interface before implementing PostgreSQL adapter
+- Use native parameter binding (pg library uses `$1`, `$2`)
+- Consider connection pool settings per adapter type
+- Test query parameter substitution thoroughly
 
-**Critical Mistake:**
-Using a superuser for introspection in development but a restricted user in production, causing schema differences between environments.
+**Phase:** PostgreSQL adapter implementation (Phase 1)
+
+**Codebase reference:** `src/adapters/types.ts` defines interface; `src/adapters/sqlserver/sqlserver-adapter.ts` shows current implementation pattern.
 
 ---
 
-### 2.3 Schema Introspection Race Conditions
+#### MSS-04: Composite Key Lookup Fails Under Load
 
-**Warning Signs:**
-- Introspection captures mid-migration state
-- Generated code references tables that don't exist yet
-- Foreign keys point to columns being renamed
-- Transactions not visible to introspection queries
-- Multi-step migrations causing inconsistent snapshots
+**Risk:** Current ingestion uses composite key lookups (`erp_codigo|erp_nombre`). With multiple sources upserting same entities, concurrent lookups may cause race conditions.
 
-**Prevention Strategy:**
-- **Lock schema during introspection** or use snapshot isolation
-- Never introspect during active migrations
-- Use advisory locks to prevent concurrent introspection
-- Implement introspection "readiness" check (wait for migrations)
-- Tag schema versions to correlate introspection with migration state
-- Use PostgreSQL's transaction isolation to get consistent snapshot
-- Add validation that schema is "stable" before introspection
+**Warning signs:**
+- "Unique constraint failed" errors during high-volume syncs
+- Duplicate records appearing in PostgreSQL
+- Transaction failures under load
 
-**Phase Mapping:**
-- **Phase 2**: Basic migration/introspection coordination
-- **Phase 3**: Advisory locks and readiness checks
-- **Phase 4**: Full transaction isolation for introspection
+**Prevention:**
+- Use database-level UPSERT (`ON CONFLICT DO UPDATE`) instead of lookup+insert/update
+- Ensure composite key constraints are properly indexed
+- Add advisory locks for high-contention entities
 
-**Critical Mistake:**
-Running `prisma db pull` while a migration is in progress, capturing a half-migrated schema that represents neither the old nor new state.
+**Phase:** Gateway ingestion refactoring (Phase 2)
+
+**Codebase reference:** `src/services/ingestion.ts` shows current batch lookup + createMany + transaction pattern.
 
 ---
 
-## 3. QUERY VALIDATION EDGE CASES
+#### MSS-05: Unclear Data Ownership Creates Debugging Nightmare
 
-### 3.1 Dynamic SQL Not Analyzable at Save Time
+**Risk:** When any origin can upsert, debugging "where did this data come from?" becomes impossible without tracking.
 
-**Warning Signs:**
-- Queries built from runtime variables fail validation
-- String concatenation creates unparsable SQL
-- Table/column names selected from configuration
-- Conditional WHERE clauses based on user input
-- Queries using `format()` or template strings with dynamic identifiers
+**Warning signs:**
+- Cannot reproduce data issues (which source caused it?)
+- Support tickets require cross-referencing multiple logs
+- Data quality issues with no clear owner
 
-**Prevention Strategy:**
-- **Distinguish static vs dynamic queries** with clear taxonomy
-- Validate static queries at save time, dynamic queries at runtime
-- Use parameterized queries exclusively for values (never identifiers)
-- Whitelist allowed dynamic table/column names from schema
-- Create query builder that's both type-safe and validatable
-- Add runtime validation layer for unavoidably dynamic queries
-- Log and monitor dynamic query patterns for anomalies
+**Prevention:**
+- Add `source_system` column to all synced tables
+- Log source identifier with every batch ingestion
+- Include source in structured logs: `{ source: 'sqlserver', entity: 'articulos', action: 'upsert' }`
+- Create audit trail for debugging
 
-**Phase Mapping:**
-- **Phase 2**: Classify queries as static/dynamic
-- **Phase 3**: Validate static queries at save time
-- **Phase 4**: Runtime validation for dynamic queries
+**Phase:** Schema migration + ingestion logging (Phase 1-2)
 
-**Critical Mistake:**
-Attempting to validate all SQL at save time without distinguishing between truly static queries and those with runtime-dependent structure.
+**External source:** [Sync Challenges](https://www.leadsforge.ai/blog/top-challenges-in-data-sync-and-how-to-solve-them) - "Design Clear Data Ownership: Establish clear rules about which systems are authoritative for different types of data"
 
 ---
 
-### 3.2 Parameterized Query Type Mismatches
-
-**Warning Signs:**
-- Query validation passes but runtime fails with type errors
-- Prepared statement parameter types don't match placeholders
-- `$1` expects `integer` but receives `string`
-- Array parameters misinterpreted as single values
-- NULL handling inconsistent between validation and execution
-
-**Prevention Strategy:**
-- Parse parameter placeholders (`$1`, `$2`) and infer expected types
-- Cross-reference placeholder types with Prisma/Zod schemas
-- Validate parameter count matches placeholder count
-- Use typed query builders (e.g., `Kysely`, `Zapatos`) instead of raw SQL
-- Add integration tests that execute validated queries
-- Map PostgreSQL types to TypeScript types explicitly
-- Handle NULL/undefined consistently across validation and execution
-
-**Phase Mapping:**
-- **Phase 3**: Parameter type inference and validation
-- **Phase 4**: Integration testing of validated queries
-- **Phase 5**: Typed query builder integration
-
-**Critical Mistake:**
-Validating query structure but ignoring parameter types, allowing type mismatches to slip through to runtime.
+### Part B: Dashboard Migration Pitfalls
 
 ---
 
-### 3.3 Schema Version Skew in Distributed System
+#### DM-01: Breaking Working HTMX Controls During Partial Migration
 
-**Warning Signs:**
-- Sync service validates against stale schema while gateway uses new schema
-- Queries valid on sync server fail on PostgreSQL
-- Column renames causing "column does not exist" errors
-- Type changes causing subtle data corruption
-- Cache serving outdated schema to validation layer
+**Risk:** Staged migration means HTMX and React coexist. Changes to shared components (nav, layout) can break HTMX pages while building React equivalents.
 
-**Prevention Strategy:**
-- **Version schema snapshots** with monotonic version numbers
-- Sync service must validate against gateway's current schema version
-- Implement schema version handshake between services
-- Add schema version to query validation cache keys
-- Invalidate validation cache on schema version mismatch
-- Use distributed locking for schema updates across services
-- Monitor schema version lag between services
+**Warning signs:**
+- Navigation breaks after React route added
+- HTMX partials stop loading
+- CSS conflicts between Tailwind (shadcn) and existing styles
 
-**Phase Mapping:**
-- **Phase 2**: Schema versioning infrastructure
-- **Phase 3**: Cross-service version handshake
-- **Phase 4**: Automatic cache invalidation on version change
-- **Phase 5**: Monitoring and alerting for version skew
+**Prevention:**
+- Keep HTMX views 100% functional until React replacement is complete AND tested
+- Use separate route prefixes: `/dashboard/*` (HTMX), `/app/*` (React)
+- Don't modify shared layouts until final migration phase
+- Test HTMX pages after every React addition
 
-**Critical Mistake:**
-Deploying schema changes to gateway/PostgreSQL without coordinated schema refresh on sync service, creating validation against phantom schema.
+**Phase:** Dashboard staging throughout (Phase 3-4)
+
+**Codebase reference:** 19 EJS templates in `src/dashboard/views/` - each must continue working during migration.
 
 ---
 
-## 4. SCHEMA CACHING STRATEGIES
+#### DM-02: Shadcn Component Structure Churn
 
-### 4.1 Naive Cache Invalidation
+**Risk:** Shadcn recommends specific folder structure (`ui/`, `primitives/`, `blocks/`). Starting without this causes painful refactoring later.
 
-**Warning Signs:**
-- Schema changes take minutes/hours to propagate
-- Queries validated against stale cache fail in production
-- Cache invalidation storms during deployments
-- No way to force cache refresh without restart
-- Different services have different cached schema versions
+**Warning signs:**
+- Components scattered across files
+- Can't upgrade shadcn components without breaking custom code
+- Duplicate component implementations
 
-**Prevention Strategy:**
-- **Use event-driven cache invalidation** (not TTL alone)
-- Implement schema change events via PostgreSQL NOTIFY/LISTEN
-- Add admin endpoint to force schema cache refresh
-- Use versioned cache keys (include schema hash in key)
-- Implement multi-tier caching (memory + Redis) with consistent invalidation
-- Add cache warmup during deployment before traffic
-- Monitor cache hit rates and staleness metrics
+**Prevention:**
+- Establish structure from day one:
+  - `ui/` - raw shadcn components (don't modify)
+  - `primitives/` - lightly modified components
+  - `blocks/` - product-level compositions
+- Document which components are customized
 
-**Phase Mapping:**
-- **Phase 3**: Basic caching with TTL
-- **Phase 4**: Event-driven invalidation
-- **Phase 5**: Multi-tier caching with warmup
+**Phase:** React dashboard setup (Phase 3)
 
-**Critical Mistake:**
-Using only TTL-based caching, forcing you to choose between stale cache (long TTL) or excessive introspection (short TTL).
+**External source:** [Shadcn Best Practices 2026](https://medium.com/write-a-catalyst/shadcn-ui-best-practices-for-2026-444efd204f44)
 
 ---
 
-### 4.2 Cold Cache Performance Impact
+#### DM-03: State Management Mismatch with Existing SSE Patterns
 
-**Warning Signs:**
-- First query after restart takes 10+ seconds
-- Cache miss causes blocking introspection
-- Thundering herd when cache expires under load
-- Schema introspection overwhelming PostgreSQL
-- User-facing requests timing out during cache refresh
+**Risk:** Current dashboard uses SSE for real-time log streaming. React components need to integrate with existing SSE, not replace it.
 
-**Prevention Strategy:**
-- **Pre-warm cache during application startup** (not on first request)
-- Use background refresh before TTL expires (not on expiry)
-- Implement request coalescing for concurrent cache misses
-- Serve stale cache during background refresh
-- Add circuit breaker for introspection failures
-- Use async introspection with fallback to last known good
-- Monitor p99 latency for cache misses
+**Warning signs:**
+- Duplicate connections to log stream
+- Memory leaks from unclean SSE teardown
+- React state out of sync with SSE events
 
-**Phase Mapping:**
-- **Phase 3**: Startup cache warming
-- **Phase 4**: Background refresh and request coalescing
-- **Phase 5**: Circuit breakers and stale-while-revalidate
+**Prevention:**
+- Create single SSE connection manager used by all React components
+- Use React hooks (`useEffect` cleanup) to properly disconnect
+- Match existing log streaming endpoint, don't create new ones
+- Test memory usage during long dashboard sessions
 
-**Critical Mistake:**
-Triggering synchronous introspection on cache miss in user request path, causing request timeouts when cache is cold.
+**Phase:** React dashboard + logs integration (Phase 3-4)
+
+**Codebase reference:** `src/dashboard/routes/api/log-stream.ts` implements current SSE.
 
 ---
 
-### 4.3 Memory Bloat from Cached Schemas
+#### DM-04: Gateway React Dashboard is Separate from Sync Dashboard
 
-**Warning Signs:**
-- Memory usage grows unbounded with schema size
-- Large PostgreSQL databases (1000+ tables) causing OOM
-- Schema cache consuming gigabytes of memory
-- Garbage collection pauses correlating with schema refreshes
-- Multiple cached representations of same schema (Prisma, Zod, custom)
+**Risk:** There are TWO dashboards in this monorepo - gateway has React (`dashboard/`), sync has HTMX (`src/dashboard/views/`). Confusion about which is being modernized.
 
-**Prevention Strategy:**
-- **Cache only necessary schema subset** (not entire database)
-- Lazy-load schema for tables/columns actually queried
-- Share schema representation across layers (avoid duplication)
-- Use schema compression for large databases
-- Implement LRU eviction for rarely-used table schemas
-- Monitor memory usage per cached schema entry
-- Consider external cache (Redis) for very large schemas
+**Warning signs:**
+- Building features in wrong dashboard
+- Styles/components don't match
+- Deployment only updates one dashboard
 
-**Phase Mapping:**
-- **Phase 3**: Measure baseline schema memory usage
-- **Phase 4**: Subset caching and lazy loading
-- **Phase 5**: External caching for large schemas
+**Prevention:**
+- Clarify scope: v1.1-rc2 modernizes sync dashboard (HTMX -> React)
+- Gateway React dashboard (`objetiva-sync-gateway/dashboard/`) stays as-is
+- Use same React stack (Vite, shadcn) for consistency across both
+- Consider shared component library in `shared/` later
 
-**Critical Mistake:**
-Caching the entire PostgreSQL schema (all databases, all tables, all columns) when your sync system only uses a small subset.
+**Phase:** Planning clarification (Phase 0)
+
+**Codebase reference:** `objetiva-sync-gateway/dashboard/` vs `objetiva-sync/src/dashboard/`
 
 ---
 
-## 5. DISTRIBUTED SYSTEM SPECIFIC PITFALLS
+#### DM-05: Form State Loss During SSE-Heavy Operations
 
-### 5.1 Network Partition Handling
+**Risk:** Current HTMX forms use server-side state. React forms use client state. Long-running sync operations may cause form state confusion.
 
-**Warning Signs:**
-- Sync service can't reach gateway but continues operating
-- Split-brain scenarios with different schema views
-- Queries validated against unreachable database
-- No degradation strategy when PostgreSQL unavailable
-- Silent failures masking connectivity issues
+**Warning signs:**
+- Form data disappears during sync
+- Double-submit bugs
+- Optimistic UI doesn't match actual state
 
-**Prevention Strategy:**
-- Implement health checks with circuit breaker pattern
-- Fall back to last-known-good schema snapshot during partition
-- Add "staleness acceptable" flag for validation results
-- Fail fast and loud when schema unreachable (don't silently continue)
-- Use distributed consensus for schema version (etcd, Consul)
-- Monitor network latency between sync and gateway
-- Add graceful degradation mode with reduced validation
+**Prevention:**
+- Use form libraries (react-hook-form) for robust state
+- Debounce form submissions during active syncs
+- Show clear loading states that prevent interaction
+- Persist critical form state to localStorage for recovery
 
-**Phase Mapping:**
-- **Phase 4**: Circuit breakers and health checks
-- **Phase 5**: Graceful degradation and consensus
-
-**Critical Mistake:**
-Continuing to validate queries against a cached schema indefinitely during network partition, not detecting drift from actual database state.
+**Phase:** React form implementation (Phase 3-4)
 
 ---
 
-### 5.2 Schema Migration Coordination
-
-**Warning Signs:**
-- Migrations run on PostgreSQL but sync service unaware
-- Zero-downtime deployments break due to schema changes
-- Backward-incompatible changes deployed without coordination
-- Sync service using old schema while new migrations applied
-- No rollback strategy for failed schema migrations
-
-**Prevention Strategy:**
-- **Coordinate migrations across all services** using deployment orchestration
-- Use expand-contract pattern for breaking changes (add new, migrate, remove old)
-- Implement schema version compatibility matrix
-- Add pre-migration validation (can all services handle new schema?)
-- Deploy schema changes with feature flags for gradual rollout
-- Maintain backward compatibility for N-1 schema version
-- Add automated rollback triggers for failed migrations
-
-**Phase Mapping:**
-- **Phase 4**: Basic migration coordination
-- **Phase 5**: Expand-contract pattern and compatibility matrix
-- **Later**: Automated rollback and gradual rollout
-
-**Critical Mistake:**
-Running database migrations independently of service deployments, creating windows where services are incompatible with schema state.
+### Part C: Auth Simplification Pitfalls
 
 ---
 
-## 6. TESTING AND OBSERVABILITY PITFALLS
+#### AS-01: Removing Security While Simplifying Setup
 
-### 6.1 Inadequate Introspection Testing
+**Risk:** "Simplified auth" may remove important security features. Current JWT with bcrypt password hashing is secure - don't weaken it.
 
-**Warning Signs:**
-- Schema introspection only tested in development
-- No tests for partial introspection failures
-- Edge cases (empty schemas, system tables) untested
-- Performance degradation undetected in large databases
-- No validation that introspection is complete/accurate
+**Warning signs:**
+- Plain-text password storage proposed
+- Removing JWT validation
+- Hardcoded credentials in code
 
-**Prevention Strategy:**
-- Create test databases with edge cases (empty, huge, unusual types)
-- Test introspection with various permission levels
-- Add snapshot tests for introspected schema consistency
-- Benchmark introspection performance at scale
-- Test connection failure scenarios with network fault injection
-- Validate introspection completeness (compare table counts, column counts)
-- Add integration tests for full codegen pipeline
+**Prevention:**
+- Keep: bcrypt hashing, JWT tokens, HTTPS requirement
+- Simplify: setup flow, token diagnostics, error messages
+- Never: store plain passwords, skip token validation
+- Add: better error messages, not less security
 
-**Phase Mapping:**
-- **Phase 2**: Basic introspection tests
-- **Phase 3**: Edge case and permission tests
-- **Phase 4**: Performance and fault injection tests
+**Phase:** Auth simplification (Phase 4)
 
-**Critical Mistake:**
-Testing introspection only against a small development database, missing performance and edge case issues that appear in production.
+**Codebase reference:** `src/services/auth-service.ts` and `objetiva-sync-gateway/src/routes/auth.ts` - current implementation is secure.
 
 ---
 
-### 6.2 Missing Observability for Schema Operations
+#### AS-02: Token Rotation Without Refresh Tokens Creates Downtime
 
-**Warning Signs:**
-- No visibility into when schema introspection occurs
-- Cache hit/miss rates unknown
-- Schema version drift between services undetected
-- Query validation failures not logged
-- Performance regressions in validation invisible
+**Risk:** Adding token rotation is good, but with current short-lived JWT (24h default), rotation during long syncs may cause auth failures.
 
-**Prevention Strategy:**
-- Add structured logging for all schema operations (introspect, cache, validate)
-- Emit metrics: introspection duration, cache hit rate, validation latency
-- Track schema version across services with distributed tracing
-- Log validation failures with full query context
-- Add alerting for schema version skew
-- Monitor database connection health from sync service
-- Create dashboards for schema operation health
+**Warning signs:**
+- Sync fails partway through with 401
+- Token expires during 100K+ record sync
+- User re-authenticates but sync is lost
 
-**Phase Mapping:**
-- **Phase 3**: Basic logging and metrics
-- **Phase 4**: Distributed tracing and alerting
-- **Phase 5**: Comprehensive dashboards
+**Prevention:**
+- Use refresh tokens for token renewal (opaque tokens, not JWT for refresh)
+- Extend token lifetime for active operations
+- Implement "Token is about to expire" warning
+- Auto-refresh during long operations
 
-**Critical Mistake:**
-Treating schema operations as "plumbing" without observability, making production issues impossible to diagnose.
+**Phase:** Token rotation implementation (Phase 4-5)
+
+**External source:** [Refresh Token Rotation](https://www.serverion.com/uncategorized/refresh-token-rotation-best-practices-for-developers/) - "Use single-use refresh tokens (valid for 7-14 days)"
 
 ---
 
-## SUMMARY: Top 5 Critical Mistakes to Avoid
+#### AS-03: Dual Auth Systems (Sync Dashboard vs Gateway API)
 
-1. **Committing Generated Code**: Treat Prisma/Zod outputs as build artifacts, not source
-2. **Synchronous Introspection in Request Path**: Pre-warm caches, use background refresh
-3. **Ignoring Network Partitions**: Implement circuit breakers and graceful degradation
-4. **Uncoordinated Schema Migrations**: Deploy schema changes with service coordination
-5. **Validating Dynamic SQL Statically**: Classify queries and validate appropriately
+**Risk:** Sync dashboard uses session auth (`auth-service.ts`), gateway API uses JWT (`routes/auth.ts`). Simplification may accidentally break one while fixing the other.
 
----
+**Warning signs:**
+- Dashboard login works but API calls fail
+- Token works for sync but not schema fetch
+- Different JWT secrets between systems
 
-## Phase Mapping Quick Reference
+**Prevention:**
+- Document both auth flows before modifying
+- Test both flows after every auth change
+- Ensure `JWT_SECRET` is shared correctly between systems
+- Consider unifying to single auth mechanism long-term
 
-| Pitfall Area | Phase 1-2 | Phase 3 | Phase 4 | Phase 5 |
-|--------------|-----------|---------|---------|---------|
-| **Codegen** | Pipeline setup, staleness detection | Auto-regeneration | Cross-layer testing | Continuous validation |
-| **Introspection** | Connection + retry | Permissions + health | Migration coordination | Production caching |
-| **Validation** | Static query classification | Save-time validation | Runtime dynamic validation | Typed builders |
-| **Caching** | Basic TTL | Event-driven invalidation | Multi-tier + warmup | External cache + monitoring |
-| **Distributed** | Basic connectivity | Schema versioning | Circuit breakers | Consensus + degradation |
-| **Testing** | Basic introspection tests | Edge cases + permissions | Fault injection | Full pipeline tests |
+**Phase:** Auth simplification (Phase 4)
+
+**Codebase reference:** Two separate implementations - must maintain both.
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2026-01-26
-**Research Type**: Project Research - Pitfalls Dimension
+#### AS-04: Setup Complexity From Hash Generation
+
+**Risk:** Current setup requires pre-generating bcrypt hash for `SYNC_PASSWORD_HASH`. This is a UX friction point.
+
+**Warning signs:**
+- Users deploy without proper password setup
+- Support tickets about "hash not configured" errors
+- Users store plain password thinking it will be hashed
+
+**Prevention:**
+- Add `/api/setup/generate-hash` endpoint (one-time, with initial secret)
+- CLI tool to generate hash: `npm run generate-hash`
+- Better error message explaining hash requirement
+- First-run wizard that handles hash generation
+
+**Phase:** Auth simplification (Phase 4-5)
+
+**Codebase reference:** `objetiva-sync-gateway/src/routes/setup.ts` - current setup flow.
+
+---
+
+#### AS-05: JWT Secret Mismatch Causes Silent Failures
+
+**Risk:** Sync service generates JWTs, gateway validates them. If `JWT_SECRET` differs, auth silently fails with 401.
+
+**Warning signs:**
+- Sync connects but schema fetch fails with 401
+- "Gateway authentication failed" errors
+- Works locally, fails in deployment
+
+**Prevention:**
+- Add JWT secret validation on startup (sync checks it can decode gateway's test token)
+- Diagnostic endpoint: `GET /api/auth/test-token` returns token validity
+- Include JWT secret hash in status endpoint (for comparison, not the secret itself)
+- Better error message: "JWT_SECRET mismatch between sync and gateway"
+
+**Phase:** Auth diagnostics (Phase 4)
+
+---
+
+### Part D: Observability Pitfalls
+
+---
+
+#### OB-01: High-Cardinality Metrics Kill Performance
+
+**Risk:** Adding metrics with user IDs, sync IDs, or request IDs as labels creates cardinality explosion.
+
+**Warning signs:**
+- Memory usage grows unboundedly
+- Metrics storage fills up quickly
+- Dashboard queries slow down
+
+**Prevention:**
+- Never use as metric labels: syncId, userId, requestId, entityId
+- Use as log fields only (where they belong)
+- Good labels: entityType (4 values), status (5 values), source (limited)
+- Add cardinality limits: max 1000 events in memory
+
+**Phase:** Metrics enhancement (Phase 5)
+
+**External source:** [Observability Best Practices](https://spacelift.io/blog/observability-best-practices) - "High cardinality labels destroy Prometheus performance"
+
+**Codebase reference:** `objetiva-sync-gateway/src/lib/metrics.ts` already has `maxEvents = 1000` - maintain this discipline.
+
+---
+
+#### OB-02: Logging Without Correlation IDs
+
+**Risk:** Adding structured logging is good, but without correlation IDs, tracing requests across sync and gateway is impossible.
+
+**Warning signs:**
+- Cannot follow a single sync operation across logs
+- Gateway log doesn't show which sync triggered it
+- Debugging requires timestamp matching (error-prone)
+
+**Prevention:**
+- Generate `syncId` at sync start, propagate to all related logs
+- Include `syncId` in gateway batch headers (already partially done)
+- Add to all log calls: `{ syncId, entity, operation }`
+- Ensure `syncId` appears in both sync and gateway logs
+
+**Phase:** Structured logging (Phase 5)
+
+**Codebase reference:** `syncId` exists in metadata but not consistently propagated.
+
+---
+
+#### OB-03: Duplicate Logging Between Services
+
+**Risk:** Both sync and gateway log the same events (batch sent, batch received). Creates noisy, redundant logs.
+
+**Warning signs:**
+- Same event appears twice in log aggregator
+- Confusion about which service logged what
+- Storage costs double for same information
+
+**Prevention:**
+- Define clear log ownership:
+  - Sync logs: query execution, batch preparation, retry decisions
+  - Gateway logs: ingestion results, database operations
+- Use different log prefixes: `[sync]`, `[gateway]`
+- Avoid logging same information in both places
+
+**Phase:** Log consolidation (Phase 5)
+
+---
+
+#### OB-04: Alerting on Everything Creates Alert Fatigue
+
+**Risk:** Adding observability often means adding alerts for every metric. This leads to ignored alerts.
+
+**Warning signs:**
+- Team ignores alert channel
+- Real issues get buried in noise
+- "Alert fatigue" - assume alerts are false positives
+
+**Prevention:**
+- Start with ONLY critical alerts: sync failure, gateway down, auth failure
+- Add alerts gradually as you understand normal patterns
+- Use severity levels: CRITICAL (page), WARNING (Slack), INFO (log only)
+- Maximum 5 initial alerts
+
+**Phase:** Alerting setup (Phase 5)
+
+**External source:** [Observability Best Practices](https://spacelift.io/blog/observability-best-practices) - "It's better to have five reliable alerts than fifty noisy ones"
+
+---
+
+#### OB-05: Metrics Without Dashboards Are Useless
+
+**Risk:** Collecting metrics that no one looks at. Classic observability anti-pattern.
+
+**Warning signs:**
+- Metrics endpoint exists but no dashboard
+- No one knows what the metrics mean
+- "We have metrics" but can't answer basic questions
+
+**Prevention:**
+- Build dashboard FIRST, then add metrics it needs
+- Start with key questions: "Is sync healthy?", "How many records synced today?"
+- Gateway already has React dashboard - add metrics visualization there
+- Create runbook linking alerts to dashboards
+
+**Phase:** Dashboard metrics integration (Phase 5)
+
+---
+
+### Part E: Cross-Cutting Pitfalls
+
+---
+
+#### CC-01: Breaking Existing Tests During Feature Addition
+
+**Risk:** 79 integration tests pass. New features may break them without triggering failures.
+
+**Warning signs:**
+- Tests pass but behavior changed
+- Test coverage decreases
+- Tests skip new code paths
+
+**Prevention:**
+- Run full test suite before every commit
+- Maintain test coverage percentage
+- Add tests for new features before implementing
+- Don't skip or modify existing tests without review
+
+**Phase:** All phases
+
+**Codebase reference:** `tests/integration/` - 79 tests documented in v1.1-rc.
+
+---
+
+#### CC-02: Migration Runs on Production Before Testing
+
+**Risk:** Multi-source requires schema changes (`source_system` column). Running migrations without testing breaks production.
+
+**Warning signs:**
+- "Column not found" errors after deploy
+- Rollback required
+- Data loss during migration
+
+**Prevention:**
+- Test all migrations on copy of production data
+- Use reversible migrations
+- Add columns as nullable first, then populate, then add constraints
+- Deploy migration separately from code that uses it
+
+**Phase:** Database migrations (Phase 1-2)
+
+---
+
+#### CC-03: Feature Flags Needed for Staged Rollout
+
+**Risk:** All v1.1-rc2 features shipping simultaneously. If one breaks, all must be rolled back.
+
+**Warning signs:**
+- "All or nothing" deployment
+- Cannot disable broken feature
+- Users can't test new features gradually
+
+**Prevention:**
+- Add feature flags for major features:
+  - `ENABLE_MULTI_SOURCE` - PostgreSQL adapter
+  - `ENABLE_NEW_DASHBOARD` - React dashboard
+  - `ENABLE_TOKEN_ROTATION` - new auth flow
+- Ship flags disabled, enable gradually
+- Quick disable without deploy
+
+**Phase:** Configuration setup (Phase 0-1)
+
+---
+
+#### CC-04: Sync-Gateway Contract Changes Break Compatibility
+
+**Risk:** Multi-source may require new headers/fields in sync-gateway communication. Old sync versions break with new gateway.
+
+**Warning signs:**
+- Old sync client fails against new gateway
+- Missing header errors
+- Schema validation failures
+
+**Prevention:**
+- Version the API: add `/api/v2/` for breaking changes
+- Keep `/api/v1/` working during transition
+- Add header: `X-Sync-Version: 2.0` for capability detection
+- Document breaking changes
+
+**Phase:** API versioning (Phase 1-2)
+
+---
+
+#### CC-05: Documentation Lags Behind Implementation
+
+**Risk:** Rapid feature addition without documentation updates. Users and future maintainers suffer.
+
+**Warning signs:**
+- README doesn't match actual behavior
+- Support questions about undocumented features
+- Onboarding is difficult
+
+**Prevention:**
+- Update docs in same PR as code
+- Add inline code comments for complex logic
+- Maintain CHANGELOG.md
+- Review docs as part of PR checklist
+
+**Phase:** All phases (continuous)
+
+---
+
+## SUMMARY TABLE: v1.1-rc2 Pitfalls
+
+| ID | Pitfall | Severity | Phase | Quick Prevention |
+|----|---------|----------|-------|------------------|
+| MSS-01 | Per-query state breaks | HIGH | 1-2 | Add sourceId to sync_state |
+| MSS-02 | Clock skew data loss | HIGH | 1-2 | Use version counters |
+| MSS-03 | Adapter interface mismatch | MEDIUM | 1 | Review interface first |
+| MSS-04 | Composite key races | MEDIUM | 2 | Use UPSERT |
+| MSS-05 | No data ownership | MEDIUM | 1-2 | Add source_system column |
+| DM-01 | Breaking HTMX during migration | HIGH | 3-4 | Separate route prefixes |
+| DM-02 | Shadcn structure churn | MEDIUM | 3 | Establish structure day 1 |
+| DM-03 | SSE state mismatch | MEDIUM | 3-4 | Single SSE manager |
+| DM-04 | Two dashboards confusion | LOW | 0 | Clarify scope |
+| DM-05 | Form state loss | MEDIUM | 3-4 | Use form libraries |
+| AS-01 | Removing security | CRITICAL | 4 | Keep bcrypt+JWT |
+| AS-02 | Token rotation downtime | HIGH | 4-5 | Add refresh tokens |
+| AS-03 | Dual auth systems | MEDIUM | 4 | Document both flows |
+| AS-04 | Hash generation friction | MEDIUM | 4-5 | Add CLI tool |
+| AS-05 | JWT secret mismatch | HIGH | 4 | Add diagnostics |
+| OB-01 | High cardinality metrics | HIGH | 5 | No IDs as labels |
+| OB-02 | No correlation IDs | MEDIUM | 5 | Propagate syncId |
+| OB-03 | Duplicate logging | LOW | 5 | Define ownership |
+| OB-04 | Alert fatigue | MEDIUM | 5 | Start with 5 alerts |
+| OB-05 | Metrics without dashboards | MEDIUM | 5 | Dashboard first |
+| CC-01 | Breaking tests | HIGH | All | Run tests always |
+| CC-02 | Untested migrations | HIGH | 1-2 | Test on prod copy |
+| CC-03 | No feature flags | MEDIUM | 0-1 | Add flags |
+| CC-04 | Contract breaks | HIGH | 1-2 | Version API |
+| CC-05 | Doc lag | MEDIUM | All | Docs with code |
+
+---
+
+## SOURCES
+
+- [Multi-Master Conflicts](https://arpitbhayani.me/blogs/conflict-resolution/)
+- [Data Sync Challenges](https://www.leadsforge.ai/blog/top-challenges-in-data-sync-and-how-to-solve-them)
+- [Shadcn UI Best Practices 2026](https://medium.com/write-a-catalyst/shadcn-ui-best-practices-for-2026-444efd204f44)
+- [Refresh Token Rotation](https://www.serverion.com/uncategorized/refresh-token-rotation-best-practices-for-developers/)
+- [JWT Best Practices](https://curity.io/resources/learn/jwt-best-practices/)
+- [Observability Best Practices 2026](https://spacelift.io/blog/observability-best-practices)
+- [Structured Logging](https://www.grepr.ai/blog/structured-logging---what-it-is-and-why-you-need-it)
+- Codebase analysis: objetiva-sync-monorepo source code
+
+---
+
+## PRESERVED: v1.0 Schema-Driven Validation Pitfalls
+
+*The following pitfalls from v1.0 research remain relevant:*
+
+### 1. CODEGEN PITFALLS
+
+- **1.1 Stale Generated Code After Schema Changes** - Never commit generated code; use staleness detection
+- **1.2 Type Mismatches Between Layers** - Single source of truth from PostgreSQL introspection
+- **1.3 Ignoring Database Constraints During Generation** - Capture all constraint types
+
+### 2. INTROSPECTION RELIABILITY
+
+- **2.1 Connection Failures in Distributed Systems** - Never introspect in production builds
+- **2.2 Permission and Access Issues** - Dedicated introspection user with proper grants
+- **2.3 Schema Introspection Race Conditions** - Lock schema during introspection
+
+### 3. QUERY VALIDATION EDGE CASES
+
+- **3.1 Dynamic SQL Not Analyzable at Save Time** - Classify static vs dynamic queries
+- **3.2 Parameterized Query Type Mismatches** - Cross-reference placeholder types with schemas
+- **3.3 Schema Version Skew in Distributed System** - Version schema snapshots
+
+### 4. SCHEMA CACHING STRATEGIES
+
+- **4.1 Naive Cache Invalidation** - Event-driven cache invalidation
+- **4.2 Cold Cache Performance Impact** - Pre-warm cache during startup
+- **4.3 Memory Bloat from Cached Schemas** - Cache only necessary subset
+
+### 5. DISTRIBUTED SYSTEM SPECIFIC
+
+- **5.1 Network Partition Handling** - Circuit breaker pattern with fallback
+- **5.2 Schema Migration Coordination** - Expand-contract pattern for breaking changes
+
+### 6. TESTING AND OBSERVABILITY
+
+- **6.1 Inadequate Introspection Testing** - Test with edge cases and various permissions
+- **6.2 Missing Observability for Schema Operations** - Structured logging for all schema ops
+
+---
+
+**Document Version**: 2.0 (v1.1-rc2)
+**Last Updated**: 2026-02-11
+**Research Type**: Project Research - Pitfalls Dimension (v1.1-rc2 features)

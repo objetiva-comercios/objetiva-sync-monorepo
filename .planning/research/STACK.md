@@ -1,659 +1,375 @@
-# Stack Research: PostgreSQL Schema Introspection & TypeScript Codegen
+# Stack Research: v1.1-rc2 Multi-Source & Hardening
 
-**Research Date**: 2026-01-26
-**Research Type**: Project Research - Stack dimension
-**Milestone Context**: Subsequent milestone - Add schema introspection, validation, and codegen to existing TypeScript sync system
+**Project:** objetiva-sync-monorepo
+**Researched:** 2026-02-11
+**Focus:** Multi-source sync, dashboard modernization, auth simplification, observability
 
 ---
 
 ## Executive Summary
 
-For a TypeScript sync system that needs PostgreSQL schema introspection, validation, and codegen, the 2025 standard stack centers around **Prisma** as the schema source of truth, with **Zod** for runtime validation and **kysely** or **Drizzle** for type-safe query building. The key insight: PostgreSQL should be the ultimate source of truth, with introspection driving schema updates that regenerate all downstream artifacts (Prisma schema, Zod validators, TypeScript types).
+This research covers stack additions for v1.1-rc2 features. The existing codebase has solid foundations (Fastify 5/4, Prisma, Drizzle, Zod, HTMX+EJS, React). New capabilities require targeted additions rather than replacements.
 
-**Core Value Proposition**: PostgreSQL schema changes → Introspection → Regenerated Prisma/Zod/Types → Breaking changes caught at compile/validation time.
-
----
-
-## 1. PostgreSQL Schema Introspection
-
-### Recommended: Prisma Introspection (Confidence: 95%)
-
-**Package**: `prisma@^5.22.0` (current as of Jan 2025)
-**Command**: `prisma db pull`
-
-**Why Prisma Introspection**:
-- **Native PostgreSQL support**: Prisma introspection is battle-tested against PostgreSQL, handling edge cases like enums, arrays, jsonb, composite types
-- **Bidirectional workflow**: Supports both schema-first (introspection) and code-first (migrations) approaches
-- **Rich type mapping**: Correctly maps PostgreSQL types to Prisma schema language including `@db.Text`, `@db.Decimal(12,2)`, `@db.JsonB`
-- **Relation inference**: Automatically detects foreign keys and generates proper Prisma relations
-- **Index preservation**: Captures indexes, unique constraints, compound keys
-- **Already in stack**: Your gateway already uses Prisma 5.22.0, zero new dependencies
-
-**How it works**:
-1. `prisma db pull` connects to PostgreSQL via `DATABASE_URL`
-2. Reads `information_schema` and `pg_catalog` system tables
-3. Generates/updates `schema.prisma` file with current database state
-4. Runs `prisma generate` to update `@prisma/client` with new types
-
-**Limitations**:
-- Cannot introspect views as models (treated as tables)
-- Multi-schema support requires manual configuration
-- Custom PostgreSQL types may need manual `@db.` annotations
-
-**When to use**: This should be your PRIMARY introspection tool. Run `prisma db pull` whenever PostgreSQL schema changes are detected.
+**Key findings:**
+- PostgreSQL source adapter: Use existing `pg` v8.17.2 already in gateway — minimal new dependency
+- Dashboard modernization: shadcn/ui requires Radix UI primitives (gateway dashboard already has Tailwind)
+- Observability: `@fastify/otel` is the future-proof choice (official Fastify instrumentation)
+- Auth simplification: Existing `@fastify/jwt` is sufficient, add diagnostics middleware
 
 ---
 
-### Alternative: pg-structure (Confidence: 70%)
+## Recommended Additions
 
-**Package**: `pg-structure@^9.0.0`
+### 1. PostgreSQL Source Adapter
 
-**Why consider it**:
-- **Deeper introspection**: Access to more PostgreSQL metadata than Prisma exposes (comments, triggers, functions)
-- **Schema comparison**: Built-in schema diffing capabilities
-- **Custom tooling**: If you need to build custom codegen beyond Prisma's capabilities
+**Context:** Need to extract data FROM PostgreSQL (as source), not just write TO it (Prisma handles destination).
 
-**Why NOT primary choice**:
-- **Extra dependency**: Adds another tool when Prisma already does 90% of what you need
-- **Manual codegen**: Requires writing custom templates to generate Prisma/Zod schemas
-- **No standard workflow**: You'd be building a custom pipeline vs. using Prisma's proven introspection flow
+**Recommendation: Use `pg` v8.18.0**
 
-**When to use**: Only if you need deep PostgreSQL metadata that Prisma doesn't expose (e.g., reading table/column comments for documentation generation).
+The gateway already has `pg` installed for Prisma's underlying PostgreSQL connection. For the sync module's adapter pattern, use the same library.
 
----
+| Library | Version | Purpose | Integration |
+|---------|---------|---------|-------------|
+| `pg` | ^8.18.0 | PostgreSQL client for source adapter | Sync module adapter pattern |
+| `@types/pg` | ^8.16.0 | TypeScript types | Already in gateway devDeps |
 
-### NOT Recommended: node-postgres direct queries
+**Rationale:**
+- `pg` is mature with 12,605+ dependent packages
+- Compatible with Node.js 18.x, 20.x, 22.x, 24.x
+- Gateway already uses it (no new dependency tree)
+- Follows same pattern as existing SQL Server adapter (mssql)
+- Type parsers supported per-query (important for ERP data variance)
 
-**Why avoid**:
-- Requires writing manual SQL against `information_schema`
-- High maintenance burden as PostgreSQL versions evolve
-- No built-in type mapping to TypeScript/Prisma
-- Reinvents the wheel that Prisma already solves
+**NOT recommended: postgres.js (Postgres.js)**
+- Different API from `pg` — would require learning new patterns
+- Prepared statements by default can cause issues in AWS environments
+- Smaller ecosystem (643 dependent projects vs 12,605)
+- No advantage for simple query-based sync extraction
 
----
-
-## 2. Zod Schema Generation from Prisma
-
-### Recommended: zod-prisma-types (Confidence: 90%)
-
-**Package**: `zod-prisma-types@^3.1.8`
-**Generator**: Add to `schema.prisma`
-
-```prisma
-generator zod {
-  provider = "zod-prisma-types"
-  output   = "../src/generated/zod"
-}
-```
-
-**Why zod-prisma-types**:
-- **Most mature**: 3+ years in production, handles complex Prisma schemas
-- **Comprehensive mapping**: Generates Zod schemas for ALL Prisma types including:
-  - `Decimal` → `z.number()` or `z.string()` with custom refinement
-  - `DateTime` → `z.date()` or `z.string().datetime()`
-  - `Json` → `z.record()` or custom schema
-  - Arrays → `z.array()`
-  - Relations → Separate schemas with nesting support
-- **Validation modes**: Generates schemas for create, update, findUnique (respects optionality)
-- **Custom validators**: Supports `/// @zod.string().email()` comments in Prisma schema
-- **Enum support**: Automatically generates Zod enums from Prisma enums
-
-**Generated structure**:
-```typescript
-// Auto-generated from Prisma schema
-export const ArticuloSchema = z.object({
-  id: z.bigint(),
-  erp_codigo: z.string(),
-  erp_nombre: z.string(),
-  precio: z.number().nullable(),
-  // ... all fields
-});
-
-export const ArticuloCreateInputSchema = z.object({
-  // Only fields allowed in create
-});
-
-export const ArticuloUpdateInputSchema = z.object({
-  // All fields optional for updates
-});
-```
-
-**Workflow integration**:
-1. `prisma db pull` → Updates `schema.prisma`
-2. `prisma generate` → Runs zod-prisma-types generator
-3. Import generated Zod schemas in validation layer
-
-**Limitations**:
-- Large schemas generate MANY files (can be 1000+ LOC for complex models)
-- Some Prisma types require custom mappings (e.g., `Decimal` as string vs number)
-
----
-
-### Alternative: prisma-zod-generator (Confidence: 75%)
-
-**Package**: `prisma-zod-generator@^0.8.13`
-
-**Differences from zod-prisma-types**:
-- Lighter output, fewer generated files
-- Less comprehensive validation schemas
-- May not handle all edge cases (like Decimal precision)
-
-**When to use**: If zod-prisma-types output is too verbose for your needs.
-
----
-
-### Alternative: Manual Zod schemas (Confidence: 50%)
-
-**Why consider**:
-- Full control over validation logic
-- Can add business rules that aren't in database schema
-
-**Why NOT recommended**:
-- High maintenance: Schema changes require manual Zod updates
-- Drift risk: Zod schemas can get out of sync with Prisma/DB
-- Defeats purpose of "PostgreSQL as source of truth"
-
-**When to use**: Only for complex business validation that can't be expressed in Prisma schema (e.g., "price must be > cost", cross-field validations).
-
----
-
-## 3. Type-Safe Query Building
-
-Your current stack uses Prisma Client for queries. For enhanced type safety and query validation, consider:
-
-### Option A: Continue with Prisma Client (Confidence: 85%)
-
-**Why stick with Prisma**:
-- Already integrated (`@prisma/client@^5.22.0`)
-- Excellent TypeScript types auto-generated
-- Type-safe queries without SQL strings
-- Handles relations elegantly
-
-**Query validation**: Prisma validates queries at runtime against database schema. Type errors caught at compile time.
-
-**Example**:
-```typescript
-// Type error if 'invalid_field' doesn't exist
-await prisma.articulo.findMany({
-  where: { invalid_field: 'x' } // TS error
-});
-```
-
-**Limitation**: No compile-time validation against live PostgreSQL schema. If column is removed from DB but Prisma schema not regenerated, runtime error occurs.
-
----
-
-### Option B: Add Kysely for raw SQL (Confidence: 75%)
-
-**Package**: `kysely@^0.27.0` + `kysely-codegen@^0.16.0`
-
-**Why Kysely**:
-- **Direct PostgreSQL introspection**: `kysely-codegen` reads PostgreSQL schema, generates TypeScript types
-- **Type-safe SQL**: Write SQL with full autocomplete and type checking
-- **No ORM overhead**: Closer to SQL for complex queries
-- **Complement to Prisma**: Use Prisma for simple CRUD, Kysely for complex queries
-
-**Setup**:
+**Installation (objetiva-sync only):**
 ```bash
-kysely-codegen --out-file src/generated/kysely.ts
+npm install pg@^8.18.0
+npm install -D @types/pg@^8.16.0
 ```
 
-**Generated types**:
-```typescript
-// Auto-generated from PostgreSQL
-export interface Database {
-  articulos: ArticulosTable;
-  comprobantes_cabecera: ComprobantesCabeceraTable;
-  // ...
-}
-```
-
-**When to use**: If you have complex SQL queries that are awkward in Prisma, OR if you want compile-time guarantees against live PostgreSQL schema (not just Prisma schema).
+**Implementation notes:**
+- Create `PostgreSQLAdapter` extending `AbstractAdapter`
+- Use connection pooling like SQL Server adapter
+- Query INFORMATION_SCHEMA for getTables/getColumns methods
 
 ---
 
-### Option C: Drizzle ORM (Confidence: 70%)
+### 2. Dashboard Modernization (shadcn/ui)
 
-**Package**: `drizzle-orm@^0.36.4` (already in objetiva-sync!)
+**Context:** Migrate gateway React dashboard to shadcn/ui components. Sync module HTMX+EJS dashboard remains unchanged (different use case).
 
-**Why consider**:
-- You're already using Drizzle in `objetiva-sync` for SQLite
-- Could standardize on Drizzle across both services
-- Excellent TypeScript inference
-- `drizzle-kit introspect` can pull from PostgreSQL
+**Existing foundation (gateway dashboard):**
+- React 18.3.1
+- Tailwind CSS 3.4.1
+- Vite 5.1.0
+- lucide-react 0.263.1
+- clsx, tailwind-merge, class-variance-authority (already installed)
 
-**Why NOT recommended for gateway**:
-- Gateway is already Prisma-based; rewrite would be significant
-- Drizzle introspection less mature than Prisma's
-- Better to maintain consistency: Drizzle for sync service, Prisma for gateway
+**Recommended additions:**
 
----
+| Library | Version | Purpose | Notes |
+|---------|---------|---------|-------|
+| `radix-ui` | ^1.4.3 | Unified Radix primitives | New unified package (Feb 2026) |
+| `@radix-ui/react-slot` | ^1.1.0 | Slot composition | Required by shadcn Button |
 
-## 4. Schema Comparison & Drift Detection
+**NOT individual @radix-ui/react-* packages** — shadcn/ui now recommends unified `radix-ui` package (cleaner package.json).
 
-### Recommended: Prisma Migrate Diff (Confidence: 85%)
-
-**Command**: `prisma migrate diff`
-
-**Why Prisma Migrate**:
-- Built-in to Prisma CLI
-- Compares Prisma schema vs. live database
-- Generates migration SQL
-- Can detect:
-  - Missing tables/columns
-  - Type mismatches
-  - Index differences
-  - Constraint changes
-
-**Usage for drift detection**:
+**Installation:**
 ```bash
-# Compare local schema.prisma vs. production DB
-prisma migrate diff \
-  --from-schema-datamodel prisma/schema.prisma \
-  --to-schema-datasource $DATABASE_URL \
-  --script
+cd objetiva-sync-gateway/dashboard
+npx shadcn@latest init
 ```
 
-**Output**: SQL script showing differences (or empty if in sync)
+The CLI will:
+1. Create `components.json` configuration
+2. Set up `@/components/ui` directory structure
+3. Configure Tailwind for shadcn
 
-**Integration strategy**:
-1. After `prisma db pull`, run `prisma migrate diff` to verify sync
-2. In CI/CD, fail build if drift detected
-3. Alert if production schema diverges from committed `schema.prisma`
+**Adding components:**
+```bash
+npx shadcn@latest add button card table dialog alert toast
+```
+
+**Key components for dashboard:**
+- `table` — Data grids for entities
+- `card` — Metric cards, activity feed
+- `dialog` — Confirmations, forms
+- `alert` — Error/success messages
+- `badge` — Status indicators
+- `tabs` — Navigation
+- `toast` — Notifications
+
+**Migration strategy:**
+1. Initialize shadcn in gateway dashboard
+2. Add components incrementally (one at a time)
+3. Replace custom components with shadcn equivalents
+4. Leave HTMX+EJS dashboard in sync module untouched
 
 ---
 
-### Alternative: pg-diff (Confidence: 60%)
+### 3. Observability Stack
 
-**Package**: `@databases/pg-diff@^1.0.0`
+**Context:** Add structured observability (traces, metrics) to both Fastify services.
 
-**Why consider**:
-- Database-to-database comparison (doesn't require Prisma schema)
-- Can compare two PostgreSQL databases directly
+**CRITICAL:** `@opentelemetry/instrumentation-fastify` is deprecated (EOL: June 30, 2025). Use official `@fastify/otel` instead.
 
-**Why NOT primary choice**:
-- Another dependency
-- Prisma diff is more integrated with your workflow
+**Recommended stack:**
 
-**When to use**: If comparing two live PostgreSQL instances (e.g., staging vs. production schema drift).
+| Library | Version | Purpose | Module |
+|---------|---------|---------|--------|
+| `@fastify/otel` | ^0.1.x | Fastify instrumentation | Both |
+| `@opentelemetry/sdk-node` | ^0.211.0 | OTel SDK bootstrap | Both |
+| `@opentelemetry/api` | ^1.9.0 | Tracing/metrics API | Both |
+| `@opentelemetry/instrumentation-http` | ^0.57.0 | HTTP instrumentation | Both |
+| `@opentelemetry/exporter-trace-otlp-http` | ^0.57.0 | OTLP trace export | Both |
+| `pino-opentelemetry-transport` | ^0.4.0 | Pino logs to OTel | Both |
+
+**Rationale:**
+- `@fastify/otel` is the official Fastify team's instrumentation (future-proof)
+- Integrates with existing Pino logging via `pino-opentelemetry-transport`
+- OTLP export allows backend flexibility (Grafana, Datadog, Jaeger, etc.)
+- Log correlation with traces via instrumentation-pino
+
+**Installation:**
+```bash
+# Gateway
+npm install @fastify/otel @opentelemetry/sdk-node @opentelemetry/api \
+  @opentelemetry/instrumentation-http @opentelemetry/exporter-trace-otlp-http \
+  pino-opentelemetry-transport
+
+# Sync module (same)
+npm install @fastify/otel @opentelemetry/sdk-node @opentelemetry/api \
+  @opentelemetry/instrumentation-http @opentelemetry/exporter-trace-otlp-http \
+  pino-opentelemetry-transport
+```
+
+**Configuration pattern:**
+```typescript
+// instrumentation.ts (loaded before app)
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+
+const sdk = new NodeSDK({
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+  }),
+  instrumentations: [new HttpInstrumentation()],
+});
+
+sdk.start();
+```
+
+**@fastify/otel registration:**
+```typescript
+import fastifyOtel from '@fastify/otel';
+
+// Must register BEFORE routes
+await fastify.register(fastifyOtel, {
+  // Options
+});
+```
+
+**NOT recommended:**
+- `@opentelemetry/instrumentation-fastify` — deprecated, EOL June 2025
+- `@opentelemetry/auto-instrumentations-node` — too heavy, instruments everything
 
 ---
 
-## 5. TypeScript Codegen Patterns
+### 4. Auth Simplification
 
-### Recommended Pattern: Prisma as Single Source of Truth
+**Context:** Simplify token setup and add diagnostics. NOT replacing auth system.
 
-**Workflow**:
-1. **PostgreSQL schema changes** (manually or via migrations)
-2. **Introspect**: `prisma db pull` → Updates `schema.prisma`
-3. **Generate artifacts**:
-   - `prisma generate` → Updates `@prisma/client` types
-   - `prisma generate` (zod generator) → Updates Zod schemas
-   - Optional: `kysely-codegen` → Updates Kysely types
-4. **Compile TypeScript** → Catches type errors if code uses removed fields
-5. **Runtime validation** → Zod schemas validate incoming data against new schema
+**Existing stack is sufficient:**
+- `@fastify/jwt` v7.2.4 (gateway) — JWT verification
+- `bcryptjs` v2.4.3 (gateway) — password hashing
+- Session auth (sync dashboard) — unchanged
 
-**File structure**:
+**Recommended additions: None**
+
+Auth simplification is a workflow/UX improvement, not a library change:
+
+1. **Token diagnostics endpoint** — Use existing @fastify/jwt to decode and validate
+2. **Setup wizard** — UI flow in dashboard (shadcn components)
+3. **Token rotation** — Extend existing JWT implementation
+
+**Implementation notes:**
+- Add `/api/auth/diagnostics` endpoint for token validation/debugging
+- Add clear error messages for common auth failures
+- Consider adding `@fastify/rate-limit` (^10.0.0) for auth endpoint protection
+
+**Optional addition:**
+
+| Library | Version | Purpose | Notes |
+|---------|---------|---------|-------|
+| `@fastify/rate-limit` | ^10.0.0 | Rate limiting auth endpoints | Prevent brute force |
+
+---
+
+## Integration Notes
+
+### How New Stack Integrates with Existing
+
+**PostgreSQL Adapter:**
 ```
-src/
-  generated/
-    prisma/           # @prisma/client output
-    zod/              # zod-prisma-types output
+objetiva-sync/
+  src/adapters/
+    sqlserver/           # Existing
+    postgresql/          # NEW - mirrors sqlserver structure
       index.ts
-      articulo.ts
-      comprobante.ts
-    kysely.ts         # Optional: kysely-codegen output
-  routes/
-    articulos.ts      # Imports from generated/
+      postgresql-adapter.ts
+    index.ts             # Export both adapters
 ```
 
-**Key principles**:
-- **Never hand-edit generated files**: Always regenerate from schema
-- **Commit generated files**: So team sees breaking changes in PRs
-- **CI validation**: Build fails if generated files are out of sync
-
----
-
-### NOT Recommended: Multiple competing sources of truth
-
-**Anti-pattern to avoid**:
-- Prisma schema + separate hand-written Zod schemas
-- Kysely types + Prisma types with divergence
-- SQL migrations that don't update Prisma schema
-
-**Why avoid**: Leads to drift, validation errors, runtime surprises.
-
----
-
-## 6. Query Validation Against Live Schema
-
-### Runtime Validation Strategy
-
-**Problem**: Even with perfect introspection, there's a window where:
-1. PostgreSQL schema changes (column added/removed)
-2. App hasn't regenerated types yet
-3. Queries fail at runtime
-
-**Solution layers**:
-
-1. **Prisma Client catches most issues**:
-   - Invalid column names → Runtime error with helpful message
-   - Type mismatches → Caught by Prisma's internal validation
-
-2. **Zod validates input data**:
-   ```typescript
-   // Route handler
-   const parseResult = ArticuloCreateInputSchema.safeParse(req.body);
-   if (!parseResult.success) {
-     return reply.status(400).send({
-       error: 'Validation failed',
-       details: parseResult.error
-     });
-   }
-   ```
-
-3. **Schema version checking** (custom):
-   - Store schema hash/version in database
-   - App checks on startup if its generated types match DB version
-   - Refuse to start if mismatch detected
-
-**Example schema version check**:
-```typescript
-// migrations/schema_version.sql
-CREATE TABLE schema_metadata (
-  version TEXT PRIMARY KEY,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-// src/schema-validator.ts
-async function validateSchemaVersion() {
-  const dbVersion = await prisma.$queryRaw`
-    SELECT version FROM schema_metadata LIMIT 1
-  `;
-  const codeVersion = process.env.SCHEMA_VERSION; // Set during build
-
-  if (dbVersion !== codeVersion) {
-    throw new Error(
-      `Schema mismatch! DB: ${dbVersion}, Code: ${codeVersion}. ` +
-      `Run 'prisma db pull && prisma generate' and rebuild.`
-    );
-  }
-}
+**shadcn/ui in Gateway Dashboard:**
+```
+objetiva-sync-gateway/dashboard/
+  src/
+    components/
+      ui/                # NEW - shadcn components
+        button.tsx
+        card.tsx
+        table.tsx
+      existing/          # Preserve existing components initially
+    lib/
+      utils.ts           # Already has cn() helper
 ```
 
----
+**OpenTelemetry Setup:**
+```
+objetiva-sync/
+  src/
+    instrumentation.ts   # NEW - OTel bootstrap
+    server.ts            # Import instrumentation first
 
-## 7. Package Versions & Installation
-
-### Core Dependencies
-
-```json
-{
-  "dependencies": {
-    "@prisma/client": "^5.22.0",
-    "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "prisma": "^5.22.0",
-    "zod-prisma-types": "^3.1.8",
-    "kysely": "^0.27.0",           // Optional
-    "kysely-codegen": "^0.16.0"    // Optional
-  }
-}
+objetiva-sync-gateway/
+  src/
+    instrumentation.ts   # NEW - OTel bootstrap
+    server.ts            # Import instrumentation first
 ```
 
-**Note on versions**:
-- Prisma 5.22.0 is current as of your gateway's package.json
-- Zod 3.23.8 is latest stable (your current version)
-- Kysely 0.27+ supports PostgreSQL introspection
-- zod-prisma-types 3.x compatible with Prisma 5.x
+### Version Compatibility Matrix
+
+| Dependency | objetiva-sync | objetiva-sync-gateway | Notes |
+|------------|---------------|----------------------|-------|
+| Node.js | >=20.0.0 | >=20.0.0 | Both aligned |
+| Fastify | 5.2.0 | 4.28.1 | Version mismatch OK for now |
+| `pg` | NEW ^8.18.0 | ^8.17.2 | Align to ^8.18.0 |
+| Pino | 9.5.0 | 9.5.0 | Aligned |
+| Zod | 3.23.8 | 3.23.8 | Aligned |
+| React | N/A | 18.3.1 | Gateway only |
+| Tailwind | N/A | 3.4.1 | Gateway dashboard only |
 
 ---
 
-## 8. What NOT to Use & Why
+## Not Recommended
 
-### ❌ TypeORM with TypeScript codegen
+### Libraries to Avoid
 
-**Why avoid**:
-- Decorator-based approach less type-safe than Prisma
-- Introspection story weaker
-- Active development less consistent than Prisma
+| Library | Why Not |
+|---------|---------|
+| `postgres` (Postgres.js) | Different API, prepared statement issues in AWS, smaller ecosystem |
+| `@opentelemetry/instrumentation-fastify` | Deprecated, EOL June 2025 |
+| `@opentelemetry/auto-instrumentations-node` | Too heavy, instruments unnecessary modules |
+| `better-auth` | Overkill for existing JWT setup, adds complexity |
+| `passport` | Express-centric, unnecessary for Fastify with @fastify/jwt |
+| `prisma` (for sync source) | Already using Drizzle for SQLite, raw pg fits adapter pattern better |
 
----
+### Approaches to Avoid
 
-### ❌ Sequelize
-
-**Why avoid**:
-- Older ORM with weaker TypeScript support
-- Introspection requires third-party tools
-- Migration to Prisma would be painful
-
----
-
-### ❌ Knex.js for type-safe queries
-
-**Why avoid**:
-- No built-in TypeScript types
-- Requires `@types/knex` which are incomplete
-- If you want raw SQL, Kysely is superior
+| Approach | Why Not |
+|----------|---------|
+| Full HTMX->React rewrite of sync dashboard | Different purpose, HTMX is appropriate for sync module |
+| New auth library | Existing @fastify/jwt is sufficient, problem is UX not tooling |
+| GraphQL for schema endpoint | REST is simpler, already working |
+| Automatic schema sync (CDC) | Too complex, manual control is preferred per PROJECT.md |
 
 ---
 
-### ❌ Custom introspection via pg library
+## Summary: Installation Commands
 
-**Why avoid**:
-- Reinventing what Prisma does
-- High maintenance cost
-- Poor type inference
-
----
-
-### ❌ GraphQL schema as source of truth
-
-**Why avoid**:
-- Adds unnecessary layer (GraphQL → Prisma → PostgreSQL)
-- Your system is REST/RPC, not GraphQL
-- Introspection flow more complex
-
----
-
-## 9. Confidence Levels Summary
-
-| Component | Tool | Confidence | Rationale |
-|-----------|------|------------|-----------|
-| **Introspection** | Prisma db pull | 95% | Proven, already in stack, best PostgreSQL support |
-| **Zod Generation** | zod-prisma-types | 90% | Most mature generator, handles edge cases |
-| **Query Building** | Prisma Client | 85% | Already integrated, good enough for most needs |
-| **Drift Detection** | Prisma migrate diff | 85% | Built-in, minimal setup |
-| **Alternative SQL** | Kysely | 75% | Excellent tool but adds complexity |
-| **Schema Comparison** | pg-structure | 70% | Useful for advanced scenarios only |
-
----
-
-## 10. Recommended Workflow: PostgreSQL → Code Pipeline
-
-### Step-by-step integration
-
-1. **Setup generators** in `schema.prisma`:
-   ```prisma
-   generator client {
-     provider = "prisma-client-js"
-     output   = "../node_modules/@prisma/client"
-   }
-
-   generator zod {
-     provider = "zod-prisma-types"
-     output   = "../src/generated/zod"
-   }
-   ```
-
-2. **Add npm scripts** to `package.json`:
-   ```json
-   {
-     "scripts": {
-       "schema:pull": "prisma db pull",
-       "schema:generate": "prisma generate",
-       "schema:validate": "prisma migrate diff --from-schema-datamodel prisma/schema.prisma --to-schema-datasource $DATABASE_URL --exit-code",
-       "schema:refresh": "npm run schema:pull && npm run schema:generate",
-       "prebuild": "npm run schema:validate"
-     }
-   }
-   ```
-
-3. **Development flow**:
-   ```bash
-   # When PostgreSQL schema changes
-   npm run schema:refresh
-
-   # Fix TypeScript errors that appear
-   npm run build
-
-   # Commit updated schema.prisma + generated files
-   git add prisma/schema.prisma src/generated/
-   git commit -m "chore: sync schema from PostgreSQL"
-   ```
-
-4. **CI/CD validation**:
-   ```yaml
-   # .github/workflows/ci.yml
-   - name: Validate schema sync
-     run: npm run schema:validate
-
-   - name: Check generated files committed
-     run: |
-       npm run schema:generate
-       git diff --exit-code src/generated/
-   ```
-
----
-
-## 11. Addressing Your Specific Use Case
-
-### Current Problem
-> Schema changes in PostgreSQL break validation/queries without detection
-
-### Solution Architecture
-
-1. **Detection Layer**:
-   - `prisma migrate diff` in CI fails build if schema.prisma out of sync with PostgreSQL
-   - Pre-startup schema version check refuses to boot if mismatch
-
-2. **Propagation Layer**:
-   - `prisma db pull` captures PostgreSQL changes → `schema.prisma`
-   - `prisma generate` propagates to Prisma Client types
-   - `zod-prisma-types` propagates to Zod validators
-
-3. **Validation Layer**:
-   - Zod schemas validate incoming sync batches from `objetiva-sync`
-   - Prisma Client validates queries at runtime
-   - TypeScript catches compile-time errors in route handlers
-
-4. **Failure Modes**:
-   - PostgreSQL adds column → Next introspection picks it up → Types regenerate → No breakage
-   - PostgreSQL removes column → Introspection removes it → TypeScript errors where code uses it → Fix before deploy
-   - PostgreSQL changes type → Introspection updates → Zod validation may reject old data format → Handle migration
-
----
-
-## 12. Migration Strategy for Existing Codebase
-
-Since your gateway already uses Prisma 5.22.0, you're 80% there:
-
-### Phase 1: Add Zod Generation (Low Risk)
+**objetiva-sync (sync module):**
 ```bash
-npm install -D zod-prisma-types
-# Add generator to schema.prisma
-npx prisma generate
-```
-**Impact**: Zero breaking changes, just adds new generated Zod schemas
+# PostgreSQL adapter
+npm install pg@^8.18.0
+npm install -D @types/pg@^8.16.0
 
-### Phase 2: Integrate Zod Validation (Medium Risk)
-Replace manual validation with generated Zod schemas in routes:
-```typescript
-// Before
-if (!req.body.erp_codigo || !req.body.erp_nombre) {
-  return reply.status(400).send({ error: 'Missing required fields' });
-}
-
-// After
-const result = ArticuloCreateInputSchema.safeParse(req.body);
-if (!result.success) {
-  return reply.status(400).send({ error: result.error });
-}
+# Observability
+npm install @fastify/otel @opentelemetry/sdk-node @opentelemetry/api \
+  @opentelemetry/instrumentation-http @opentelemetry/exporter-trace-otlp-http \
+  pino-opentelemetry-transport
 ```
 
-### Phase 3: Add Drift Detection (Low Risk)
+**objetiva-sync-gateway:**
 ```bash
-# Add to package.json scripts
-"schema:validate": "prisma migrate diff ..."
+# Observability
+npm install @fastify/otel @opentelemetry/sdk-node @opentelemetry/api \
+  @opentelemetry/instrumentation-http @opentelemetry/exporter-trace-otlp-http \
+  pino-opentelemetry-transport
+
+# Dashboard (in dashboard/ subdirectory)
+cd dashboard
+npx shadcn@latest init
+npx shadcn@latest add button card table dialog alert badge tabs toast
 ```
-Run in CI, doesn't affect runtime.
-
-### Phase 4: Schema Version Checking (Medium Risk)
-Add runtime schema version validation. Requires coordination with deployment process.
 
 ---
 
-## 13. Open Questions for Roadmap Planning
+## Confidence Assessment
 
-1. **Kysely adoption?**: Do you have complex SQL queries that are painful in Prisma? If yes, budget time for Kysely integration.
-
-2. **Multi-schema support?**: Does your PostgreSQL use multiple schemas beyond `public`? Prisma requires manual configuration.
-
-3. **Schema migration strategy?**:
-   - Who owns schema changes? (DBA manually via SQL, or devs via Prisma Migrate?)
-   - Do you need bidirectional sync (code → DB) or only introspection (DB → code)?
-
-4. **Downtime tolerance?**: Can app restart when schema changes, or need hot-reload capability?
-
-5. **Monorepo coordination**: Does `objetiva-sync` need same generated types? Consider sharing Prisma schema between packages.
+| Area | Confidence | Rationale |
+|------|------------|-----------|
+| PostgreSQL adapter (pg) | HIGH | Library already in use, well-documented, matches existing pattern |
+| shadcn/ui setup | HIGH | Official docs verified, unified radix-ui package confirmed Feb 2026 |
+| @fastify/otel | HIGH | Official Fastify team package, replaces deprecated instrumentation |
+| OpenTelemetry SDK | MEDIUM | SDK versions change rapidly, verify latest before implementing |
+| Auth simplification | HIGH | No new libraries needed, workflow improvement only |
 
 ---
 
-## 14. Cost-Benefit Analysis
+## Sources
 
-### Benefits of Full Implementation
+**PostgreSQL Client:**
+- [pg - npm](https://www.npmjs.com/package/pg) - v8.18.0 latest
+- [node-postgres documentation](https://node-postgres.com/)
+- [node-postgres vs postgres.js comparison](https://github.com/brianc/node-postgres/issues/3391)
 
-- **Compile-time safety**: Breaking schema changes caught in build, not production
-- **Reduced validation bugs**: Zod schemas auto-updated with schema, can't get out of sync
-- **Faster development**: Autocomplete for all DB fields, no guessing types
-- **Confidence in deploys**: CI validates schema sync before merge
-- **Documentation**: Generated Zod schemas serve as API contract
+**shadcn/ui:**
+- [shadcn/ui Installation](https://ui.shadcn.com/docs/installation)
+- [February 2026 - Unified Radix UI Package](https://ui.shadcn.com/docs/changelog/2026-02-radix-ui)
+- [radix-ui npm](https://www.npmjs.com/package/radix-ui) - v1.4.3 latest
 
-### Costs
+**OpenTelemetry:**
+- [OpenTelemetry Node.js](https://opentelemetry.io/docs/languages/js/getting-started/nodejs/)
+- [@fastify/otel GitHub](https://github.com/fastify/otel)
+- [@opentelemetry/sdk-node npm](https://www.npmjs.com/package/@opentelemetry/sdk-node) - v0.211.0 latest
+- [pino-opentelemetry-transport GitHub](https://github.com/pinojs/pino-opentelemetry-transport)
 
-- **Build complexity**: More codegen steps, larger git diffs
-- **Learning curve**: Team must understand Prisma → Zod flow
-- **Generated code**: 1000+ LOC of generated files in repo (though should not be hand-edited)
-- **Initial setup**: ~1-2 days to integrate and test
-
-**ROI**: High. One prevented production incident from schema mismatch pays for setup cost.
-
----
-
-## 15. References & Documentation
-
-- **Prisma Introspection**: https://www.prisma.io/docs/concepts/components/introspection
-- **zod-prisma-types**: https://github.com/chrishoermann/zod-prisma-types
-- **Kysely**: https://kysely.dev/docs/getting-started
-- **Prisma Migrate Diff**: https://www.prisma.io/docs/reference/api-reference/command-reference#migrate-diff
+**Fastify Auth:**
+- [@fastify/jwt GitHub](https://github.com/fastify/fastify-jwt)
+- [Fastify Ecosystem](https://fastify.dev/ecosystem/)
 
 ---
 
-## Conclusion
+## Previous Research (v1.0)
 
-**TL;DR Stack for 2025**:
-- **Introspection**: Prisma `db pull` (already have it)
-- **Zod Generation**: `zod-prisma-types` generator
-- **Query Building**: Stick with Prisma Client (optionally add Kysely for complex SQL)
-- **Drift Detection**: Prisma `migrate diff` in CI
-- **Validation**: Generated Zod schemas at API boundary
+The following research from v1.0 milestone remains valid and is preserved for reference:
 
-This stack is battle-tested, minimally invasive to your existing architecture, and directly addresses the "PostgreSQL as source of truth" requirement.
+### PostgreSQL Schema Introspection & TypeScript Codegen
 
-**Next steps for roadmap**:
-1. Add zod-prisma-types generator
-2. Create schema refresh scripts
-3. Integrate Zod validation in sync batch routes
-4. Add CI schema validation
-5. (Optional) Evaluate Kysely for complex queries
+For schema-driven synchronization, the stack uses:
+- **Introspection**: Prisma `db pull` (95% confidence)
+- **Zod Generation**: `zod-prisma-types` generator (90% confidence)
+- **Query Building**: Prisma Client (85% confidence)
+- **Drift Detection**: Prisma `migrate diff` in CI (85% confidence)
+
+This architecture is already implemented in v1.0/v1.1-rc and continues unchanged for v1.1-rc2.
+
+---
+*Researched: 2026-02-11 (v1.1-rc2)*
+*Previous research: 2026-01-26 (v1.0)*
