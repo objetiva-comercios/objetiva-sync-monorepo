@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A schema-driven control system for the objetiva-sync monorepo that enforces PostgreSQL as the single source of truth for data synchronization between ERP systems and the gateway. Automatically regenerates Prisma/Zod schemas, validates SQL queries against actual database structure, and provides robust end-to-end testing across both sync and gateway modules.
+A production-ready schema-driven synchronization system for the objetiva-sync monorepo. Enforces PostgreSQL as the single source of truth for ERP-to-gateway data synchronization. Features automated Prisma/Zod schema regeneration, SQL query validation against live database structure, incremental sync with clock skew protection, and comprehensive deployment automation.
 
 ## Core Value
 
@@ -41,17 +41,27 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - ✓ Real-time monitoring dashboard with SSE log streaming — v1.0
 - ✓ React dashboard with metrics, batch operations, and activity feed — v1.0
 
+<!-- v1.1-rc additions -->
+
+- ✓ Sync timeout fixed with SSE heartbeat and bulk ingestion optimization — v1.1-rc
+- ✓ Error messages include root cause detail (not generic "Error al ejecutar") — v1.1-rc
+- ✓ Incremental sync with per-entity timestamp tracking — v1.1-rc
+- ✓ Clock skew protection (5-minute overlap) for incremental queries — v1.1-rc
+- ✓ Full sync override available via dashboard checkbox — v1.1-rc
+- ✓ Gateway compiles with zero TypeScript errors — v1.1-rc
+- ✓ Ingestion uses generated schemas (not manual imports) — v1.1-rc
+- ✓ PM2 deployment scripts for both modules — v1.1-rc
+- ✓ .env.example files with complete variable documentation — v1.1-rc
+- ✓ 79 integration tests covering error recovery and pipeline validation — v1.1-rc
+
 ### Active
 
-<!-- Milestone v1.1-rc: Release Candidate -->
+<!-- Human acceptance testing for v1.1 stable -->
 
-- [ ] Sync completes full 100K+ record sets without timeout or crash
-- [ ] Incremental sync (timestamp-based) works reliably for delta updates
-- [ ] Gateway compiles cleanly with zero TypeScript errors
-- [ ] Ingestion uses generated schemas instead of manual imports
-- [ ] Production deployment scripts and environment configuration
-- [ ] Improved error handling and recovery across the pipeline
-- [ ] End-to-end robustness validation of full workflow
+- [ ] Human verification: 100K+ record sync completes without timeout (SYNC-01)
+- [ ] Human verification: Batch sizes 200/500 work without degradation (SYNC-04)
+- [ ] Human verification: Incremental sync with live database
+- [ ] Human verification: Real PostgreSQL schema change E2E
 
 ### Out of Scope
 
@@ -71,17 +81,17 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - Physical separation: sync and gateway run on different servers
 - 4 entity types with distinct schemas and synchronization requirements
 
-**Current Pain Points (v1.1-rc):**
-- Manual sync fails after ~60 seconds regardless of batch size (timeout somewhere in pipeline)
-- Incremental sync (timestamp-based) exists but untested for reliability
-- Gateway has pre-existing TypeScript compilation errors (Prisma/Fastify types)
-- Ingestion imports manual schemas instead of generated ones (architectural inconsistency)
-- No production deployment scripts or environment configuration
+**Current State (after v1.1-rc):**
+- 29,257 lines of TypeScript across both modules
+- All v1.1-rc code complete, 79 integration tests passing
+- Gateway compiles cleanly with zero TypeScript errors
+- PM2 deployment automation ready for production
+- 2 requirements pending human acceptance testing with production data
 
 **Prior Work:**
-- Codebase already mapped in `.planning/codebase/` (ARCHITECTURE.md, STACK.md, STRUCTURE.md)
-- Documentation exists in `objetiva-sync/docs/` but may be outdated
-- Both modules functional but fragile when schemas change
+- Codebase mapped in `.planning/codebase/` (ARCHITECTURE.md, STACK.md, STRUCTURE.md)
+- Documentation in `objetiva-sync/docs/`
+- Deployment guides in `objetiva-sync-gateway/DEPLOYMENT.md`
 
 ## Constraints
 
@@ -96,27 +106,29 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| PostgreSQL as single source of truth | Destination schema is what ultimately matters for data integrity | Implemented (v1.0) |
-| Gateway exposes schemas via HTTP | Sync needs access to schemas but runs on different server | Implemented (v1.0) |
-| Manual regeneration command | User must consciously propagate schema changes, prevents accidents | Implemented (v1.0) |
-| Distribute tooling between sync/gateway | Avoid third module complexity, leverage existing architecture | Implemented (v1.0) |
+| PostgreSQL as single source of truth | Destination schema is what ultimately matters for data integrity | ✓ Good (v1.0) |
+| Gateway exposes schemas via HTTP | Sync needs access to schemas but runs on different server | ✓ Good (v1.0) |
+| Manual regeneration command | User must consciously propagate schema changes, prevents accidents | ✓ Good (v1.0) |
+| Distribute tooling between sync/gateway | Avoid third module complexity, leverage existing architecture | ✓ Good (v1.0) |
+| SSE heartbeat for long-running syncs | Prevents nginx/proxy timeout on large dataset syncs | ✓ Good (v1.1-rc) |
+| Bulk createMany for ingestion | Replaces N+1 queries, fixes timeout on large batches | ✓ Good (v1.1-rc) |
+| Clock skew protection for incremental | 5-minute overlap prevents missed records from ERP/gateway clock differences | ✓ Good (v1.1-rc) |
+| PM2 fork mode for gateway | Cluster mode breaks SSE streaming, fork mode required | ✓ Good (v1.1-rc) |
 
 ## Completed Milestones
 
 | Milestone | Goal | Completed | Archive |
 |-----------|------|-----------|---------|
-| v1.0 | Schema-driven synchronization control | 2026-02-03 | `.planning/archive/v1.0-MILESTONE.md` |
+| v1.0 | Schema-driven synchronization control | 2026-02-03 | `.planning/milestones/v1.0-ROADMAP.md` |
+| v1.1-rc | Release candidate with sync reliability | 2026-02-05 | `.planning/milestones/v1.1-rc-ROADMAP.md` |
 
-## Current Milestone: v1.1-rc Release Candidate
+## Next Steps
 
-**Goal:** Make the sync system production-ready — fix the sync timeout bug, harden incremental sync, resolve all TypeScript errors, and validate end-to-end robustness.
-
-**Target features:**
-- Fix sync timeout (~60s failure on large datasets)
-- Reliable incremental sync with timestamp-based deltas
-- Clean TypeScript compilation (gateway)
-- Production deployment configuration
-- End-to-end robustness testing of full workflow
+Human acceptance testing required before v1.1 stable:
+1. Run sync with 100K+ records, verify completion
+2. Test batch sizes 200 and 500
+3. Execute real PostgreSQL schema change E2E
+4. Validate incremental sync with live database
 
 ---
-*Last updated: 2026-02-03 after v1.1-rc milestone start*
+*Last updated: 2026-02-05 after v1.1-rc milestone*
