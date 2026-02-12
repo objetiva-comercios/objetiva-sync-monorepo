@@ -1,10 +1,11 @@
 import type { PrismaClient } from '@prisma/client'
-import type {
-  ArticuloInput,
-  ComprobanteCabeceraInput,
-  ComprobanteDetalleInput,
-  ComprobantePagosInput
-} from '../../shared/schemas/index.js'
+import {
+  type ArticuloInput,
+  type ComprobantesCabeceraInput as ComprobanteCabeceraInput,
+  type ComprobantesDetalleInput as ComprobanteDetalleInput,
+  type ComprobantesPagoInput as ComprobantePagosInput,
+  
+} from '@objetiva/shared/schemas'
 import { logger } from '../lib/logger.js'
 import type { BatchMetadata, IngestionLogEntry } from '../types/logging.js'
 
@@ -108,6 +109,7 @@ export class IngestionService {
    * Ingesta de artículos
    * ✅ TODO EN SNAKE_CASE - Sin mapeo manual
    * ✅ BULK OPERATIONS - Batch lookup + createMany + transaction
+   * ✅ COMPOSITE KEY SUPPORT - Handles (erp_codigo, erp_nombre) composite PK
    */
   static async ingestArticulos(
     prisma: PrismaClient,
@@ -119,22 +121,38 @@ export class IngestionService {
     let updated = 0
     const errors: IngestionResult['errors'] = []
 
-    // Step 1: Batch lookup of existing records
-    const erpCodigos = articulos.map(a => a.erp_codigo).filter(Boolean)
-    const existingRecords = await prisma.articulo.findMany({
-      where: { erp_codigo: { in: erpCodigos } },
-      select: { id: true, erp_codigo: true },
-    })
-    const existingMap = new Map(existingRecords.map(r => [r.erp_codigo, r.id]))
+    // Prepare origin metadata if available (for multi-source tracking)
+    const originData = metadata?.originSource ? {
+      origin_source: metadata.originSource,
+      origin_sync_id: metadata.syncId ?? null,
+      origin_synced_at: new Date(),
+    } : {}
 
-    // Step 2: Separate into new vs existing records
+    // Composite key: (erp_codigo, erp_nombre)
+    // Prisma uses erp_codigo_erp_nombre for the compound unique identifier
+
+    // Step 1: Batch lookup of existing records using first key field for filtering
+    const keyValues = articulos.map(a => a.erp_codigo).filter(Boolean)
+    const existingRecords = await prisma.articulo.findMany({
+      where: { erp_codigo: { in: keyValues } },
+      select: { erp_codigo: true, erp_nombre: true },
+    })
+    // Build composite key set for efficient lookup
+    const existingSet = new Set<string>(
+      existingRecords.map((r) => `${r.erp_codigo}|${r.erp_nombre}`)
+    )
+
+    // Step 2: Separate into new vs existing records using composite key
     const toCreate: ArticuloInput[] = []
-    const toUpdate: Array<{ id: bigint; data: ArticuloInput }> = []
+    const toUpdate: Array<{ compositeKey: { erp_codigo: string; erp_nombre: string }; data: ArticuloInput }> = []
 
     for (const articulo of articulos) {
-      const existingId = existingMap.get(articulo.erp_codigo)
-      if (existingId) {
-        toUpdate.push({ id: existingId, data: articulo })
+      const keyString = `${articulo.erp_codigo}|${articulo.erp_nombre}`
+      if (existingSet.has(keyString)) {
+        toUpdate.push({
+          compositeKey: { erp_codigo: articulo.erp_codigo, erp_nombre: articulo.erp_nombre },
+          data: articulo
+        })
       } else {
         toCreate.push(articulo)
       }
@@ -146,6 +164,7 @@ export class IngestionService {
         const createResult = await prisma.articulo.createMany({
           data: toCreate.map(a => nullToUndefined({
             ...a,
+            ...originData,
             erp_sincronizado: true,
             erp_fecha_sync: new Date(),
           })),
@@ -161,6 +180,7 @@ export class IngestionService {
             await prisma.articulo.create({
               data: nullToUndefined({
                 ...articulo,
+                ...originData,
                 erp_sincronizado: true,
                 erp_fecha_sync: new Date(),
               }),
@@ -169,7 +189,7 @@ export class IngestionService {
           } catch (createError) {
             errors.push({
               index,
-              identifier: articulo.sku || articulo.codigo || `item-${index}`,
+              identifier: `${articulo.erp_codigo}|${articulo.erp_nombre}`,
               error: createError instanceof Error ? createError.message : 'Error desconocido',
               code: 'INGESTION_ERROR',
             })
@@ -178,15 +198,16 @@ export class IngestionService {
       }
     }
 
-    // Step 4: Update existing records (in transaction)
+    // Step 4: Update existing records (in transaction) using composite key
     if (toUpdate.length > 0) {
       try {
         await prisma.$transaction(
-          toUpdate.map(({ id, data }) =>
+          toUpdate.map(({ compositeKey, data }) =>
             prisma.articulo.update({
-              where: { id },
+              where: { erp_codigo_erp_nombre: compositeKey },
               data: nullToUndefined({
                 ...data,
+                ...originData,
                 erp_sincronizado: true,
                 erp_fecha_sync: new Date(),
                 actualizado: new Date(),
@@ -199,12 +220,13 @@ export class IngestionService {
       } catch (error) {
         // If transaction fails, fall back to individual updates
         logger.warn({ error }, 'Transaction failed, falling back to individual updates')
-        for (const [index, { id, data }] of toUpdate.entries()) {
+        for (const [index, { compositeKey, data }] of toUpdate.entries()) {
           try {
             await prisma.articulo.update({
-              where: { id },
+              where: { erp_codigo_erp_nombre: compositeKey },
               data: nullToUndefined({
                 ...data,
+                ...originData,
                 erp_sincronizado: true,
                 erp_fecha_sync: new Date(),
                 actualizado: new Date(),
@@ -214,7 +236,7 @@ export class IngestionService {
           } catch (updateError) {
             errors.push({
               index,
-              identifier: data.sku || data.codigo || `item-${index}`,
+              identifier: `${compositeKey.erp_codigo}|${compositeKey.erp_nombre}`,
               error: updateError instanceof Error ? updateError.message : 'Error desconocido',
               code: 'INGESTION_ERROR',
             })
@@ -281,6 +303,13 @@ export class IngestionService {
     let updated = 0
     const errors: IngestionResult['errors'] = []
 
+    // Prepare origin metadata if available (for multi-source tracking)
+    const originData = metadata?.originSource ? {
+      origin_source: metadata.originSource,
+      origin_sync_id: metadata.syncId ?? null,
+      origin_synced_at: new Date(),
+    } : {}
+
     // Step 1: Batch lookup of existing records using composite key
     const keys = comprobantes.map(c => ({
       operacion: c.operacion,
@@ -296,23 +325,25 @@ export class IngestionService {
           numero: k.numero,
         })),
       },
-      select: { id: true, operacion: true, formulario: true, numero: true },
+      select: { operacion: true, formulario: true, numero: true },
     })
 
-    // Create lookup map with composite key string
-    const existingMap = new Map(
-      existingRecords.map(r => [`${r.operacion}|${r.formulario}|${r.numero}`, r.id])
+    // Create lookup set with composite key string
+    const existingSet = new Set(
+      existingRecords.map(r => `${r.operacion}|${r.formulario}|${r.numero}`)
     )
 
     // Step 2: Separate into new vs existing records
     const toCreate: ComprobanteCabeceraInput[] = []
-    const toUpdate: Array<{ id: bigint; data: ComprobanteCabeceraInput }> = []
+    const toUpdate: Array<{ compositeKey: { operacion: string; formulario: string; numero: string }; data: ComprobanteCabeceraInput }> = []
 
     for (const comp of comprobantes) {
-      const compositeKey = `${comp.operacion}|${comp.formulario}|${comp.numero}`
-      const existingId = existingMap.get(compositeKey)
-      if (existingId) {
-        toUpdate.push({ id: existingId, data: comp })
+      const keyString = `${comp.operacion}|${comp.formulario}|${comp.numero}`
+      if (existingSet.has(keyString)) {
+        toUpdate.push({
+          compositeKey: { operacion: comp.operacion, formulario: comp.formulario, numero: comp.numero },
+          data: comp
+        })
       } else {
         toCreate.push(comp)
       }
@@ -324,6 +355,7 @@ export class IngestionService {
         const createResult = await prisma.comprobanteCabecera.createMany({
           data: toCreate.map(c => nullToUndefined({
             ...c,
+            ...originData,
             fecha: c.fecha ? new Date(c.fecha) : undefined,
             erp_fecha_sync: c.erp_fecha_sync ? new Date(c.erp_fecha_sync) : undefined,
           })),
@@ -339,6 +371,7 @@ export class IngestionService {
             await prisma.comprobanteCabecera.create({
               data: nullToUndefined({
                 ...comp,
+                ...originData,
                 fecha: comp.fecha ? new Date(comp.fecha) : undefined,
                 erp_fecha_sync: comp.erp_fecha_sync ? new Date(comp.erp_fecha_sync) : undefined,
               }),
@@ -371,15 +404,16 @@ export class IngestionService {
       }
     }
 
-    // Step 4: Update existing records (in transaction)
+    // Step 4: Update existing records (in transaction) using composite natural key
     if (toUpdate.length > 0) {
       try {
         await prisma.$transaction(
-          toUpdate.map(({ id, data }) =>
+          toUpdate.map(({ compositeKey, data }) =>
             prisma.comprobanteCabecera.update({
-              where: { id },
+              where: { operacion_formulario_numero: compositeKey },
               data: nullToUndefined({
                 ...data,
+                ...originData,
                 fecha: data.fecha ? new Date(data.fecha) : undefined,
                 erp_fecha_sync: data.erp_fecha_sync ? new Date(data.erp_fecha_sync) : undefined,
                 actualizado: new Date(),
@@ -392,12 +426,13 @@ export class IngestionService {
       } catch (error) {
         // If transaction fails, fall back to individual updates
         logger.warn({ error }, 'Transaction failed, falling back to individual updates')
-        for (const [index, { id, data }] of toUpdate.entries()) {
+        for (const [index, { compositeKey, data }] of toUpdate.entries()) {
           try {
             await prisma.comprobanteCabecera.update({
-              where: { id },
+              where: { operacion_formulario_numero: compositeKey },
               data: nullToUndefined({
                 ...data,
+                ...originData,
                 fecha: data.fecha ? new Date(data.fecha) : undefined,
                 erp_fecha_sync: data.erp_fecha_sync ? new Date(data.erp_fecha_sync) : undefined,
                 actualizado: new Date(),
@@ -489,28 +524,14 @@ export class IngestionService {
     let updated = 0
     const errors: IngestionResult['errors'] = []
 
-    // Step 1a: Batch lookup of parent cabeceras
-    const cabeceraKeys = Array.from(
-      new Set(
-        detalles.map(d => `${d.comprobante_operacion}|${d.comprobante_formulario}|${d.comprobante_numero}`)
-      )
-    )
+    // Prepare origin metadata if available (for multi-source tracking)
+    const originData = metadata?.originSource ? {
+      origin_source: metadata.originSource,
+      origin_sync_id: metadata.syncId ?? null,
+      origin_synced_at: new Date(),
+    } : {}
 
-    const cabeceras = await prisma.comprobanteCabecera.findMany({
-      where: {
-        OR: cabeceraKeys.map(key => {
-          const [operacion, formulario, numero] = key.split('|')
-          return { operacion, formulario, numero }
-        }),
-      },
-      select: { id: true, operacion: true, formulario: true, numero: true },
-    })
-
-    const cabeceraMap = new Map(
-      cabeceras.map(c => [`${c.operacion}|${c.formulario}|${c.numero}`, c.id])
-    )
-
-    // Step 1b: Batch lookup of existing detalles
+    // Step 1: Batch lookup of existing detalles (no need for cabecera lookup - using natural keys)
     const detalleKeys = detalles.map(d => ({
       operacion: d.comprobante_operacion,
       formulario: d.comprobante_formulario,
@@ -527,40 +548,41 @@ export class IngestionService {
           linea_numero: k.linea_numero,
         })),
       },
-      select: { id: true, comprobante_operacion: true, comprobante_formulario: true, comprobante_numero: true, linea_numero: true },
+      select: { comprobante_operacion: true, comprobante_formulario: true, comprobante_numero: true, linea_numero: true },
     })
 
-    const existingMap = new Map(
-      existingDetalles.map(d => [`${d.comprobante_operacion}|${d.comprobante_formulario}|${d.comprobante_numero}|${d.linea_numero}`, d.id])
+    // Store existing composite keys for lookup
+    const existingSet = new Set(
+      existingDetalles.map(d => `${d.comprobante_operacion}|${d.comprobante_formulario}|${d.comprobante_numero}|${d.linea_numero}`)
     )
 
-    // Step 2: Separate into new vs existing records
-    const toCreate: Array<{ data: ComprobanteDetalleInput; comprobante_id?: bigint }> = []
-    const toUpdate: Array<{ id: bigint; data: ComprobanteDetalleInput; comprobante_id?: bigint }> = []
+    // Step 2: Separate into new vs existing records (using natural composite keys)
+    const toCreate: ComprobanteDetalleInput[] = []
+    const toUpdate: Array<{ compositeKey: { comprobante_operacion: string; comprobante_formulario: string; comprobante_numero: string; linea_numero: number }; data: ComprobanteDetalleInput }> = []
 
     for (const det of detalles) {
-      const cabeceraKey = `${det.comprobante_operacion}|${det.comprobante_formulario}|${det.comprobante_numero}`
       const detalleKey = `${det.comprobante_operacion}|${det.comprobante_formulario}|${det.comprobante_numero}|${det.linea_numero}`
 
-      const comprobante_id = cabeceraMap.get(cabeceraKey)
-      const existingId = existingMap.get(detalleKey)
-
-      if (existingId) {
-        toUpdate.push({ id: existingId, data: det, comprobante_id })
+      if (existingSet.has(detalleKey)) {
+        toUpdate.push({
+          compositeKey: {
+            comprobante_operacion: det.comprobante_operacion,
+            comprobante_formulario: det.comprobante_formulario,
+            comprobante_numero: det.comprobante_numero,
+            linea_numero: det.linea_numero,
+          },
+          data: det,
+        })
       } else {
-        toCreate.push({ data: det, comprobante_id })
+        toCreate.push(det)
       }
     }
 
     // Step 3: Bulk create new records using createMany
     if (toCreate.length > 0) {
       try {
-        // Mapear campos normalizados de comprobante (del JSON al modelo Prisma)
         const createResult = await prisma.comprobanteDetalle.createMany({
-          data: toCreate.map(({ data: det, comprobante_id }) => nullToUndefined({
-            ...det,
-            comprobante_id,
-          })),
+          data: toCreate.map(det => nullToUndefined({ ...det, ...originData })),
           skipDuplicates: true,
         })
         inserted = createResult.count
@@ -568,13 +590,10 @@ export class IngestionService {
       } catch (error) {
         // If createMany fails, fall back to individual creates
         logger.warn({ error }, 'createMany failed, falling back to individual creates')
-        for (const [index, { data: det, comprobante_id }] of toCreate.entries()) {
+        for (const [index, det] of toCreate.entries()) {
           try {
             await prisma.comprobanteDetalle.create({
-              data: nullToUndefined({
-                ...det,
-                comprobante_id,
-              }),
+              data: nullToUndefined({ ...det, ...originData }),
             })
             inserted++
           } catch (createError) {
@@ -604,16 +623,16 @@ export class IngestionService {
       }
     }
 
-    // Step 4: Update existing records (in transaction)
+    // Step 4: Update existing records (in transaction) using composite natural key
     if (toUpdate.length > 0) {
       try {
         await prisma.$transaction(
-          toUpdate.map(({ id, data: det, comprobante_id }) => {
+          toUpdate.map(({ compositeKey, data: det }) => {
             return prisma.comprobanteDetalle.update({
-              where: { id },
+              where: { comprobante_operacion_comprobante_formulario_comprobante_numero_linea_numero: compositeKey },
               data: nullToUndefined({
                 ...det,
-                comprobante_id,
+                ...originData,
                 actualizado: new Date(),
               }),
             })
@@ -624,13 +643,13 @@ export class IngestionService {
       } catch (error) {
         // If transaction fails, fall back to individual updates
         logger.warn({ error }, 'Transaction failed, falling back to individual updates')
-        for (const [index, { id, data: det, comprobante_id }] of toUpdate.entries()) {
+        for (const [index, { compositeKey, data: det }] of toUpdate.entries()) {
           try {
             await prisma.comprobanteDetalle.update({
-              where: { id },
+              where: { comprobante_operacion_comprobante_formulario_comprobante_numero_linea_numero: compositeKey },
               data: nullToUndefined({
                 ...det,
-                comprobante_id,
+                ...originData,
                 actualizado: new Date(),
               }),
             })
@@ -720,28 +739,14 @@ export class IngestionService {
     let updated = 0
     const errors: IngestionResult['errors'] = []
 
-    // Step 1a: Batch lookup of parent cabeceras
-    const cabeceraKeys = Array.from(
-      new Set(
-        pagos.map(p => `${p.comprobante_operacion}|${p.comprobante_formulario}|${p.comprobante_numero}`)
-      )
-    )
+    // Prepare origin metadata if available (for multi-source tracking)
+    const originData = metadata?.originSource ? {
+      origin_source: metadata.originSource,
+      origin_sync_id: metadata.syncId ?? null,
+      origin_synced_at: new Date(),
+    } : {}
 
-    const cabeceras = await prisma.comprobanteCabecera.findMany({
-      where: {
-        OR: cabeceraKeys.map(key => {
-          const [operacion, formulario, numero] = key.split('|')
-          return { operacion, formulario, numero }
-        }),
-      },
-      select: { id: true, operacion: true, formulario: true, numero: true },
-    })
-
-    const cabeceraMap = new Map(
-      cabeceras.map(c => [`${c.operacion}|${c.formulario}|${c.numero}`, c.id])
-    )
-
-    // Step 1b: Batch lookup of existing pagos
+    // Step 1: Batch lookup of existing pagos (no need for cabecera lookup - using natural keys)
     const pagoKeys = pagos.map(p => ({
       operacion: p.comprobante_operacion,
       formulario: p.comprobante_formulario,
@@ -758,42 +763,45 @@ export class IngestionService {
           linea_numero: k.linea_numero,
         })),
       },
-      select: { id: true, comprobante_operacion: true, comprobante_formulario: true, comprobante_numero: true, linea_numero: true },
+      select: { comprobante_operacion: true, comprobante_formulario: true, comprobante_numero: true, linea_numero: true },
     })
 
-    const existingMap = new Map(
-      existingPagos.map(p => [`${p.comprobante_operacion}|${p.comprobante_formulario}|${p.comprobante_numero}|${p.linea_numero}`, p.id])
+    const existingSet = new Set(
+      existingPagos.map(p => `${p.comprobante_operacion}|${p.comprobante_formulario}|${p.comprobante_numero}|${p.linea_numero}`)
     )
 
-    // Step 2: Separate into new vs existing records
-    const toCreate: Array<{ data: ComprobantePagosInput; comprobante_id?: bigint }> = []
-    const toUpdate: Array<{ id: bigint; data: ComprobantePagosInput; comprobante_id?: bigint }> = []
+    // Step 2: Separate into new vs existing records (using natural composite keys)
+    const toCreate: ComprobantePagosInput[] = []
+    const toUpdate: Array<{ compositeKey: { comprobante_operacion: string; comprobante_formulario: string; comprobante_numero: string; linea_numero: number }; data: ComprobantePagosInput }> = []
 
     for (const pago of pagos) {
-      const cabeceraKey = `${pago.comprobante_operacion}|${pago.comprobante_formulario}|${pago.comprobante_numero}`
       const pagoKey = `${pago.comprobante_operacion}|${pago.comprobante_formulario}|${pago.comprobante_numero}|${pago.linea_numero}`
 
-      const comprobante_id = cabeceraMap.get(cabeceraKey)
-      const existingId = existingMap.get(pagoKey)
-
-      if (existingId) {
-        toUpdate.push({ id: existingId, data: pago, comprobante_id })
+      if (existingSet.has(pagoKey)) {
+        toUpdate.push({
+          compositeKey: {
+            comprobante_operacion: pago.comprobante_operacion,
+            comprobante_formulario: pago.comprobante_formulario,
+            comprobante_numero: pago.comprobante_numero,
+            linea_numero: pago.linea_numero,
+          },
+          data: pago,
+        })
       } else {
-        toCreate.push({ data: pago, comprobante_id })
+        toCreate.push(pago)
       }
     }
 
     // Step 3: Bulk create new records using createMany
     if (toCreate.length > 0) {
       try {
-        // Mapear campos normalizados de comprobante (del JSON al modelo Prisma)
         const createResult = await prisma.comprobantePagos.createMany({
-          data: toCreate.map(({ data: pago, comprobante_id }) => {
+          data: toCreate.map(pago => {
             const medio_normalizado = pago.medio || 'EFECTIVO'
             return nullToUndefined({
               ...pago,
+              ...originData,
               medio: medio_normalizado,
-              comprobante_id,
               cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
               fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
             })
@@ -805,14 +813,14 @@ export class IngestionService {
       } catch (error) {
         // If createMany fails, fall back to individual creates
         logger.warn({ error }, 'createMany failed, falling back to individual creates')
-        for (const [index, { data: pago, comprobante_id }] of toCreate.entries()) {
+        for (const [index, pago] of toCreate.entries()) {
           try {
             const medio_normalizado = pago.medio || 'EFECTIVO'
             await prisma.comprobantePagos.create({
               data: nullToUndefined({
                 ...pago,
+                ...originData,
                 medio: medio_normalizado,
-                comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
               }),
@@ -845,18 +853,18 @@ export class IngestionService {
       }
     }
 
-    // Step 4: Update existing records (in transaction)
+    // Step 4: Update existing records (in transaction) using composite natural key
     if (toUpdate.length > 0) {
       try {
         await prisma.$transaction(
-          toUpdate.map(({ id, data: pago, comprobante_id }) => {
+          toUpdate.map(({ compositeKey, data: pago }) => {
             const medio_normalizado = pago.medio || 'EFECTIVO'
             return prisma.comprobantePagos.update({
-              where: { id },
+              where: { comprobante_operacion_comprobante_formulario_comprobante_numero_linea_numero: compositeKey },
               data: nullToUndefined({
                 ...pago,
+                ...originData,
                 medio: medio_normalizado,
-                comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
                 actualizado: new Date(),
@@ -869,15 +877,15 @@ export class IngestionService {
       } catch (error) {
         // If transaction fails, fall back to individual updates
         logger.warn({ error }, 'Transaction failed, falling back to individual updates')
-        for (const [index, { id, data: pago, comprobante_id }] of toUpdate.entries()) {
+        for (const [index, { compositeKey, data: pago }] of toUpdate.entries()) {
           try {
             const medio_normalizado = pago.medio || 'EFECTIVO'
             await prisma.comprobantePagos.update({
-              where: { id },
+              where: { comprobante_operacion_comprobante_formulario_comprobante_numero_linea_numero: compositeKey },
               data: nullToUndefined({
                 ...pago,
+                ...originData,
                 medio: medio_normalizado,
-                comprobante_id,
                 cheque_fecha_diferida: pago.cheque_fecha_diferida ? new Date(pago.cheque_fecha_diferida) : null,
                 fecha_vencimiento: pago.fecha_vencimiento ? new Date(pago.fecha_vencimiento) : null,
                 actualizado: new Date(),

@@ -1,7 +1,3 @@
-// Schema Prisma para objetiva-sync-gateway
-// MIGRACIÓN A SNAKE_CASE COMPLETO
-// TypeScript y PostgreSQL usan EXACTAMENTE los mismos nombres
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,19 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// TABLA: articulos
-// ============================================
-
-
-
 model Articulo {
-  id BigInt @id @default(autoincrement())
   sku String? @db.Text
   codigo String? @db.Text
   codigo_barras String? @db.Text
-  erp_codigo String @db.Text
-  erp_id String? @db.Text
   codigo_equivalencia String? @db.Text
   nombre String? @db.Text
   nombre_corto String? @db.Text
@@ -51,29 +38,42 @@ model Articulo {
   imagenes_producto String[] @default([]) @db.Text
   imagenes_etiqueta String[] @default([]) @db.Text
   etiquetas_ocr String[] @default([]) @db.Text
-  json_articulo1 Json? @default("{}") @db.JsonB
-  erp_nombre2 String @db.Text
-  erp_extra3 String? @db.Text
-  erp_sincronizado Boolean? @default(false)
-  erp_fecha_sync DateTime? @db.Timestamp(6)
+  json_articulo Json? @default("{}") @db.JsonB
   activo Boolean? @default(true)
   observaciones String? @db.Text
   creado DateTime? @default(now()) @db.Timestamp(6)
   actualizado DateTime? @default(now()) @updatedAt @db.Timestamp(6)
-  @@index([activo])
-  @@index([codigo])
+  erp_id String? @db.Text
+  erp_codigo String @db.Text
+  erp_nombre String @db.Text
+  erp_precio Decimal? @db.Decimal(10, 2)
+  erp_costo Decimal? @db.Decimal(10, 2)
+  erp_unidades Int? @default(0)
+  erp_datos Json? @default("{}") @db.JsonB
+  erp_creado DateTime? @db.Timestamp(6)
+  erp_actualizado DateTime? @db.Timestamp(6)
+  erp_sincronizado Boolean? @default(false)
+  erp_fecha_sync DateTime? @db.Timestamp(6)
+
+  // Origin tracking for multi-source sync
+  origin_source     String?   @db.Text      // Which sync client wrote this record
+  origin_sync_id    String?   @db.Text      // Which sync run wrote this record
+  origin_synced_at  DateTime? @db.Timestamp(6)  // When this source wrote this record
+
+  @@id([erp_codigo, erp_nombre])
+  @@index([activo], map: "idx_articulos_activo")
   @@index([codigo_barras], map: "idx_articulos_codigo_barras")
   @@index([codigo_equivalencia], map: "idx_articulos_codigo_equivalencia")
-  @@index([erp_codigo], map: "idx_articulos_erp_codigo")
   @@index([erp_id], map: "idx_articulos_erp_id")
-  @@index([marca])
-  @@index([objeto])
+  @@index([marca], map: "idx_articulos_marca")
+  @@index([objeto], map: "idx_articulos_objeto")
   @@index([rubro, subrubro], map: "idx_articulos_rubro_subrubro")
+  @@index([origin_source], map: "idx_articulos_origin_source")
+  @@index([origin_synced_at], map: "idx_articulos_origin_synced_at")
   @@map("articulos")
 }
 
 model ComprobanteCabecera {
-  id BigInt @id @default(autoincrement())
   operacion String @db.Text
   formulario String @db.Text
   numero String @db.Text
@@ -84,57 +84,47 @@ model ComprobanteCabecera {
   tercero_direccion String? @db.Text
   tercero_datos Json? @default("{}") @db.JsonB
   cantidad_items Int? @default(0)
+  total_bruto Decimal @db.Decimal(12, 2)
   total_descuentos Decimal @default(0) @db.Decimal(12, 2)
+  total_neto Decimal @db.Decimal(12, 2)
+  total_iva Decimal @db.Decimal(12, 2)
   total_venta Decimal @default(0) @db.Decimal(12, 2)
+  total_intereses_financieros Decimal? @default(0) @db.Decimal(12, 2)
+  total_cobrado Decimal? @db.Decimal(12, 2)
+  activo Boolean @default(true)
+  observaciones String? @db.Text
+  creado DateTime @default(now()) @db.Timestamp(6)
+  actualizado DateTime @default(now()) @updatedAt @db.Timestamp(6)
   erp_id String? @db.Text
   erp_operacion String @db.Text
   erp_formulario String @db.Text
   erp_numero String @db.Text
   erp_datos Json? @default("{}") @db.JsonB
+  erp_creado DateTime? @db.Timestamp(6)
+  erp_actualizado DateTime? @db.Timestamp(6)
   erp_sincronizado Boolean? @default(false)
   erp_fecha_sync DateTime? @db.Timestamp(6)
-  observaciones String? @db.Text
-  activo Boolean @default(true)
-  creado DateTime @default(now()) @db.Timestamp(6)
-  actualizado DateTime @default(now()) @updatedAt @db.Timestamp(6)
-  total_bruto Decimal @db.Decimal(12, 2)
-  total_neto Decimal @db.Decimal(12, 2)
-  total_iva Decimal @db.Decimal(12, 2)
-  total_intereses_financieros Decimal? @default(0) @db.Decimal(12, 2)
-  total_cobrado Decimal? @db.Decimal(12, 2)
 
-  // Relaciones
-  detalles ComprobanteDetalle[]
-  pagos ComprobantePagos[]
+  // Origin tracking for multi-source sync
+  origin_source     String?   @db.Text      // Which sync client wrote this record
+  origin_sync_id    String?   @db.Text      // Which sync run wrote this record
+  origin_synced_at  DateTime? @db.Timestamp(6)  // When this source wrote this record
 
-  @@unique([formulario], name: "comprobantes_cabecera_formulario_key")
-  @@unique([operacion, formulario, numero], name: "comprobantes_cabecera_natural_key")
-  @@index([creado], map: "idx_comprobantes_cabecera_creado")
-  @@index([erp_id], map: "idx_comprobantes_cabecera_erp_id")
-  @@index([fecha], map: "idx_comprobantes_cabecera_fecha")
-  @@index([tercero_documento], map: "idx_comprobantes_cabecera_tercero")
+  @@id([operacion, formulario, numero])
+  @@index([origin_source], map: "idx_comprobantes_cabecera_origin_source")
+  @@index([origin_synced_at], map: "idx_comprobantes_cabecera_origin_synced_at")
   @@map("comprobantes_cabecera")
 }
 
 model ComprobanteDetalle {
-  id BigInt @id @default(autoincrement())
-  comprobante_id BigInt?
   comprobante_operacion String @db.Text
   comprobante_formulario String @db.Text
   comprobante_numero String @db.Text
   linea_numero Int
-  articulo_id BigInt?
   articulo_codigo String? @db.Text
   articulo_nombre String? @db.Text
   unidades Decimal @db.Decimal(10, 3)
   precio_unitario Decimal @db.Decimal(12, 4)
-  erp_operacion String @db.Text
-  erp_formulario String @db.Text
-  erp_numero String @db.Text
-  erp_datos Json? @default("{}") @db.JsonB
-  observaciones String? @db.Text
-  creado DateTime @default(now()) @db.Timestamp(6)
-  actualizado DateTime @default(now()) @updatedAt @db.Timestamp(6)
   importe_bruto Decimal @db.Decimal(12, 2)
   porc_descuento Decimal? @db.Decimal(5, 2)
   importe_descuento Decimal @default(0) @db.Decimal(12, 2)
@@ -142,24 +132,34 @@ model ComprobanteDetalle {
   alicuota_iva Decimal @db.Decimal(5, 2)
   importe_iva Decimal @db.Decimal(12, 2)
   importe_total Decimal @db.Decimal(12, 2)
+  observaciones String? @db.Text
+  creado DateTime @default(now()) @db.Timestamp(6)
+  actualizado DateTime @default(now()) @updatedAt @db.Timestamp(6)
+  erp_operacion String @db.Text
+  erp_formulario String @db.Text
+  erp_numero String @db.Text
+  erp_datos Json? @default("{}") @db.JsonB
+  erp_creado DateTime? @db.Timestamp(6)
+  erp_actualizado DateTime? @db.Timestamp(6)
+  erp_sincronizado Boolean? @default(false)
+  erp_fecha_sync DateTime? @db.Timestamp(6)
 
-  // Relaciones
-  comprobante ComprobanteCabecera? @relation(fields: [comprobante_id], references: [id], onDelete: Cascade)
+  // Origin tracking for multi-source sync
+  origin_source     String?   @db.Text      // Which sync client wrote this record
+  origin_sync_id    String?   @db.Text      // Which sync run wrote this record
+  origin_synced_at  DateTime? @db.Timestamp(6)  // When this source wrote this record
 
-  @@unique([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero], name: "comprobantes_detalle_natural_key")
-  @@index([erp_operacion, erp_formulario, erp_numero], map: "idx_detalle_erp_comprobante")
-  @@index([articulo_id], map: "idx_comprobantes_detalle_articulo")
-  @@index([articulo_codigo], map: "idx_comprobantes_detalle_codigo")
-  @@index([comprobante_id], map: "idx_comprobantes_detalle_comprobante")
+  @@id([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero])
+  @@index([origin_source], map: "idx_comprobantes_detalle_origin_source")
+  @@index([origin_synced_at], map: "idx_comprobantes_detalle_origin_synced_at")
   @@map("comprobantes_detalle")
 }
 
 model ComprobantePagos {
-  id BigInt @id @default(autoincrement())
-  comprobante_id BigInt?
   comprobante_operacion String @db.Text
   comprobante_formulario String @db.Text
   comprobante_numero String @db.Text
+  linea_numero Int
   medio String @db.Text
   monto Decimal @db.Decimal(12, 2)
   moneda String @default("ARS") @db.Text
@@ -170,23 +170,26 @@ model ComprobantePagos {
   fecha_vencimiento DateTime? @db.Date
   datos_extra Json? @default("{}") @db.JsonB
   referencia String? @db.Text
-  erp_operacion String @db.Text
-  erp_formulario String @db.Text
-  erp_numero String @db.Text
   observaciones String? @db.Text
   creado DateTime @default(now()) @db.Timestamp(6)
   actualizado DateTime @default(now()) @updatedAt @db.Timestamp(6)
-  linea_numero Int
+  erp_operacion String @db.Text
+  erp_formulario String @db.Text
+  erp_numero String @db.Text
+  erp_datos Json? @default("{}") @db.JsonB
+  erp_creado DateTime? @db.Timestamp(6)
+  erp_actualizado DateTime? @db.Timestamp(6)
+  erp_sincronizado Boolean? @default(false)
+  erp_fecha_sync DateTime? @db.Timestamp(6)
 
-  // Relaciones
-  comprobante ComprobanteCabecera? @relation(fields: [comprobante_id], references: [id], onDelete: Cascade)
+  // Origin tracking for multi-source sync
+  origin_source     String?   @db.Text      // Which sync client wrote this record
+  origin_sync_id    String?   @db.Text      // Which sync run wrote this record
+  origin_synced_at  DateTime? @db.Timestamp(6)  // When this source wrote this record
 
-  @@unique([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero], name: "comprobantes_pagos_natural_key")
-  @@index([erp_operacion, erp_formulario, erp_numero], map: "idx_pago_erp_comprobante")
-  @@index([cheque_fecha_diferida], map: "idx_pagos_cheque_diferido")
-  @@index([comprobante_id], map: "idx_pagos_comprobante")
-  @@index([tarjeta_cuotas], map: "idx_pagos_tarjeta_cuotas")
-  @@index([tarjeta_marca], map: "idx_pagos_tarjeta_marca")
+  @@id([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero])
+  @@index([origin_source], map: "idx_comprobantes_pagos_origin_source")
+  @@index([origin_synced_at], map: "idx_comprobantes_pagos_origin_synced_at")
   @@map("comprobantes_pagos")
 }
 

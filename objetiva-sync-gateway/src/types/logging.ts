@@ -13,6 +13,8 @@ export interface BatchMetadata {
   batchNumber?: number
   /** Total batches in sync job */
   totalBatches?: number
+  /** Which sync client sent this batch (for multi-source tracking) */
+  originSource?: string
 }
 
 export interface IngestionLogEntry {

@@ -1,10 +1,22 @@
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 import {
-  ComprobanteCabeceraBatchSchema,
-  ComprobanteDetalleBatchSchema,
-  ComprobantePagosBatchSchema
-} from '../../shared/schemas/index.js'
+  comprobantesCabeceraSchema,
+  comprobantesDetalleSchema,
+  comprobantesPagoSchema
+} from '@objetiva/shared/schemas'
 import { prisma } from '../lib/prisma.js'
+
+// Batch schema wrappers (property names match existing route expectations)
+const ComprobanteCabeceraBatchSchema = z.object({
+  comprobantes_cabecera: z.array(comprobantesCabeceraSchema)
+})
+const ComprobanteDetalleBatchSchema = z.object({
+  comprobantes_detalle: z.array(comprobantesDetalleSchema)
+})
+const ComprobantePagosBatchSchema = z.object({
+  comprobantes_pagos: z.array(comprobantesPagoSchema)
+})
 import { authenticate } from '../middleware/auth.js'
 import { IngestionService } from '../services/ingestion.js'
 import { logger } from '../lib/logger.js'
@@ -28,20 +40,22 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
       const queryName = request.headers['x-query-name'] as string | undefined
       const batchNumber = request.headers['x-batch-number'] as string | undefined
       const totalBatches = request.headers['x-total-batches'] as string | undefined
+      const originSource = request.headers['x-origin-source'] as string | undefined
 
       logger.info(
-        { count: comprobantes_cabecera.length, username: request.user.username, syncId, queryId, queryName, batchNumber, totalBatches },
+        { count: comprobantes_cabecera.length, username: request.user.username, syncId, queryId, queryName, batchNumber, totalBatches, originSource },
         'Recibiendo batch de comprobantes cabecera'
       )
 
-      // Build metadata for logging
+      // Build metadata for logging and origin tracking
       const metadata = syncId && queryId && batchNumber && totalBatches ? {
         syncId,
         queryId: parseInt(queryId, 10),
         queryName,
         batchNumber: parseInt(batchNumber, 10),
-        totalBatches: parseInt(totalBatches, 10)
-      } : undefined
+        totalBatches: parseInt(totalBatches, 10),
+        originSource
+      } : (originSource ? { originSource } : undefined)
 
       const result = await IngestionService.ingestComprobantesCabecera(
         prisma,
@@ -71,23 +85,27 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
           }
         })
 
-        if (isLastBatch) {
-          metrics.recordSync({
-            timestamp: new Date(),
-            entityType: 'comprobante_cabecera',
-            comercioId: job.comercioId,
-            comercioUsername: job.comercioUsername,
-            totalReceived: job.totalReceived,
-            inserted: job.inserted,
-            updated: job.updated,
-            failed: job.failed,
-            durationMs: job.totalDurationMs,
-            queryId: job.queryId,
-            queryName: job.queryName,
-            batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
-            status: 'completed'
-          })
+        // Registrar en metrics CADA batch para mostrar progreso en tiempo real
+        metrics.recordSync({
+          timestamp: new Date(),
+          entityType: 'comprobante_cabecera',
+          comercioId: job.comercioId,
+          comercioUsername: job.comercioUsername,
+          totalReceived: comprobantes_cabecera.length,
+          inserted: result.inserted,
+          updated: result.updated,
+          failed: result.errors.length,
+          durationMs,
+          queryId: job.queryId,
+          queryName: job.queryName,
+          batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
+          status: isLastBatch ? 'completed' : 'in_progress',
+          syncId,
+          batchNumber: job.receivedBatches,
+          totalBatches: job.totalBatches
+        })
 
+        if (isLastBatch) {
           logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
         }
       } else {
@@ -137,20 +155,22 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
       const queryName = request.headers['x-query-name'] as string | undefined
       const batchNumber = request.headers['x-batch-number'] as string | undefined
       const totalBatches = request.headers['x-total-batches'] as string | undefined
+      const originSource = request.headers['x-origin-source'] as string | undefined
 
       logger.info(
-        { count: comprobantes_detalle.length, username: request.user.username, syncId, queryId, queryName, batchNumber, totalBatches },
+        { count: comprobantes_detalle.length, username: request.user.username, syncId, queryId, queryName, batchNumber, totalBatches, originSource },
         'Recibiendo batch de comprobantes detalle'
       )
 
-      // Build metadata for logging
+      // Build metadata for logging and origin tracking
       const metadata = syncId && queryId && batchNumber && totalBatches ? {
         syncId,
         queryId: parseInt(queryId, 10),
         queryName,
         batchNumber: parseInt(batchNumber, 10),
-        totalBatches: parseInt(totalBatches, 10)
-      } : undefined
+        totalBatches: parseInt(totalBatches, 10),
+        originSource
+      } : (originSource ? { originSource } : undefined)
 
       const result = await IngestionService.ingestComprobantesDetalle(
         prisma,
@@ -180,23 +200,27 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
           }
         })
 
-        if (isLastBatch) {
-          metrics.recordSync({
-            timestamp: new Date(),
-            entityType: 'comprobante_detalle',
-            comercioId: job.comercioId,
-            comercioUsername: job.comercioUsername,
-            totalReceived: job.totalReceived,
-            inserted: job.inserted,
-            updated: job.updated,
-            failed: job.failed,
-            durationMs: job.totalDurationMs,
-            queryId: job.queryId,
-            queryName: job.queryName,
-            batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
-            status: 'completed'
-          })
+        // Registrar en metrics CADA batch para mostrar progreso en tiempo real
+        metrics.recordSync({
+          timestamp: new Date(),
+          entityType: 'comprobante_detalle',
+          comercioId: job.comercioId,
+          comercioUsername: job.comercioUsername,
+          totalReceived: comprobantes_detalle.length,
+          inserted: result.inserted,
+          updated: result.updated,
+          failed: result.errors.length,
+          durationMs,
+          queryId: job.queryId,
+          queryName: job.queryName,
+          batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
+          status: isLastBatch ? 'completed' : 'in_progress',
+          syncId,
+          batchNumber: job.receivedBatches,
+          totalBatches: job.totalBatches
+        })
 
+        if (isLastBatch) {
           logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
         }
       } else {
@@ -246,20 +270,22 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
       const queryName = request.headers['x-query-name'] as string | undefined
       const batchNumber = request.headers['x-batch-number'] as string | undefined
       const totalBatches = request.headers['x-total-batches'] as string | undefined
+      const originSource = request.headers['x-origin-source'] as string | undefined
 
       logger.info(
-        { count: comprobantes_pagos.length, username: request.user.username, syncId, queryId, queryName, batchNumber, totalBatches },
+        { count: comprobantes_pagos.length, username: request.user.username, syncId, queryId, queryName, batchNumber, totalBatches, originSource },
         'Recibiendo batch de comprobantes pagos'
       )
 
-      // Build metadata for logging
+      // Build metadata for logging and origin tracking
       const metadata = syncId && queryId && batchNumber && totalBatches ? {
         syncId,
         queryId: parseInt(queryId, 10),
         queryName,
         batchNumber: parseInt(batchNumber, 10),
-        totalBatches: parseInt(totalBatches, 10)
-      } : undefined
+        totalBatches: parseInt(totalBatches, 10),
+        originSource
+      } : (originSource ? { originSource } : undefined)
 
       const result = await IngestionService.ingestComprobantesPagos(
         prisma,
@@ -289,23 +315,27 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
           }
         })
 
-        if (isLastBatch) {
-          metrics.recordSync({
-            timestamp: new Date(),
-            entityType: 'comprobante_pago',
-            comercioId: job.comercioId,
-            comercioUsername: job.comercioUsername,
-            totalReceived: job.totalReceived,
-            inserted: job.inserted,
-            updated: job.updated,
-            failed: job.failed,
-            durationMs: job.totalDurationMs,
-            queryId: job.queryId,
-            queryName: job.queryName,
-            batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
-            status: 'completed'
-          })
+        // Registrar en metrics CADA batch para mostrar progreso en tiempo real
+        metrics.recordSync({
+          timestamp: new Date(),
+          entityType: 'comprobante_pago',
+          comercioId: job.comercioId,
+          comercioUsername: job.comercioUsername,
+          totalReceived: comprobantes_pagos.length,
+          inserted: result.inserted,
+          updated: result.updated,
+          failed: result.errors.length,
+          durationMs,
+          queryId: job.queryId,
+          queryName: job.queryName,
+          batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
+          status: isLastBatch ? 'completed' : 'in_progress',
+          syncId,
+          batchNumber: job.receivedBatches,
+          totalBatches: job.totalBatches
+        })
 
+        if (isLastBatch) {
           logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
         }
       } else {
