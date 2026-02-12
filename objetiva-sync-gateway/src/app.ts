@@ -16,6 +16,15 @@ import { registerSchemaRoutes } from './routes/schemas.js'
 import { registerRegenerateRoutes } from './routes/regenerate-schemas.js'
 import { registerDashboardRoutes } from './routes/dashboard.js'
 import { registerHealthRoutes } from './routes/health.js'
+import { registerMetricsRoutes } from './routes/metrics.js'
+import { httpDuration, httpRequestsTotal } from './lib/prometheus.js'
+
+// Augment Fastify request for timing
+declare module 'fastify' {
+  interface FastifyRequest {
+    startTime: number
+  }
+}
 
 export async function buildApp() {
   const app = Fastify({
@@ -32,12 +41,34 @@ export async function buildApp() {
     echoHeader: true
   })
 
-  // Create child logger with correlationId for each request
+  // Create child logger with correlationId and start timing for each request
   app.addHook('onRequest', async (request) => {
+    // Start timing for Prometheus metrics
+    request.startTime = Date.now()
+
+    // Add correlationId to logger
     const correlationId = getCorrelationId()
     if (correlationId) {
       request.log = request.log.child({ correlationId })
     }
+  })
+
+  // Record HTTP metrics on response
+  app.addHook('onResponse', async (request, reply) => {
+    // Skip metrics endpoint to avoid recursion
+    if (request.url === '/metrics') return
+
+    const duration = (Date.now() - request.startTime) / 1000
+    // Use route pattern, not full URL (avoids cardinality explosion)
+    const route = request.routeOptions?.url || request.url
+    const labels = {
+      method: request.method,
+      route,
+      status_code: reply.statusCode.toString()
+    }
+
+    httpDuration.observe(labels, duration)
+    httpRequestsTotal.inc(labels)
   })
 
   // CORS
@@ -75,6 +106,9 @@ export async function buildApp() {
   // Health check (before other routes, no auth required)
   await registerHealthRoutes(app)
 
+  // Metrics endpoint (no auth required, Prometheus needs to scrape)
+  await registerMetricsRoutes(app)
+
   // Routes
   await registerStatusRoutes(app)
   await registerSetupRoutes(app)
@@ -95,7 +129,7 @@ export async function buildApp() {
     return reply.sendFile('index.html')
   })
 
-  // Error handler (debe ser lo último)
+  // Error handler (debe ser lo ultimo)
   registerErrorHandler(app)
 
   return app
