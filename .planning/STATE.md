@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 ## Current Position
 
 Phase: 16 of 17 (Observability)
-Plan: 04 of 04 complete
+Plan: 02 of 04 complete (also 04 complete out of order)
 Status: In progress
-Last activity: 2026-02-12 — Completed 16-04-PLAN.md (Health Check Endpoints)
+Last activity: 2026-02-12 — Completed 16-02-PLAN.md (Prometheus Metrics)
 
 Progress: [█████████████░░░░░░░░] Phase 16 in progress
 
@@ -44,6 +44,9 @@ See: .planning/MILESTONES.md for full details
 | AUTH-05 | Password change requires current password verification | 15-02 | Security: bcrypt.compare before allowing update |
 | HEALTH-01 | Gateway critical, scheduler optional in sync health | 16-04 | Gateway connectivity required, scheduler state informational |
 | HEALTH-02 | 3-second timeout on all health probes | 16-04 | Kubernetes expects 5s max, 3s probe + 2s margin |
+| PROM-01 | Custom Registry to avoid default registry pollution | 16-02 | Isolated metrics, enables testing without conflicts |
+| PROM-02 | gateway_ prefix for all metrics | 16-02 | Namespace clarity in multi-service environments |
+| PROM-03 | Use route patterns not URLs to prevent cardinality explosion | 16-02 | /api/articulos/:id instead of /api/articulos/123 |
 | TEST-02 | Use app.inject() for in-process auth integration tests | 15-04 | Fast tests without requiring running server |
 
 ## Pending Human Verification
@@ -72,16 +75,20 @@ From Phase 15 (Auth Simplification):
 15. Test diagnostics: call GET /api/auth/diagnostics with valid token, verify token metadata returned
 16. Test password change: call POST /api/auth/change-password with wrong current password, verify PASSWORD_INVALID error
 
+From Phase 16 (Observability):
+17. Verify /metrics endpoint returns Prometheus format: `curl http://localhost:3335/metrics`
+18. Confirm gateway_ prefix on all metrics in output
+
 ## Blockers & Concerns
 
-None currently. Phase 15 complete. Ready for Phase 16.
+None currently. Phase 16 Plan 02 and 04 complete. Plans 01 and 03 pending.
 
 ## Session Continuity
 
-Last session: 2026-02-12 — Completed Phase 16 Plan 04 (Health Check Endpoints)
-Stopped at: Phase 16 Plan 04 complete
-Resume file: .planning/phases/16-observability/16-04-SUMMARY.md
-Next action: Continue Phase 16 or `/gsd:verify-phase 16`
+Last session: 2026-02-12 — Completed Phase 16 Plan 02 (Prometheus Metrics)
+Stopped at: Phase 16 Plan 02 complete
+Resume file: .planning/phases/16-observability/16-02-SUMMARY.md
+Next action: Execute Plan 16-01 or 16-03
 
 ---
-*Last updated: 2026-02-12 after completing Phase 16 Plan 04 (Health Check Endpoints)*
+*Last updated: 2026-02-12 after completing Phase 16 Plan 02 (Prometheus Metrics)*
