@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 13-postgresql-adapter
 source: 13-01-SUMMARY.md, 13-02-SUMMARY.md
 started: 2026-02-12T16:00:00Z
-updated: 2026-02-12T16:30:00Z
+updated: 2026-02-12T16:45:00Z
 ---
 
 ## Current Test
@@ -63,17 +63,21 @@ skipped: 0
   reason: "User reported: funciona en modal pero icono de prueba en lista principal da error host/user undefined"
   severity: major
   test: 1
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "testDatabaseConnection() in database-adapter.ts passes config directly to adapter.connect() without mapping server→host for postgres. The modal maps this client-side but API endpoint doesn't."
+  artifacts:
+    - path: "objetiva-sync/src/adapters/database-adapter.ts"
+      issue: "Line 65: adapter.connect(config) needs server→host mapping for postgres"
+  missing:
+    - "Add config field mapping for postgres before adapter.connect()"
 
 - truth: "Integration tests skip gracefully when PostgreSQL unavailable"
   status: failed
   reason: "User reported: connection tests fail instead of skip - 'can test connection' and 'can connect and disconnect' fail"
   severity: minor
   test: 8
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Wrong boolean logic: hasPostgres = POSTGRES_TEST_HOST || CI !== 'true' evaluates true when neither is set because undefined !== 'true' is true"
+  artifacts:
+    - path: "objetiva-sync/tests/integration/postgresql-adapter.integration.test.ts"
+      issue: "Line 21: hasPostgres condition logic is inverted"
+  missing:
+    - "Change to: hasPostgres = Boolean(process.env.POSTGRES_TEST_HOST)"
