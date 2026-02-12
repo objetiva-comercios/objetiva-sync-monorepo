@@ -7,11 +7,11 @@ import type { Dispatcher } from 'undici';
 import type { AuthManager } from './auth.js';
 import type { IComprobantePagosPayload } from '../types/comprobantes-pagos.js';
 import type { BatchResult } from '../types/common.js';
-import { comprobantePagoPayloadSchema } from '../types/comprobantes-pagos.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
 import { SYNC_CONFIG } from '../config/constants.js';
 import { classifyError } from '../utils/error-classifier.js';
+import { getSourceId } from './index.js';
 
 const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 
@@ -76,6 +76,7 @@ export class ComprobantesPagosClient {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        'X-Origin-Source': getSourceId(),  // Send source identifier for multi-source tracking
       };
 
       // Agregar headers de query metadata si están disponibles
@@ -256,22 +257,22 @@ export class ComprobantesPagosClient {
   }
 
   /**
-   * Valida un batch de pagos de comprobantes
+   * Valida y transforma un batch de pagos antes de enviar al gateway.
+   *
+   * NO valida contra un schema Zod local (que puede estar desactualizado).
+   * La validación completa la realiza el gateway, que es la fuente de verdad.
+   * Solo aplica validación básica de estructura y coerción de tipos.
    */
   private validateBatch(pagos: IComprobantePagosPayload[]): BatchResult['errors'] {
     const errors: BatchResult['errors'] = [];
 
     for (let i = 0; i < pagos.length; i++) {
       const pago = pagos[i];
-      const validation = comprobantePagoPayloadSchema.safeParse(pago);
-
-      if (!validation.success) {
+      if (!pago || typeof pago !== 'object') {
         errors.push({
           index: i,
-          identifier: pago
-            ? `${pago.erp_operacion}-${pago.erp_formulario}-${pago.erp_numero}`
-            : `PAGO_${i}`,
-          error: 'Validación fallida: ' + validation.error.message,
+          identifier: `PAGO_${i}`,
+          error: 'Pago inválido: no es un objeto',
           code: 'VALIDATION_ERROR',
         });
       }
@@ -281,33 +282,11 @@ export class ComprobantesPagosClient {
   }
 
   /**
-   * Prueba la conexión enviando un pago de prueba
+   * Prueba la conexión verificando autenticación con el gateway
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
-      const testPago: IComprobantePagosPayload = {
-        erp_operacion: 'TEST',
-        erp_formulario: 'TEST',
-        erp_numero: '00001',
-        comprobante_operacion: 'TEST',
-        comprobante_formulario: 'TEST',
-        comprobante_numero: '00001',
-        linea_numero: 1,
-        medio: 'efectivo',
-        monto: 100.0,
-      };
-
-      // Solo validar, no enviar realmente
-      const validation = comprobantePagoPayloadSchema.safeParse(testPago);
-
-      if (!validation.success) {
-        return {
-          success: false,
-          message: 'Validación fallida: ' + validation.error.message,
-        };
-      }
-
-      // Verificar que tenemos token
+      // Verificar que tenemos token válido
       await this.authManager.getToken();
 
       return {

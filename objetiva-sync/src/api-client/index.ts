@@ -3,6 +3,43 @@
  * Agrupa AuthManager y todos los clientes de endpoints
  */
 
+import os from 'os';
+import { Agent } from 'undici';
+
+/**
+ * Generate stable source identifier for this sync client instance.
+ * Format: hostname-default (hostname sanitized to alphanumeric + hyphens)
+ *
+ * Can be overridden via SYNC_SOURCE_ID environment variable for containerized deployments.
+ */
+export function generateSourceId(): string {
+  // Allow environment override for containers/Kubernetes
+  if (process.env.SYNC_SOURCE_ID) {
+    return process.env.SYNC_SOURCE_ID;
+  }
+
+  // Generate from hostname
+  const hostname = os.hostname()
+    .replace(/[^a-zA-Z0-9-]/g, '-')  // Replace non-alphanumeric with hyphen
+    .replace(/-+/g, '-')              // Collapse multiple hyphens
+    .replace(/^-|-$/g, '')            // Remove leading/trailing hyphens
+    .substring(0, 32);                // Limit length
+
+  return `${hostname}-default`;
+}
+
+// Singleton source ID (generated once per process)
+let _sourceId: string | null = null;
+
+/**
+ * Get the source ID for this sync client (cached).
+ */
+export function getSourceId(): string {
+  if (!_sourceId) {
+    _sourceId = generateSourceId();
+  }
+  return _sourceId;
+}
 import { AuthManager } from './auth.js';
 import { ArticulosClient } from './articulos-client.js';
 import { ComprobantesCabeceraClient } from './comprobantes-cabecera-client.js';
@@ -25,6 +62,7 @@ export interface APIClientConfig {
  */
 export class APIClient {
   private authManager: AuthManager;
+  private agent: Agent;
 
   public readonly articulos: ArticulosClient;
   public readonly comprobantes: ComprobantesCabeceraClient; // cabeceras
@@ -42,14 +80,24 @@ export class APIClient {
       baseUrl: normalizedBaseUrl
     };
 
-    // Inicializar AuthManager
-    this.authManager = new AuthManager(normalizedBaseUrl, config.username, config.password);
+    // Shared HTTP agent with connection pooling to prevent TCP exhaustion
+    // Without this, each fetch() creates a new TCP connection, and after ~200+
+    // sequential requests in 60s, Windows ephemeral ports get stuck in TIME_WAIT
+    this.agent = new Agent({
+      keepAliveTimeout: 30_000,     // Keep connections alive 30s between requests
+      keepAliveMaxTimeout: 120_000, // Max 2 min keepalive
+      connections: 10,              // Up to 10 connections per origin
+      pipelining: 1,                // HTTP/1.1 pipelining
+    });
 
-    // Inicializar clientes de endpoints
-    this.articulos = new ArticulosClient(normalizedBaseUrl, this.authManager);
-    this.comprobantes = new ComprobantesCabeceraClient(normalizedBaseUrl, this.authManager);
-    this.comprobantesDetalle = new ComprobantesDetalleClient(normalizedBaseUrl, this.authManager);
-    this.comprobantesPagos = new ComprobantesPagosClient(normalizedBaseUrl, this.authManager);
+    // Inicializar AuthManager
+    this.authManager = new AuthManager(normalizedBaseUrl, config.username, config.password, this.agent);
+
+    // Inicializar clientes de endpoints con dispatcher compartido
+    this.articulos = new ArticulosClient(normalizedBaseUrl, this.authManager, this.agent);
+    this.comprobantes = new ComprobantesCabeceraClient(normalizedBaseUrl, this.authManager, this.agent);
+    this.comprobantesDetalle = new ComprobantesDetalleClient(normalizedBaseUrl, this.authManager, this.agent);
+    this.comprobantesPagos = new ComprobantesPagosClient(normalizedBaseUrl, this.authManager, this.agent);
   }
 
   /**

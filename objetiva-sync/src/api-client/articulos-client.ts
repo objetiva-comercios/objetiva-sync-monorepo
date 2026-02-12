@@ -7,11 +7,11 @@ import type { Dispatcher } from 'undici';
 import type { AuthManager } from './auth.js';
 import type { IArticuloPayload } from '../types/articulos.js';
 import type { BatchResult } from '../types/common.js';
-import { articuloPayloadSchema } from '../types/articulos.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
 import { SYNC_CONFIG } from '../config/constants.js';
 import { classifyError } from '../utils/error-classifier.js';
+import { getSourceId } from './index.js';
 
 const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 
@@ -81,6 +81,7 @@ export class ArticulosClient {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        'X-Origin-Source': getSourceId(),  // Send source identifier for multi-source tracking
       };
 
       // Agregar headers de query metadata si están disponibles
@@ -300,8 +301,11 @@ export class ArticulosClient {
   }
 
   /**
-   * Valida y transforma un batch de artículos
-   * Aplica las transformaciones del schema (ej: number -> string)
+   * Transforma un batch de artículos antes de enviar al gateway.
+   *
+   * NO valida contra un schema Zod local (que puede estar desactualizado).
+   * La validación completa la realiza el gateway, que es la fuente de verdad.
+   * Solo aplica coerción básica de tipos (number → string para campos de texto).
    */
   private validateAndTransformBatch(articulos: IArticuloPayload[]): {
     data: IArticuloPayload[];
@@ -312,48 +316,38 @@ export class ArticulosClient {
 
     for (let i = 0; i < articulos.length; i++) {
       const articulo = articulos[i];
-      const validation = articuloPayloadSchema.safeParse(articulo);
-
-      if (!validation.success) {
+      if (!articulo || typeof articulo !== 'object') {
         errors.push({
           index: i,
-          identifier: articulo?.sku ?? `ARTICULO_${i}`,
-          error: 'Validación fallida: ' + validation.error.message,
+          identifier: `ARTICULO_${i}`,
+          error: 'Artículo inválido: no es un objeto',
           code: 'VALIDATION_ERROR',
         });
-      } else {
-        // Usar los datos transformados (con conversiones de tipo aplicadas)
-        transformed.push(validation.data);
+        continue;
       }
+
+      // Coerción básica: convertir valores numéricos a string para campos de texto
+      // El gateway validará la estructura completa contra el schema de PostgreSQL
+      const coerced = { ...articulo } as any;
+      for (const [key, value] of Object.entries(coerced)) {
+        if (typeof value === 'number' && !['precio', 'costo', 'unidades'].includes(key)) {
+          // Campos no-numéricos que vienen como number se convierten a string
+          coerced[key] = String(value);
+        }
+      }
+
+      transformed.push(coerced);
     }
 
     return { data: transformed, errors };
   }
 
   /**
-   * Prueba la conexión enviando un artículo de prueba
+   * Prueba la conexión verificando autenticación con el gateway
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
-      const testArticulo: IArticuloPayload = {
-        sku: 'TEST-001',
-        erp_codigo: 'TEST-001',
-        erp_nombre: 'Articulo de prueba',
-        nombre: 'Artículo de prueba',
-        objeto: 'producto',
-      };
-
-      // Solo validar, no enviar realmente
-      const validation = articuloPayloadSchema.safeParse(testArticulo);
-
-      if (!validation.success) {
-        return {
-          success: false,
-          message: 'Validación fallida: ' + validation.error.message,
-        };
-      }
-
-      // Verificar que tenemos token
+      // Verificar que tenemos token válido
       await this.authManager.getToken();
 
       return {

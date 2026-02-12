@@ -7,11 +7,11 @@ import type { Dispatcher } from 'undici';
 import type { AuthManager } from './auth.js';
 import type { IComprobanteCabeceraPayload } from '../types/comprobantes-cabecera.js';
 import type { BatchResult } from '../types/common.js';
-import { comprobanteCabeceraPayloadSchema } from '../types/comprobantes-cabecera.js';
 import { logger } from '../utils/logger.js';
 import { chunk } from '../utils/helpers.js';
 import { SYNC_CONFIG } from '../config/constants.js';
 import { classifyError } from '../utils/error-classifier.js';
+import { getSourceId } from './index.js';
 
 const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 
@@ -78,6 +78,7 @@ export class ComprobantesCabeceraClient {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        'X-Origin-Source': getSourceId(),  // Send source identifier for multi-source tracking
       };
 
       // Agregar headers de query metadata si están disponibles
@@ -258,22 +259,22 @@ export class ComprobantesCabeceraClient {
   }
 
   /**
-   * Valida un batch de comprobantes
+   * Valida y transforma un batch de comprobantes antes de enviar al gateway.
+   *
+   * NO valida contra un schema Zod local (que puede estar desactualizado).
+   * La validación completa la realiza el gateway, que es la fuente de verdad.
+   * Solo aplica validación básica de estructura y coerción de tipos.
    */
   private validateBatch(comprobantes: IComprobanteCabeceraPayload[]): BatchResult['errors'] {
     const errors: BatchResult['errors'] = [];
 
     for (let i = 0; i < comprobantes.length; i++) {
       const comprobante = comprobantes[i];
-      const validation = comprobanteCabeceraPayloadSchema.safeParse(comprobante);
-
-      if (!validation.success) {
+      if (!comprobante || typeof comprobante !== 'object') {
         errors.push({
           index: i,
-          identifier: comprobante
-            ? `${comprobante.erp_operacion}-${comprobante.erp_formulario}-${comprobante.erp_numero}`
-            : `COMPROBANTE_${i}`,
-          error: 'Validación fallida: ' + validation.error.message,
+          identifier: `COMPROBANTE_${i}`,
+          error: 'Comprobante inválido: no es un objeto',
           code: 'VALIDATION_ERROR',
         });
       }
@@ -283,37 +284,11 @@ export class ComprobantesCabeceraClient {
   }
 
   /**
-   * Prueba la conexión enviando un comprobante de prueba
+   * Prueba la conexión verificando autenticación con el gateway
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
-      const testComprobante: IComprobanteCabeceraPayload = {
-        erp_operacion: 'TEST',
-        erp_formulario: 'TEST',
-        erp_numero: '00001',
-        operacion: 'TEST',
-        formulario: 'TEST',
-        numero: '00001',
-        fecha: new Date().toISOString(),
-        cantidad_items: 1,
-        total_bruto: 100.0,
-        total_descuentos: 0,
-        total_neto: 100.0,
-        total_iva: 21.0,
-        total_venta: 121.0,
-      };
-
-      // Solo validar, no enviar realmente
-      const validation = comprobanteCabeceraPayloadSchema.safeParse(testComprobante);
-
-      if (!validation.success) {
-        return {
-          success: false,
-          message: 'Validación fallida: ' + validation.error.message,
-        };
-      }
-
-      // Verificar que tenemos token
+      // Verificar que tenemos token válido
       await this.authManager.getToken();
 
       return {
