@@ -3,6 +3,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { logger } from '../lib/logger.js'
 import { metrics } from '../lib/metrics.js'
+import { authenticate } from '../middleware/auth.js'
 
 const LoginSchema = z.object({
   username: z.string().min(1, 'Username es requerido'),
@@ -147,6 +148,61 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         username: body.username
       }
     })
+  })
+
+  // Auth diagnostics endpoint - returns token metadata and config status
+  app.get('/api/auth/diagnostics', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const token = request.headers.authorization?.replace('Bearer ', '')
+
+      if (!token) {
+        return reply.status(400).send({
+          success: false,
+          error: 'TOKEN_MISSING',
+          message: 'No token found in request'
+        })
+      }
+
+      // Decode token to extract metadata (token is already verified by authenticate middleware)
+      const decoded = app.jwt.decode(token, { complete: true }) as {
+        header: { alg: string };
+        payload: { iat?: number; exp?: number; username?: string };
+      } | null
+
+      if (!decoded) {
+        return reply.status(400).send({
+          success: false,
+          error: 'TOKEN_INVALID',
+          message: 'Could not decode token'
+        })
+      }
+
+      const now = Math.floor(Date.now() / 1000)
+
+      return reply.send({
+        success: true,
+        token: {
+          isValid: true,
+          issuedAt: decoded.payload.iat ? new Date(decoded.payload.iat * 1000).toISOString() : null,
+          expiresAt: decoded.payload.exp ? new Date(decoded.payload.exp * 1000).toISOString() : null,
+          expiresInSeconds: decoded.payload.exp ? decoded.payload.exp - now : null,
+          username: decoded.payload.username || null,
+          algorithm: decoded.header.alg
+        },
+        config: {
+          tokenTTL: process.env.JWT_EXPIRES_IN || '1h',
+          jwtSecretConfigured: !!process.env.JWT_SECRET && process.env.JWT_SECRET !== 'change-this-secret-in-production-debe-ser-el-mismo-que-en-objetiva-sync',
+          syncPasswordConfigured: process.env.SYNC_PASSWORD_HASH !== undefined && process.env.SYNC_PASSWORD_HASH !== 'change-this-hash-in-setup'
+        }
+      })
+    } catch (err) {
+      logger.error({ err }, 'Error in diagnostics endpoint')
+      return reply.status(500).send({
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to retrieve diagnostics'
+      })
+    }
   })
 
   // Token refresh endpoint - allows clients to get new token before current expires
