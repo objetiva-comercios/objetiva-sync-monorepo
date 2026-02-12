@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 ## Current Position
 
 Phase: 15 of 17 (Auth Simplification)
-Plan: 01 of 04
+Plan: 03 of 04
 Status: In progress
-Last activity: 2026-02-12 — Completed 15-01-PLAN.md
+Last activity: 2026-02-12 — Completed 15-03-PLAN.md
 
 Progress: [████████░░░░░░░░░░░░░] Phase 3/5 in progress (v1.1-rc2)
 
@@ -39,6 +39,7 @@ See: .planning/MILESTONES.md for full details
 | ORIGIN-03 | Conflict detection is best-effort (doesn't block ingestion) | 14-03 | Observability without impacting sync performance |
 | AUTH-01 | Parse JWT_EXPIRES_IN to seconds for expiresIn response field | 15-01 | Clients know exact token lifetime for proactive refresh |
 | AUTH-02 | Map FST_JWT_* codes to TOKEN_EXPIRED/INVALID/MISSING | 15-01 | Descriptive error codes for troubleshooting |
+| AUTH-03 | Refresh-first token strategy with login fallback | 15-03 | Long-running syncs can renew tokens without full re-login |
 
 ## Pending Human Verification
 
@@ -62,17 +63,18 @@ From Phase 14 (Origin Tracking):
 From Phase 15 (Auth Simplification):
 12. Test token refresh: login, wait, call /auth/refresh, verify new token works
 13. Verify error codes: missing header returns TOKEN_MISSING, expired token returns TOKEN_EXPIRED
+14. Verify AuthManager refresh works: start sync, observe "[AuthManager] Token refreshed successfully" in logs
 
 ## Blockers & Concerns
 
-None currently. Phase 15 plans 02-04 can proceed.
+None currently. Phase 15 plan 04 can proceed.
 
 ## Session Continuity
 
-Last session: 2026-02-12 — Completed Phase 15 Plan 01
-Stopped at: Plan 15-01 complete (token refresh endpoint, auth error codes)
-Resume file: .planning/phases/15-auth-simplification/15-01-SUMMARY.md
-Next action: `/gsd:execute-phase 15-02` for Client Token Management
+Last session: 2026-02-12 — Completed Phase 15 Plan 03
+Stopped at: Plan 15-03 complete (AuthManager refresh method, token status for dashboard)
+Resume file: .planning/phases/15-auth-simplification/15-03-SUMMARY.md
+Next action: `/gsd:execute-phase 15-04` for Auth Error Handling in Sync Engine
 
 ---
-*Last updated: 2026-02-12 after completing Phase 15 Plan 01 (Auth Simplification)*
+*Last updated: 2026-02-12 after completing Phase 15 Plan 03 (Auth Simplification)*
