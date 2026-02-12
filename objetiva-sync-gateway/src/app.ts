@@ -24,6 +24,22 @@ export async function buildApp() {
     disableRequestLogging: process.env.NODE_ENV === 'production'
   })
 
+  // Correlation ID tracking - MUST be registered FIRST
+  // Enables end-to-end request tracing via X-Correlation-ID header
+  await app.register(rTracer.fastifyPlugin, {
+    useHeader: true,
+    headerName: 'X-Correlation-ID',
+    echoHeader: true
+  })
+
+  // Create child logger with correlationId for each request
+  app.addHook('onRequest', async (request) => {
+    const correlationId = getCorrelationId()
+    if (correlationId) {
+      request.log = request.log.child({ correlationId })
+    }
+  })
+
   // CORS
   await app.register(cors as any, {
     origin: true,
