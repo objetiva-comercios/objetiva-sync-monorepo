@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 
 ## Current Position
 
-Phase: 14 of 17 (Multi-Source Origin Tracking) — COMPLETE
-Plan: 03 of 03
-Status: Phase verified, ready for next phase
-Last activity: 2026-02-12 — Phase 14 execution complete
+Phase: 15 of 17 (Auth Simplification)
+Plan: 01 of 04
+Status: In progress
+Last activity: 2026-02-12 — Completed 15-01-PLAN.md
 
-Progress: [████████░░░░░░░░░░░░░] Phase 2/5 complete (v1.1-rc2)
+Progress: [████████░░░░░░░░░░░░░] Phase 3/5 in progress (v1.1-rc2)
 
 ## Completed Milestones
 
@@ -37,6 +37,8 @@ See: .planning/MILESTONES.md for full details
 | ORIGIN-01 | Origin columns nullable for backwards compatibility | 14-01 | Existing records without origin tracking remain valid |
 | ORIGIN-02 | Hostname-based source ID with default suffix | 14-02 | Stable identifier without external dependencies |
 | ORIGIN-03 | Conflict detection is best-effort (doesn't block ingestion) | 14-03 | Observability without impacting sync performance |
+| AUTH-01 | Parse JWT_EXPIRES_IN to seconds for expiresIn response field | 15-01 | Clients know exact token lifetime for proactive refresh |
+| AUTH-02 | Map FST_JWT_* codes to TOKEN_EXPIRED/INVALID/MISSING | 15-01 | Descriptive error codes for troubleshooting |
 
 ## Pending Human Verification
 
@@ -57,16 +59,20 @@ From Phase 14 (Origin Tracking):
 10. Verify conflict logging when same record modified within 5-minute window
 11. Run origin tracking integration tests with gateway: `npm test -- origin-tracking.integration.test.ts`
 
+From Phase 15 (Auth Simplification):
+12. Test token refresh: login, wait, call /auth/refresh, verify new token works
+13. Verify error codes: missing header returns TOKEN_MISSING, expired token returns TOKEN_EXPIRED
+
 ## Blockers & Concerns
 
-None currently. Phase 3 (Auth Simplification) can proceed.
+None currently. Phase 15 plans 02-04 can proceed.
 
 ## Session Continuity
 
-Last session: 2026-02-12 — Phase 14 Origin Tracking complete
-Stopped at: Phase 14 complete (3 plans: 14-01, 14-02, 14-03)
-Resume file: .planning/phases/14-multi-source-origin-tracking/
-Next action: `/gsd:plan-phase 15` for Auth Simplification
+Last session: 2026-02-12 — Completed Phase 15 Plan 01
+Stopped at: Plan 15-01 complete (token refresh endpoint, auth error codes)
+Resume file: .planning/phases/15-auth-simplification/15-01-SUMMARY.md
+Next action: `/gsd:execute-phase 15-02` for Client Token Management
 
 ---
-*Last updated: 2026-02-12 after completing Phase 14 Multi-Source Origin Tracking*
+*Last updated: 2026-02-12 after completing Phase 15 Plan 01 (Auth Simplification)*
