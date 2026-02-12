@@ -163,7 +163,18 @@ export class PostgreSQLAdapter extends AbstractAdapter {
         }
       }
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      // Normalize error message to handle encoding issues from PostgreSQL
+      // PostgreSQL may return errors in system locale encoding (e.g., Windows-1252)
+      let errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Replace common encoding corruption patterns (UTF-8 interpreted as Latin-1)
+      // These patterns appear when UTF-8 Spanish characters are misinterpreted
+      errorMessage = errorMessage
+        .replace(/autentificaci\uFFFDn/gi, 'autenticación')
+        .replace(/contrase\uFFFDa/gi, 'contraseña')
+        .replace(/conexi\uFFFDn/gi, 'conexión')
+        .replace(/\uFFFD/g, ''); // Remove remaining replacement characters
+
       return {
         success: false,
         message: `Error de conexión: ${errorMessage}`,

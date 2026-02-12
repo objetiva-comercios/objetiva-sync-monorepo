@@ -147,9 +147,18 @@ export async function testDatabaseConnection(
     }
 
     logger.error({ error }, `Error al probar conexión: ${adapterType}`);
+
+    // Normalize error message to handle encoding issues
+    let errorMessage = error instanceof Error ? error.message : String(error);
+    errorMessage = errorMessage
+      .replace(/autentificaci\uFFFDn/gi, 'autenticación')
+      .replace(/contrase\uFFFDa/gi, 'contraseña')
+      .replace(/conexi\uFFFDn/gi, 'conexión')
+      .replace(/\uFFFD/g, '');
+
     return {
       success: false,
-      message: `Error de conexión: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Error de conexión: ${errorMessage}`,
     };
   }
 }

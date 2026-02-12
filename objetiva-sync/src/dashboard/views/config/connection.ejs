@@ -732,7 +732,8 @@
             document.getElementById('conn-host').value = conn.config.server || conn.config.host || '';
             document.getElementById('conn-port').value = conn.config.port || '';
             document.getElementById('conn-database').value = conn.config.database || '';
-            document.getElementById('conn-username').value = conn.config.username || '';
+            // Support both 'user' (PostgreSQL) and 'username' (SQL Server) field names
+            document.getElementById('conn-username').value = conn.config.user || conn.config.username || '';
             document.getElementById('conn-timeout').value = conn.config.connectionTimeout || 10000;
 
             if (conn.adapterType === 'sqlserver') {
@@ -752,11 +753,9 @@
               // Toggle UI based on Windows Auth
               toggleWindowsAuth();
             }
-          } else if (conn.adapterType === 'excel') {
 
             if (conn.adapterType === 'postgres') {
-              // Map host back to server field for UI consistency (already done above)
-              // Load SSL options
+              // Load SSL options for PostgreSQL
               const sslEnabled = conn.config.ssl?.enabled || false;
               document.getElementById('conn-ssl-enabled').checked = sslEnabled;
               if (sslEnabled) {
@@ -765,6 +764,7 @@
               }
               toggleSslOptions();
             }
+          } else if (conn.adapterType === 'excel') {
             document.getElementById('conn-path').value = conn.config.path || '';
           }
         }
