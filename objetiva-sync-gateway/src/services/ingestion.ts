@@ -9,6 +9,9 @@ import {
 import { logger } from '../lib/logger.js'
 import type { BatchMetadata, IngestionLogEntry } from '../types/logging.js'
 
+// Conflict detection window (configurable via environment)
+const CONFLICT_WINDOW_MS = parseInt(process.env.CONFLICT_WINDOW_MINUTES ?? '5', 10) * 60 * 1000
+
 interface IngestionResult {
   inserted: number
   updated: number
@@ -31,6 +34,46 @@ function nullToUndefined<T extends Record<string, any>>(obj: T): any {
     result[key] = value === null ? undefined : value
   }
   return result
+}
+
+/**
+ * Check for source conflicts before upsert (MSS-10).
+ * Logs warning if another source modified the same record within CONFLICT_WINDOW_MS.
+ * This is best-effort and should not block ingestion.
+ */
+async function checkSourceConflict(
+  entityType: string,
+  entityKey: string,
+  currentSource: string | undefined,
+  findExisting: () => Promise<{ origin_source: string | null; origin_synced_at: Date | null } | null>
+): Promise<void> {
+  if (!currentSource) return  // Skip if no source tracking
+
+  try {
+    const existing = await findExisting()
+
+    if (
+      existing?.origin_source &&
+      existing.origin_source !== currentSource &&
+      existing.origin_synced_at
+    ) {
+      const timeSinceLastWrite = Date.now() - existing.origin_synced_at.getTime()
+
+      if (timeSinceLastWrite < CONFLICT_WINDOW_MS) {
+        logger.warn({
+          entityType,
+          entityKey,
+          previousSource: existing.origin_source,
+          currentSource,
+          timeBetweenWritesMs: timeSinceLastWrite,
+          conflictWindowMs: CONFLICT_WINDOW_MS,
+        }, 'Source conflict: multiple sources modified same record within overlap window')
+      }
+    }
+  } catch (error) {
+    // Conflict detection is best-effort; don't fail ingestion
+    logger.debug({ error, entityType, entityKey }, 'Conflict detection check failed')
+  }
 }
 
 export class IngestionService {
@@ -195,6 +238,22 @@ export class IngestionService {
             })
           }
         }
+      }
+    }
+
+    // Check for source conflicts before update (best-effort)
+    if (metadata?.originSource && toUpdate.length > 0) {
+      const samplesToCheck = toUpdate.slice(0, 10)
+      for (const { compositeKey } of samplesToCheck) {
+        await checkSourceConflict(
+          'articulo',
+          `${compositeKey.erp_codigo}|${compositeKey.erp_nombre}`,
+          metadata.originSource,
+          () => prisma.articulo.findUnique({
+            where: { erp_codigo_erp_nombre: compositeKey },
+            select: { origin_source: true, origin_synced_at: true },
+          })
+        )
       }
     }
 
@@ -401,6 +460,22 @@ export class IngestionService {
             })
           }
         }
+      }
+    }
+
+    // Check for source conflicts before update (best-effort)
+    if (metadata?.originSource && toUpdate.length > 0) {
+      const samplesToCheck = toUpdate.slice(0, 10)
+      for (const { compositeKey } of samplesToCheck) {
+        await checkSourceConflict(
+          'comprobante_cabecera',
+          `${compositeKey.operacion}|${compositeKey.formulario}|${compositeKey.numero}`,
+          metadata.originSource,
+          () => prisma.comprobanteCabecera.findUnique({
+            where: { operacion_formulario_numero: compositeKey },
+            select: { origin_source: true, origin_synced_at: true },
+          })
+        )
       }
     }
 
@@ -620,6 +695,22 @@ export class IngestionService {
             })
           }
         }
+      }
+    }
+
+    // Check for source conflicts before update (best-effort)
+    if (metadata?.originSource && toUpdate.length > 0) {
+      const samplesToCheck = toUpdate.slice(0, 10)
+      for (const { compositeKey } of samplesToCheck) {
+        await checkSourceConflict(
+          'comprobante_detalle',
+          `${compositeKey.comprobante_operacion}|${compositeKey.comprobante_formulario}|${compositeKey.comprobante_numero}|L${compositeKey.linea_numero}`,
+          metadata.originSource,
+          () => prisma.comprobanteDetalle.findUnique({
+            where: { comprobante_operacion_comprobante_formulario_comprobante_numero_linea_numero: compositeKey },
+            select: { origin_source: true, origin_synced_at: true },
+          })
+        )
       }
     }
 
@@ -850,6 +941,22 @@ export class IngestionService {
             })
           }
         }
+      }
+    }
+
+    // Check for source conflicts before update (best-effort)
+    if (metadata?.originSource && toUpdate.length > 0) {
+      const samplesToCheck = toUpdate.slice(0, 10)
+      for (const { compositeKey } of samplesToCheck) {
+        await checkSourceConflict(
+          'comprobante_pago',
+          `${compositeKey.comprobante_operacion}|${compositeKey.comprobante_formulario}|${compositeKey.comprobante_numero}|L${compositeKey.linea_numero}`,
+          metadata.originSource,
+          () => prisma.comprobantePagos.findUnique({
+            where: { comprobante_operacion_comprobante_formulario_comprobante_numero_linea_numero: compositeKey },
+            select: { origin_source: true, origin_synced_at: true },
+          })
+        )
       }
     }
 
