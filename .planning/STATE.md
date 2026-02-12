@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 
 ## Current Position
 
-Phase: 15 of 17 (Auth Simplification)
-Plan: 03 of 04 (01, 02, 03 complete)
-Status: In progress
-Last activity: 2026-02-12 — Completed 15-02-PLAN.md (out-of-order)
+Phase: 15 of 17 (Auth Simplification) - COMPLETE
+Plan: 04 of 04 (all complete)
+Status: Phase complete
+Last activity: 2026-02-12 — Completed 15-04-PLAN.md (Auth Integration Tests)
 
-Progress: [████████░░░░░░░░░░░░░] Phase 3/5 in progress (v1.1-rc2)
+Progress: [████████████░░░░░░░░░] Phase 15 complete (v1.1-rc2)
 
 ## Completed Milestones
 
@@ -42,6 +42,7 @@ See: .planning/MILESTONES.md for full details
 | AUTH-03 | Refresh-first token strategy with login fallback | 15-03 | Long-running syncs can renew tokens without full re-login |
 | AUTH-04 | Diagnostics exposes config status as booleans only | 15-02 | Security: never expose actual JWT_SECRET or password hash values |
 | AUTH-05 | Password change requires current password verification | 15-02 | Security: bcrypt.compare before allowing update |
+| TEST-02 | Use app.inject() for in-process auth integration tests | 15-04 | Fast tests without requiring running server |
 
 ## Pending Human Verification
 
@@ -71,14 +72,14 @@ From Phase 15 (Auth Simplification):
 
 ## Blockers & Concerns
 
-None currently. Phase 15 plan 04 can proceed.
+None currently. Phase 15 complete. Ready for Phase 16.
 
 ## Session Continuity
 
-Last session: 2026-02-12 — Completed Phase 15 Plan 02
-Stopped at: Plan 15-02 complete (diagnostics endpoint, password change endpoint)
-Resume file: .planning/phases/15-auth-simplification/15-02-SUMMARY.md
-Next action: `/gsd:execute-phase 15-04` for Auth Error Handling in Sync Engine
+Last session: 2026-02-12 — Completed Phase 15 Plan 04 (Auth Integration Tests)
+Stopped at: Phase 15 complete (all 4 plans done)
+Resume file: .planning/phases/15-auth-simplification/15-04-SUMMARY.md
+Next action: `/gsd:execute-phase` Phase 16 (Dashboard Polish)
 
 ---
-*Last updated: 2026-02-12 after completing Phase 15 Plan 02 (Auth Simplification)*
+*Last updated: 2026-02-12 after completing Phase 15 Plan 04 (Auth Integration Tests)*
