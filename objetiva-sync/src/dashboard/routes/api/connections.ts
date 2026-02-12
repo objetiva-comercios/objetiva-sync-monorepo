@@ -435,17 +435,23 @@ export async function registerConnectionsApiRoutes(app: FastifyInstance) {
           });
         }
 
-        logger.info(`Probando configuración de tipo: ${body.adapterType}`);
+        logger.info(`Probando configuración de tipo: ${body.adapterType}, connectionId: ${body.connectionId}`);
 
         // If connectionId provided and password is empty, use stored password
         // This handles the case where user edits a connection but doesn't re-enter password
         let configToTest = { ...body.config };
-        if (body.connectionId && !configToTest.password) {
+        const hasPassword = configToTest.password && String(configToTest.password).length > 0;
+        logger.info(`Config has password: ${hasPassword}, connectionId: ${body.connectionId}`);
+
+        if (body.connectionId && !hasPassword) {
           try {
             const storedConfig = await getConnectionConfig(body.connectionId);
+            logger.info(`Stored config keys: ${Object.keys(storedConfig || {}).join(', ')}`);
             if (storedConfig?.password) {
               configToTest.password = storedConfig.password;
-              logger.debug('Using stored password for connection test');
+              logger.info('Using stored password for connection test');
+            } else {
+              logger.warn('No password found in stored config');
             }
           } catch (err) {
             logger.warn({ err }, 'Could not retrieve stored config for password fallback');
@@ -510,6 +516,7 @@ export async function registerConnectionsApiRoutes(app: FastifyInstance) {
         }
 
         const config = await getConnectionConfig(id);
+        logger.info(`[Test by ID] Config keys: ${Object.keys(config).join(', ')}, has password: ${!!config.password}`);
 
         // Test the connection
         const testResult = await testDatabaseConnection(connection.adapterType, config);
