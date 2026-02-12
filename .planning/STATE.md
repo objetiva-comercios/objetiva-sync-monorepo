@@ -79,7 +79,7 @@ None currently. Phase 15 complete. Ready for Phase 16.
 Last session: 2026-02-12 — Completed Phase 15 Plan 04 (Auth Integration Tests)
 Stopped at: Phase 15 complete (all 4 plans done)
 Resume file: .planning/phases/15-auth-simplification/15-04-SUMMARY.md
-Next action: `/gsd:execute-phase` Phase 16 (Dashboard Polish)
+Next action: `/gsd:plan-phase 16` for Observability
 
 ---
 *Last updated: 2026-02-12 after completing Phase 15 Plan 04 (Auth Integration Tests)*
