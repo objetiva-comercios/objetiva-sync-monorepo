@@ -17,8 +17,8 @@ const testConfig = {
   password: process.env.POSTGRES_TEST_PASSWORD || 'postgres',
 };
 
-// Skip all tests if no PostgreSQL available
-const hasPostgres = process.env.POSTGRES_TEST_HOST || process.env.CI !== 'true';
+// Skip all tests if no PostgreSQL available (only run when explicitly configured)
+const hasPostgres = Boolean(process.env.POSTGRES_TEST_HOST);
 
 describe.skipIf(!hasPostgres)('PostgreSQLAdapter Integration', () => {
   let adapter: PostgreSQLAdapter;
