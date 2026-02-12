@@ -1,9 +1,10 @@
 ---
-status: diagnosed
+status: complete
 phase: 13-postgresql-adapter
 source: 13-01-SUMMARY.md, 13-02-SUMMARY.md
 started: 2026-02-12T16:00:00Z
-updated: 2026-02-12T16:45:00Z
+updated: 2026-02-12T17:00:00Z
+fixes_verified: true
 ---
 
 ## Current Test
@@ -14,9 +15,8 @@ updated: 2026-02-12T16:45:00Z
 
 ### 1. PostgreSQL Adapter Factory
 expected: Factory can create 'postgres' adapter. Both 'postgres' and 'sqlserver' available in registry.
-result: issue
-reported: "La conexion creada a postgres funciona en la ventana modal de Nueva conexion/Editar Conexión, pero cuando la pruebo mediante el icono de probar conexion en la ventana principal de Configuración de Conexión me da error: host undefined, user undefined"
-severity: major
+result: pass (after fix)
+note: "Fixed server→host mapping in database-adapter.ts"
 
 ### 2. Dashboard PostgreSQL Option
 expected: Dashboard connection config shows PostgreSQL in adapter dropdown. Selecting it shows postgres-specific fields (host, port 5432 default, database, user, password).
@@ -44,40 +44,35 @@ result: pass
 
 ### 8. Integration Tests Skip Gracefully
 expected: Run `npm test -- postgresql-adapter.integration.test.ts` without env vars. Tests skip with message about missing PostgreSQL config (not fail).
-result: issue
-reported: "Tests de connection no skipean - fallan con 'can test connection without connecting' y 'can connect and disconnect'. Solo queries/introspection skipean."
-severity: minor
+result: pass (after fix)
+note: "Fixed hasPostgres condition to Boolean(process.env.POSTGRES_TEST_HOST)"
 
 ## Summary
 
 total: 8
-passed: 6
-issues: 2
+passed: 8
+issues: 0
 pending: 0
 skipped: 0
+fixes_applied: 2
+fixes_verified: 2
 
 ## Gaps
 
 - truth: "Test connection icon in main list works for PostgreSQL connections"
-  status: failed
+  status: resolved
   reason: "User reported: funciona en modal pero icono de prueba en lista principal da error host/user undefined"
   severity: major
   test: 1
   root_cause: "testDatabaseConnection() in database-adapter.ts passes config directly to adapter.connect() without mapping server→host for postgres. The modal maps this client-side but API endpoint doesn't."
-  artifacts:
-    - path: "objetiva-sync/src/adapters/database-adapter.ts"
-      issue: "Line 65: adapter.connect(config) needs server→host mapping for postgres"
-  missing:
-    - "Add config field mapping for postgres before adapter.connect()"
+  fix_commit: "548ca21"
+  verified: true
 
 - truth: "Integration tests skip gracefully when PostgreSQL unavailable"
-  status: failed
+  status: resolved
   reason: "User reported: connection tests fail instead of skip - 'can test connection' and 'can connect and disconnect' fail"
   severity: minor
   test: 8
   root_cause: "Wrong boolean logic: hasPostgres = POSTGRES_TEST_HOST || CI !== 'true' evaluates true when neither is set because undefined !== 'true' is true"
-  artifacts:
-    - path: "objetiva-sync/tests/integration/postgresql-adapter.integration.test.ts"
-      issue: "Line 21: hasPostgres condition logic is inverted"
-  missing:
-    - "Change to: hasPostgres = Boolean(process.env.POSTGRES_TEST_HOST)"
+  fix_commit: "548ca21"
+  verified: true
