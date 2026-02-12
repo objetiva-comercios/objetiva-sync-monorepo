@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 
 ## Current Position
 
-Phase: 15 of 17 (Auth Simplification) - COMPLETE
-Plan: 04 of 04 (all complete)
-Status: Phase complete
-Last activity: 2026-02-12 — Completed 15-04-PLAN.md (Auth Integration Tests)
+Phase: 16 of 17 (Observability)
+Plan: 04 of 04 complete
+Status: In progress
+Last activity: 2026-02-12 — Completed 16-04-PLAN.md (Health Check Endpoints)
 
-Progress: [████████████░░░░░░░░░] Phase 15 complete (v1.1-rc2)
+Progress: [█████████████░░░░░░░░] Phase 16 in progress
 
 ## Completed Milestones
 
@@ -42,6 +42,8 @@ See: .planning/MILESTONES.md for full details
 | AUTH-03 | Refresh-first token strategy with login fallback | 15-03 | Long-running syncs can renew tokens without full re-login |
 | AUTH-04 | Diagnostics exposes config status as booleans only | 15-02 | Security: never expose actual JWT_SECRET or password hash values |
 | AUTH-05 | Password change requires current password verification | 15-02 | Security: bcrypt.compare before allowing update |
+| HEALTH-01 | Gateway critical, scheduler optional in sync health | 16-04 | Gateway connectivity required, scheduler state informational |
+| HEALTH-02 | 3-second timeout on all health probes | 16-04 | Kubernetes expects 5s max, 3s probe + 2s margin |
 | TEST-02 | Use app.inject() for in-process auth integration tests | 15-04 | Fast tests without requiring running server |
 
 ## Pending Human Verification
@@ -76,10 +78,10 @@ None currently. Phase 15 complete. Ready for Phase 16.
 
 ## Session Continuity
 
-Last session: 2026-02-12 — Completed Phase 15 Plan 04 (Auth Integration Tests)
-Stopped at: Phase 15 complete (all 4 plans done)
-Resume file: .planning/phases/15-auth-simplification/15-04-SUMMARY.md
-Next action: `/gsd:plan-phase 16` for Observability
+Last session: 2026-02-12 — Completed Phase 16 Plan 04 (Health Check Endpoints)
+Stopped at: Phase 16 Plan 04 complete
+Resume file: .planning/phases/16-observability/16-04-SUMMARY.md
+Next action: Continue Phase 16 or `/gsd:verify-phase 16`
 
 ---
-*Last updated: 2026-02-12 after completing Phase 15 Plan 04 (Auth Integration Tests)*
+*Last updated: 2026-02-12 after completing Phase 16 Plan 04 (Health Check Endpoints)*
