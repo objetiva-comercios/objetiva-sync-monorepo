@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
+import fs from 'fs/promises'
+import path from 'path'
 import { logger } from '../lib/logger.js'
 import { metrics } from '../lib/metrics.js'
 import { authenticate } from '../middleware/auth.js'
@@ -8,6 +10,11 @@ import { authenticate } from '../middleware/auth.js'
 const LoginSchema = z.object({
   username: z.string().min(1, 'Username es requerido'),
   password: z.string().min(1, 'Password es requerido')
+})
+
+const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters')
 })
 
 /**
@@ -201,6 +208,94 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         success: false,
         error: 'INTERNAL_ERROR',
         message: 'Failed to retrieve diagnostics'
+      })
+    }
+  })
+
+  // Password change endpoint - requires authentication and current password verification
+  app.post('/api/auth/change-password', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      // Validate request body
+      const parseResult = ChangePasswordSchema.safeParse(request.body)
+      if (!parseResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: parseResult.error.errors.map(e => e.message).join(', ')
+        })
+      }
+
+      const { currentPassword, newPassword } = parseResult.data
+
+      // Check if system is configured
+      const SYNC_PASSWORD_HASH = process.env.SYNC_PASSWORD_HASH
+      if (!SYNC_PASSWORD_HASH || SYNC_PASSWORD_HASH === 'change-this-hash-in-setup') {
+        logger.warn('Password change attempted but system not configured')
+        return reply.status(503).send({
+          success: false,
+          error: 'SYSTEM_NOT_CONFIGURED',
+          message: 'Auth system not configured - run /setup first'
+        })
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, SYNC_PASSWORD_HASH)
+      if (!isCurrentPasswordValid) {
+        logger.warn({ username: request.user?.username }, 'Password change failed: invalid current password')
+        return reply.status(401).send({
+          success: false,
+          error: 'PASSWORD_INVALID',
+          message: 'Current password is incorrect'
+        })
+      }
+
+      // Hash new password
+      const newPasswordHash = await bcrypt.hash(newPassword, 10)
+
+      // Update .env file
+      const envPath = path.join(process.cwd(), '.env')
+      let envContent: string
+      try {
+        envContent = await fs.readFile(envPath, 'utf-8')
+      } catch (err) {
+        logger.error({ err }, 'Failed to read .env file')
+        return reply.status(500).send({
+          success: false,
+          error: 'ENV_READ_ERROR',
+          message: 'Failed to read configuration file'
+        })
+      }
+
+      // Replace SYNC_PASSWORD_HASH line
+      if (envContent.includes('SYNC_PASSWORD_HASH=')) {
+        envContent = envContent.replace(/SYNC_PASSWORD_HASH=.*/g, `SYNC_PASSWORD_HASH=${newPasswordHash}`)
+      } else {
+        envContent += `\nSYNC_PASSWORD_HASH=${newPasswordHash}\n`
+      }
+
+      try {
+        await fs.writeFile(envPath, envContent, 'utf-8')
+      } catch (err) {
+        logger.error({ err }, 'Failed to write .env file')
+        return reply.status(500).send({
+          success: false,
+          error: 'ENV_WRITE_ERROR',
+          message: 'Failed to update configuration file'
+        })
+      }
+
+      logger.info({ username: request.user?.username }, 'Password changed successfully')
+
+      return reply.send({
+        success: true,
+        message: 'Password changed successfully. Server restart required for changes to take effect.'
+      })
+    } catch (err) {
+      logger.error({ err }, 'Error in change-password endpoint')
+      return reply.status(500).send({
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to change password'
       })
     }
   })
