@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 
 ## Current Position
 
-Phase: 16 of 17 (Observability)
-Plan: 05 of 05 complete
-Status: Phase 16 VERIFIED ✓
-Last activity: 2026-02-13 — Completed 16-05-PLAN.md (Correlation ID Propagation Gap Closure)
+Phase: 17 of 17 (Dashboard Modernization)
+Plan: 01 of 06 complete
+Status: In progress
+Last activity: 2026-02-13 — Completed 17-01-PLAN.md (Initialize Shared Dashboard Package)
 
-Progress: [████████████████████░] Phase 16 verified, Phase 17 pending
+Progress: [█████████████████████░░░░░] Plan 17-01 complete, 17-02 through 17-06 pending
 
 ## Completed Milestones
 
@@ -50,6 +50,8 @@ See: .planning/MILESTONES.md for full details
 | SYNC-METRICS-01 | Exponential buckets 0.1s-102.4s for sync duration | 16-03 | Covers small batches to large syncs |
 | SYNC-METRICS-02 | Labels limited to 3 per metric | 16-03 | Prevents cardinality explosion in Prometheus |
 | TEST-02 | Use app.inject() for in-process auth integration tests | 15-04 | Fast tests without requiring running server |
+| VITE-01 | Use Vite 5.x for build compatibility | 17-01 | Consistent build behavior with vitest versions |
+| REACT-PEER-01 | React as peerDependency in dashboard package | 17-01 | Prevents duplicate React instances across workspace |
 
 ## Pending Human Verification
 
@@ -85,14 +87,14 @@ From Phase 16 (Observability):
 
 ## Blockers & Concerns
 
-None currently. Phase 16 verified. Phase 17 (Dashboard Modernization) pending.
+None currently. Phase 17 Plan 01 complete. Plans 02-06 pending.
 
 ## Session Continuity
 
-Last session: 2026-02-13 — Completed Phase 16 Plan 05 (Correlation ID Propagation Gap Closure)
-Stopped at: Phase 16 verified
-Resume file: .planning/phases/16-observability/16-05-SUMMARY.md
-Next action: Plan or discuss Phase 17 dashboard modernization
+Last session: 2026-02-13 — Completed Phase 17 Plan 01 (Initialize Shared Dashboard Package)
+Stopped at: Plan 17-01 complete
+Resume file: .planning/phases/17-dashboard-modernization/17-01-SUMMARY.md
+Next action: Execute Plan 17-02 (Layout Components)
 
 ---
-*Last updated: 2026-02-13 after completing and verifying Phase 16 (Observability)*
+*Last updated: 2026-02-13 after completing Plan 17-01 (Initialize Shared Dashboard Package)*
