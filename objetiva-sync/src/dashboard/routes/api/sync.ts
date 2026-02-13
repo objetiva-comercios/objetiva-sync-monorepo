@@ -10,6 +10,7 @@ import { getActiveConnectionConfig } from '../../../store/repositories/connectio
 import { getConfig } from '../../../store/repositories/config-repo.js';
 import { decrypt } from '../../../utils/crypto.js';
 import { createAdapter } from '../../../adapters/index.js';
+import { normalizeAdapterConfig } from '../../../adapters/database-adapter.js';
 import { APIClient } from '../../../api-client/index.js';
 import { SyncEngine } from '../../../sync/index.js';
 import type { SyncOptions } from '../../../sync/index.js';
@@ -22,6 +23,7 @@ import { notifyGatewayCancellation } from '../../../services/gateway-client.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as SyncStateRepo from '../../../store/repositories/sync-state-repo.js';
 import * as SyncLogsRepo from '../../../store/repositories/sync-logs-repo.js';
+import { generateCorrelationId, runWithCorrelationId } from '../../../lib/correlation.js';
 
 /**
  * Registra las rutas de API de sincronización
@@ -205,8 +207,12 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
     '/api/sync/execute',
     { preHandler: requireNoPasswordChange },
     async (request, reply) => {
-      try {
-        const { entities, fullSync } = request.body;
+      // Generate correlation ID for this manual sync
+      const correlationId = generateCorrelationId();
+
+      return runWithCorrelationId(correlationId, async () => {
+        try {
+          const { entities, fullSync } = request.body;
 
         if (!entities || entities.length === 0) {
           return reply.status(400).send({
@@ -242,10 +248,11 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
 
         // Crear adaptador de base de datos
         const adapter = createAdapter(activeConnection.adapterType);
+        const adapterConfig = normalizeAdapterConfig(activeConnection.adapterType, activeConnection.config);
 
         try {
           // Conectar al adaptador (pasarle la configuración)
-          await adapter.connect(activeConnection.config);
+          await adapter.connect(adapterConfig);
           logger.info('Adaptador de base de datos conectado para sincronización manual');
 
           // Crear cliente de API
@@ -338,13 +345,14 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
           await adapter.disconnect();
           logger.info('Adaptador de base de datos desconectado');
         }
-      } catch (error) {
-        logger.error({ error }, 'Error al ejecutar sincronización');
-        return reply.status(500).send({
-          success: false,
-          error: error instanceof Error ? error.message : 'Error al ejecutar sincronización',
-        });
-      }
+        } catch (error) {
+          logger.error({ error }, 'Error al ejecutar sincronización');
+          return reply.status(500).send({
+            success: false,
+            error: error instanceof Error ? error.message : 'Error al ejecutar sincronización',
+          });
+        }
+      });
     }
   );
 
@@ -497,6 +505,9 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
       // Generar ID único para este sync
       const syncId = uuidv4();
 
+      // Generate correlation ID for this manual sync
+      const correlationId = generateCorrelationId();
+
       logger.info({ syncId, entities, fullSync, batchSize }, 'Iniciando sincronización con SSE');
 
       // Configurar headers para SSE
@@ -556,7 +567,8 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
 
         // Crear adaptador y cliente
         const adapter = createAdapter(activeConnection.adapterType);
-        await adapter.connect(activeConnection.config);
+        const syncAdapterConfig = normalizeAdapterConfig(activeConnection.adapterType, activeConnection.config);
+        await adapter.connect(syncAdapterConfig);
 
         const password = decrypt(apiPassword.value);
         const apiClient = new APIClient({
@@ -622,9 +634,12 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
             if (!query) continue;
 
             try {
-              logger.info({ queryId: query.id, queryName: query.name }, 'Ejecutando sincronización de query');
+              logger.info({ queryId: query.id, queryName: query.name, correlationId }, 'Ejecutando sincronización de query');
 
-              const result = await syncEngine.syncQuery(query.id, syncOptions, syncId);
+              // Wrap sync call in correlation context for request tracing
+              const result = await runWithCorrelationId(correlationId, async () => {
+                return syncEngine.syncQuery(query.id, syncOptions, syncId);
+              });
 
               results.push({
                 ...result,
@@ -633,11 +648,11 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
               });
 
               logger.info(
-                { queryId: query.id, queryName: query.name, recordsSent: result.recordsSent },
+                { queryId: query.id, queryName: query.name, recordsSent: result.recordsSent, correlationId },
                 'Query sincronizada exitosamente'
               );
             } catch (error) {
-              logger.error({ error, queryId: query.id, queryName: query.name }, 'Error en sincronización de query');
+              logger.error({ error, queryId: query.id, queryName: query.name, correlationId }, 'Error en sincronización de query');
               results.push({
                 queryId: query.id,
                 queryName: query.name,
@@ -663,27 +678,36 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
             try {
               let result;
 
+              // Wrap each sync call in correlation context for request tracing
               switch (entityType) {
                 case 'articulo':
-                  result = await syncEngine.syncArticulos(syncOptions);
+                  result = await runWithCorrelationId(correlationId, async () => {
+                    return syncEngine.syncArticulos(syncOptions);
+                  });
                   break;
                 case 'comprobante_cabecera':
-                  result = await syncEngine.syncComprobantesCabecera(syncOptions);
+                  result = await runWithCorrelationId(correlationId, async () => {
+                    return syncEngine.syncComprobantesCabecera(syncOptions);
+                  });
                   break;
                 case 'comprobante_detalle':
-                  result = await syncEngine.syncComprobantesDetalle(syncOptions);
+                  result = await runWithCorrelationId(correlationId, async () => {
+                    return syncEngine.syncComprobantesDetalle(syncOptions);
+                  });
                   break;
                 case 'comprobante_pago':
-                  result = await syncEngine.syncComprobantesPago(syncOptions);
+                  result = await runWithCorrelationId(correlationId, async () => {
+                    return syncEngine.syncComprobantesPago(syncOptions);
+                  });
                   break;
                 default:
-                  logger.warn({ entityType }, 'Tipo de entidad desconocido');
+                  logger.warn({ entityType, correlationId }, 'Tipo de entidad desconocido');
                   continue;
               }
 
               results.push(result);
             } catch (error) {
-              logger.error({ error, entityType }, 'Error en sincronización de entidad');
+              logger.error({ error, entityType, correlationId }, 'Error en sincronización de entidad');
               results.push({
                 entityType,
                 status: 'failed' as const,
