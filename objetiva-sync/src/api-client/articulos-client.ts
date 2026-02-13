@@ -12,6 +12,7 @@ import { chunk } from '../utils/helpers.js';
 import { SYNC_CONFIG } from '../config/constants.js';
 import { classifyError } from '../utils/error-classifier.js';
 import { getSourceId } from './index.js';
+import { getCorrelationId } from '../lib/correlation.js';
 
 const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 
@@ -83,6 +84,12 @@ export class ArticulosClient {
         Authorization: `Bearer ${token}`,
         'X-Origin-Source': getSourceId(),  // Send source identifier for multi-source tracking
       };
+
+      // Add correlation ID if available (will be set when running within correlation context)
+      const correlationId = getCorrelationId();
+      if (correlationId) {
+        headers['X-Correlation-ID'] = correlationId;
+      }
 
       // Agregar headers de query metadata si están disponibles
       if (metadata) {
