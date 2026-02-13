@@ -38,6 +38,19 @@ export {
   type DataTablePaginationProps,
   type PageSize,
 } from './components/data/data-table-pagination'
+export {
+  RecordsTable,
+  type RecordsTableProps,
+  type SyncRecord,
+} from './components/data/records-table'
+export {
+  OriginBadge,
+  type OriginBadgeProps,
+} from './components/data/origin-badge'
+export {
+  SourceFilter,
+  type SourceFilterProps,
+} from './components/data/source-filter'
 
 // Hooks
 export { useInterval } from './hooks/use-interval'
@@ -138,6 +151,23 @@ export { Input } from './components/ui/input'
 
 // Skeleton
 export { Skeleton } from './components/ui/skeleton'
+
+// Badge
+export { Badge, badgeVariants, type BadgeProps } from './components/ui/badge'
+
+// Select
+export {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectLabel,
+  SelectItem,
+  SelectSeparator,
+  SelectScrollUpButton,
+  SelectScrollDownButton,
+} from './components/ui/select'
 
 // Charts
 export {
