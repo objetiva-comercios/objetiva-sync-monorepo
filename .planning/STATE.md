@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 ## Current Position
 
 Phase: 17 of 17 (Dashboard Modernization)
-Plan: 05 of 06 complete
-Status: In progress
-Last activity: 2026-02-13 — Completed 17-05-PLAN.md (Origin Display Components)
+Plan: 06 of 06 complete
+Status: Phase complete
+Last activity: 2026-02-13 — Completed 17-06-PLAN.md (React Dashboard Integration)
 
-Progress: [████████████████████████░░] Plans 17-01 through 17-05 complete, 17-06 pending
+Progress: [██████████████████████████] Phase 17 complete!
 
 ## Completed Milestones
 
@@ -52,6 +52,8 @@ See: .planning/MILESTONES.md for full details
 | TEST-02 | Use app.inject() for in-process auth integration tests | 15-04 | Fast tests without requiring running server |
 | VITE-01 | Use Vite 5.x for build compatibility | 17-01 | Consistent build behavior with vitest versions |
 | REACT-PEER-01 | React as peerDependency in dashboard package | 17-01 | Prevents duplicate React instances across workspace |
+| SERVE-01 | React dashboard at /dashboard, HTMX at /admin | 17-06 | Clean separation, React as primary |
+| BUILD-01 | Vite builds to dist/dashboard-react with base /dashboard/ | 17-06 | Matches Fastify static serving path |
 
 ## Pending Human Verification
 
@@ -85,16 +87,23 @@ From Phase 16 (Observability):
 19. Trigger sync and verify gateway_sync_operation_duration_seconds appears
 20. Verify gateway_sync_records_total counter increments after sync
 
+From Phase 17 (Dashboard Modernization):
+21. Access React dashboard at http://localhost:3333/dashboard
+22. Verify sidebar navigation works (Overview, Metrics, Records)
+23. Verify charts load data from API
+24. Access HTMX dashboard at http://localhost:3333/admin
+25. Verify HTMX interactions still work
+
 ## Blockers & Concerns
 
-None currently. Phase 17 Plans 01-05 complete. Plan 17-06 pending.
+None. Phase 17 complete!
 
 ## Session Continuity
 
-Last session: 2026-02-13 — Completed Plan 17-05 (Origin Display Components)
-Stopped at: Plan 17-05 complete
-Resume file: .planning/phases/17-dashboard-modernization/17-05-SUMMARY.md
-Next action: Execute Plan 17-06 (Storybook Documentation)
+Last session: 2026-02-13 — Completed Plan 17-06 (React Dashboard Integration)
+Stopped at: Phase 17 complete
+Resume file: .planning/phases/17-dashboard-modernization/17-06-SUMMARY.md
+Next action: All phases complete. Consider v1.1-rc2 release preparation.
 
 ---
-*Last updated: 2026-02-13 after completing Plan 17-05 (Origin Display Components)*
+*Last updated: 2026-02-13 after completing Plan 17-06 (React Dashboard Integration)*
