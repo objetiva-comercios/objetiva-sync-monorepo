@@ -62,9 +62,21 @@ async function registerReactDashboardRoutes(app: FastifyInstance): Promise<void>
     decorateReply: false,
   });
 
+  // Read and cache index.html with injected config
+  const indexHtmlPath = path.join(REACT_DASHBOARD_PATH, 'index.html');
+  const getIndexHtml = () => {
+    const html = fs.readFileSync(indexHtmlPath, 'utf-8');
+    // Inject app config as global variable
+    const configScript = `<script>window.__APP_CONFIG__ = ${JSON.stringify({
+      appName: env?.APP_NAME || 'Objetiva Sync',
+      version: '1.0.0',
+    })};</script>`;
+    return html.replace('</head>', `${configScript}</head>`);
+  };
+
   // SPA routes - serve index.html for all /dashboard paths
   app.get('/dashboard', async (_request, reply) => {
-    return reply.type('text/html').send(fs.readFileSync(path.join(REACT_DASHBOARD_PATH, 'index.html')));
+    return reply.type('text/html').send(getIndexHtml());
   });
 
   app.get('/dashboard/*', async (_request, reply) => {
@@ -77,8 +89,8 @@ async function registerReactDashboardRoutes(app: FastifyInstance): Promise<void>
         return reply.sendFile(url.replace('/dashboard/', ''), REACT_DASHBOARD_PATH);
       }
     }
-    // SPA fallback - serve index.html
-    return reply.type('text/html').send(fs.readFileSync(path.join(REACT_DASHBOARD_PATH, 'index.html')));
+    // SPA fallback - serve index.html with config
+    return reply.type('text/html').send(getIndexHtml());
   });
 
   app.log.info('React dashboard registered at /dashboard');

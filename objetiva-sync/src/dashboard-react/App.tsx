@@ -1,40 +1,58 @@
 import { useState, useEffect } from 'react'
 import { DashboardLayout, type NavSection } from '@objetiva/dashboard'
+import { LayoutDashboard, BarChart3, Database, Settings } from 'lucide-react'
 import OverviewPage from './pages/overview'
 import MetricsPage from './pages/metrics'
 import RecordsPage from './pages/records'
+
+// App config injected by server
+interface AppConfig {
+  appName: string
+  version: string
+}
+
+declare global {
+  interface Window {
+    __APP_CONFIG__?: AppConfig
+  }
+}
+
+const appConfig: AppConfig = window.__APP_CONFIG__ || {
+  appName: 'Objetiva Sync',
+  version: '1.0.0',
+}
 
 /**
  * Navigation sections for the dashboard sidebar
  */
 const navSections: NavSection[] = [
   {
-    title: 'Main',
+    label: 'Main',
     items: [
       {
         title: 'Overview',
         url: '/dashboard',
-        icon: 'LayoutDashboard',
+        icon: LayoutDashboard,
       },
       {
         title: 'Metrics',
         url: '/dashboard/metrics',
-        icon: 'BarChart3',
+        icon: BarChart3,
       },
       {
         title: 'Records',
         url: '/dashboard/records',
-        icon: 'Database',
+        icon: Database,
       },
     ],
   },
   {
-    title: 'Admin',
+    label: 'Admin',
     items: [
       {
         title: 'Legacy Dashboard',
         url: '/admin',
-        icon: 'Settings',
+        icon: Settings,
       },
     ],
   },
@@ -91,8 +109,8 @@ function App() {
 
   return (
     <DashboardLayout
-      title="Objetiva Sync"
-      version="1.0.0"
+      title={appConfig.appName}
+      version={appConfig.version}
       sections={navSections}
       activeUrl={path}
       onNavigate={handleNavigate}
