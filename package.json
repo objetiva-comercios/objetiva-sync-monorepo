@@ -1,0 +1,12 @@
+{
+  "name": "objetiva-sync-monorepo-tooling",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MCP servers and development tooling for monorepo",
+  "workspaces": [
+    "shared",
+    "shared/dashboard",
+    "objetiva-sync",
+    "objetiva-sync-gateway"
+  ]
+}
