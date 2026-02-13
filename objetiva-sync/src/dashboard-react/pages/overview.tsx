@@ -16,44 +16,44 @@ export default function OverviewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Panel</h1>
         <p className="text-muted-foreground">
-          Synchronization overview and recent activity
+          Vista general de sincronización y actividad reciente
         </p>
       </div>
 
-      {/* Quick stats row */}
+      {/* Fila de estadísticas rápidas */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Syncs</CardTitle>
+            <CardTitle className="text-sm font-medium">Sincronizaciones Activas</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">
-              Currently running
+              En ejecución
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Scheduled Queries</CardTitle>
+            <CardTitle className="text-sm font-medium">Consultas Programadas</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">-</div>
             <p className="text-xs text-muted-foreground">
-              Auto-sync enabled
+              Auto-sincronización habilitada
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Retry Queue</CardTitle>
+            <CardTitle className="text-sm font-medium">Cola de Reintentos</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">-</div>
             <p className="text-xs text-muted-foreground">
-              Pending retries
+              Reintentos pendientes
             </p>
           </CardContent>
         </Card>

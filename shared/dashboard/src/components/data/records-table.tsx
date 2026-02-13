@@ -162,7 +162,7 @@ export function RecordsTable({
           <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Loading...</div>
+          <div className="text-muted-foreground">Cargando...</div>
         </CardContent>
       </Card>
     )

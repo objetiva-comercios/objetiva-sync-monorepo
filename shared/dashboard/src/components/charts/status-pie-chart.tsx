@@ -337,7 +337,7 @@ export function StatusPieChart({
             className="flex items-center justify-center text-muted-foreground"
             style={{ height }}
           >
-            No data available
+            Sin datos disponibles
           </div>
         </CardContent>
       </Card>

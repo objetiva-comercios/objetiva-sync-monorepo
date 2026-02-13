@@ -27,30 +27,30 @@ const appConfig: AppConfig = window.__APP_CONFIG__ || {
  */
 const navSections: NavSection[] = [
   {
-    label: 'Main',
+    label: 'Principal',
     items: [
       {
-        title: 'Overview',
+        title: 'Vista General',
         url: '/dashboard',
         icon: LayoutDashboard,
       },
       {
-        title: 'Metrics',
+        title: 'Métricas',
         url: '/dashboard/metrics',
         icon: BarChart3,
       },
       {
-        title: 'Records',
+        title: 'Registros',
         url: '/dashboard/records',
         icon: Database,
       },
     ],
   },
   {
-    label: 'Admin',
+    label: 'Administración',
     items: [
       {
-        title: 'Legacy Dashboard',
+        title: 'Panel Legado',
         url: '/admin',
         icon: Settings,
       },

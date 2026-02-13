@@ -149,7 +149,7 @@ export function DataTable<TData, TValue>({
   manualPagination = false,
   isLoading = false,
   loadingRowCount = 5,
-  emptyMessage = 'No results.',
+  emptyMessage = 'Sin resultados.',
   getRowId,
 }: DataTableProps<TData, TValue>) {
   // Internal state for uncontrolled mode

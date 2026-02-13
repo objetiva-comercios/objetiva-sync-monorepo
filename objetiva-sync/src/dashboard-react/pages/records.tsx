@@ -39,14 +39,14 @@ const columns: ColumnDef<SyncRecord, unknown>[] = [
   },
   {
     accessorKey: 'query_name',
-    header: 'Query',
+    header: 'Consulta',
     cell: ({ getValue }) => (
       <span className="font-medium">{getValue() as string}</span>
     ),
   },
   {
     accessorKey: 'status',
-    header: 'Status',
+    header: 'Estado',
     cell: ({ getValue }) => {
       const status = getValue() as string
       const colors: Record<string, string> = {
@@ -54,16 +54,21 @@ const columns: ColumnDef<SyncRecord, unknown>[] = [
         partial: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
         error: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
       }
+      const labels: Record<string, string> = {
+        success: 'éxito',
+        partial: 'parcial',
+        error: 'error',
+      }
       return (
         <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || ''}`}>
-          {status}
+          {labels[status] || status}
         </span>
       )
     },
   },
   {
     accessorKey: 'records_processed',
-    header: 'Processed',
+    header: 'Procesados',
     cell: ({ getValue }) => (
       <span className="text-green-600 dark:text-green-400">
         {(getValue() as number).toLocaleString()}
@@ -72,7 +77,7 @@ const columns: ColumnDef<SyncRecord, unknown>[] = [
   },
   {
     accessorKey: 'records_failed',
-    header: 'Failed',
+    header: 'Fallidos',
     cell: ({ getValue }) => {
       const value = getValue() as number
       return value > 0 ? (
@@ -86,7 +91,7 @@ const columns: ColumnDef<SyncRecord, unknown>[] = [
   },
   {
     accessorKey: 'source_id',
-    header: 'Source',
+    header: 'Origen',
     cell: ({ getValue }) => {
       const source = getValue() as string | undefined
       if (!source) return <span className="text-muted-foreground">-</span>
@@ -99,7 +104,7 @@ const columns: ColumnDef<SyncRecord, unknown>[] = [
   },
   {
     accessorKey: 'started_at',
-    header: 'Started',
+    header: 'Iniciado',
     cell: ({ getValue }) => {
       const date = new Date(getValue() as string)
       return (
@@ -188,17 +193,17 @@ export default function RecordsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Sync Records</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Registros de Sincronización</h1>
         <p className="text-muted-foreground">
-          View synchronized records with origin tracking
+          Ver registros sincronizados con seguimiento de origen
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Syncs</CardTitle>
+          <CardTitle>Sincronizaciones Recientes</CardTitle>
           <CardDescription>
-            Synchronization operations with source and timestamp information
+            Operaciones de sincronización con información de origen y marca de tiempo
           </CardDescription>
           {error && (
             <span className="text-sm text-destructive">
@@ -218,7 +223,7 @@ export default function RecordsPage() {
             onPaginationChange={setPagination}
             pageCount={pageCount}
             manualPagination={true}
-            emptyMessage="No sync records found"
+            emptyMessage="No se encontraron registros de sincronización"
           />
         </CardContent>
       </Card>
