@@ -54,21 +54,31 @@ async function registerReactDashboardRoutes(app: FastifyInstance): Promise<void>
     return;
   }
 
-  // Serve static files from React dashboard build
-  // Using decorateReply: false to avoid conflicts with other static plugins
+  // Serve static assets from React dashboard build at /dashboard-assets/
+  // This avoids conflict with SPA routes
   await app.register(import('@fastify/static'), {
-    root: REACT_DASHBOARD_PATH,
-    prefix: '/dashboard/',
+    root: path.join(REACT_DASHBOARD_PATH, 'assets'),
+    prefix: '/dashboard/assets/',
     decorateReply: false,
   });
 
-  // SPA fallback - serve index.html for all /dashboard/* routes
+  // SPA routes - serve index.html for all /dashboard paths
   app.get('/dashboard', async (_request, reply) => {
-    return reply.sendFile('index.html', REACT_DASHBOARD_PATH);
+    return reply.type('text/html').send(fs.readFileSync(path.join(REACT_DASHBOARD_PATH, 'index.html')));
   });
 
   app.get('/dashboard/*', async (_request, reply) => {
-    return reply.sendFile('index.html', REACT_DASHBOARD_PATH);
+    // Check if requesting an actual file (has extension)
+    const url = (_request as any).url as string;
+    if (url.includes('.')) {
+      // Try to serve the file directly
+      const filePath = path.join(REACT_DASHBOARD_PATH, url.replace('/dashboard', ''));
+      if (fs.existsSync(filePath)) {
+        return reply.sendFile(url.replace('/dashboard/', ''), REACT_DASHBOARD_PATH);
+      }
+    }
+    // SPA fallback - serve index.html
+    return reply.type('text/html').send(fs.readFileSync(path.join(REACT_DASHBOARD_PATH, 'index.html')));
   });
 
   app.log.info('React dashboard registered at /dashboard');
