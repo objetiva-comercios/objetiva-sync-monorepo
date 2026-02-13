@@ -10,5 +10,5 @@ import './index.css'
 // Core utilities
 export { cn } from './lib/utils'
 
-// Re-export components as they're added
-// export { Button } from './components/ui/button'
+// UI components
+export { Button, buttonVariants, type ButtonProps } from './components/ui/button'
