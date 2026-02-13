@@ -138,3 +138,15 @@ export { Input } from './components/ui/input'
 
 // Skeleton
 export { Skeleton } from './components/ui/skeleton'
+
+// Charts
+export {
+  SyncMetricsChart,
+  type SyncMetricsChartProps,
+  type MetricDataPoint,
+} from './components/charts/sync-metrics-chart'
+export {
+  StatusPieChart,
+  type StatusPieChartProps,
+  type StatusDataPoint,
+} from './components/charts/status-pie-chart'
