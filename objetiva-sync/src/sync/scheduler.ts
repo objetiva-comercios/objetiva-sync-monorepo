@@ -11,6 +11,7 @@ import { deleteOldLogs } from '../store/repositories/sync-logs-repo.js';
 import { LOG_CONFIG } from '../config/constants.js';
 import { getScheduledQueries } from '../store/repositories/queries-repo.js';
 import { getSyncQueue } from './sync-queue-instance.js';
+import { generateCorrelationId, runWithCorrelationId } from '../lib/correlation.js';
 
 /**
  * Configuración de un job programado (query-based)
@@ -262,85 +263,91 @@ export class Scheduler {
    * Ejecuta un job (usando SyncQueue para jobs de queries)
    */
   private async executeJob(job: ScheduledJob): Promise<void> {
-    const startTime = Date.now();
+    // Generate correlation ID for this scheduled job
+    const correlationId = generateCorrelationId();
 
-    try {
-      const logInfo = job.queryName
-        ? { jobId: job.id, queryId: job.queryId, queryName: job.queryName }
-        : { jobId: job.id, entityType: job.entityType };
+    // Run entire job within correlation context
+    await runWithCorrelationId(correlationId, async () => {
+      const startTime = Date.now();
 
-      logger.info(logInfo, `[Scheduler] Ejecutando job: ${job.id}...`);
+      try {
+        const logInfo = job.queryName
+          ? { jobId: job.id, queryId: job.queryId, queryName: job.queryName, correlationId }
+          : { jobId: job.id, entityType: job.entityType, correlationId };
 
-      job.lastRun = new Date();
+        logger.info(logInfo, `[Scheduler] Ejecutando job: ${job.id}...`);
 
-      // NUEVO: Si es un job de query, usar SyncQueue
-      if (job.queryId) {
-        const syncQueue = getSyncQueue();
-        await syncQueue.enqueue(job.queryId, job.syncOptions ?? {});
+        job.lastRun = new Date();
 
-        logger.info(
-          { jobId: job.id, queryId: job.queryId, queryName: job.queryName },
-          `[Scheduler] Query encolada para sincronización`
-        );
-      }
-      // Jobs de sistema (no basados en queries)
-      else if (job.entityType === 'all') {
-        await this.syncEngine.syncAll(job.syncOptions ?? {});
-      } else if (job.entityType === 'retries') {
-        await this.syncEngine.processRetries();
-      } else if (job.entityType === 'cleanup') {
-        // Limpieza de logs antiguos
-        const deletedCount = await deleteOldLogs(LOG_CONFIG.RETENTION_DAYS);
-        logger.info(
-          { deletedCount, retentionDays: LOG_CONFIG.RETENTION_DAYS },
-          `[Scheduler] Limpieza de logs completada: ${deletedCount} logs eliminados`
-        );
-      }
-      // DEPRECADO: Jobs de entidad legacy (mantener para compatibilidad)
-      else {
-        logger.warn(
-          { jobId: job.id, entityType: job.entityType },
-          `[Scheduler] ⚠️ Usando método legacy de sincronización por entidad. Considera migrar a query-based.`
-        );
+        // NUEVO: Si es un job de query, usar SyncQueue
+        if (job.queryId) {
+          const syncQueue = getSyncQueue();
+          await syncQueue.enqueue(job.queryId, job.syncOptions ?? {});
 
-        switch (job.entityType) {
-          case EntityType.ARTICULO:
-            await this.syncEngine.syncArticulos(job.syncOptions ?? {});
-            break;
-
-          case EntityType.COMPROBANTE_CABECERA:
-            await this.syncEngine.syncComprobantesCabecera(job.syncOptions ?? {});
-            break;
-
-          case EntityType.COMPROBANTE_DETALLE:
-            await this.syncEngine.syncComprobantesDetalle(job.syncOptions ?? {});
-            break;
-
-          case EntityType.COMPROBANTE_PAGO:
-            await this.syncEngine.syncComprobantesPago(job.syncOptions ?? {});
-            break;
-
-          default:
-            logger.warn(
-              `[Scheduler] Tipo de entidad no soportado: ${String(job.entityType)}`
-            );
+          logger.info(
+            { jobId: job.id, queryId: job.queryId, queryName: job.queryName, correlationId },
+            `[Scheduler] Query encolada para sincronización`
+          );
         }
+        // Jobs de sistema (no basados en queries)
+        else if (job.entityType === 'all') {
+          await this.syncEngine.syncAll(job.syncOptions ?? {});
+        } else if (job.entityType === 'retries') {
+          await this.syncEngine.processRetries();
+        } else if (job.entityType === 'cleanup') {
+          // Limpieza de logs antiguos
+          const deletedCount = await deleteOldLogs(LOG_CONFIG.RETENTION_DAYS);
+          logger.info(
+            { deletedCount, retentionDays: LOG_CONFIG.RETENTION_DAYS, correlationId },
+            `[Scheduler] Limpieza de logs completada: ${deletedCount} logs eliminados`
+          );
+        }
+        // DEPRECADO: Jobs de entidad legacy (mantener para compatibilidad)
+        else {
+          logger.warn(
+            { jobId: job.id, entityType: job.entityType, correlationId },
+            `[Scheduler] ⚠️ Usando método legacy de sincronización por entidad. Considera migrar a query-based.`
+          );
+
+          switch (job.entityType) {
+            case EntityType.ARTICULO:
+              await this.syncEngine.syncArticulos(job.syncOptions ?? {});
+              break;
+
+            case EntityType.COMPROBANTE_CABECERA:
+              await this.syncEngine.syncComprobantesCabecera(job.syncOptions ?? {});
+              break;
+
+            case EntityType.COMPROBANTE_DETALLE:
+              await this.syncEngine.syncComprobantesDetalle(job.syncOptions ?? {});
+              break;
+
+            case EntityType.COMPROBANTE_PAGO:
+              await this.syncEngine.syncComprobantesPago(job.syncOptions ?? {});
+              break;
+
+            default:
+              logger.warn(
+                `[Scheduler] Tipo de entidad no soportado: ${String(job.entityType)}`
+              );
+          }
+        }
+
+        const durationMs = Date.now() - startTime;
+
+        logger.info(
+          { jobId: job.id, durationMs, correlationId },
+          `[Scheduler] ✅ Job completado: ${job.id} (${durationMs}ms)`
+        );
+      } catch (error) {
+        const durationMs = Date.now() - startTime;
+
+        logger.error(
+          { jobId: job.id, error, durationMs, correlationId },
+          `[Scheduler] ❌ Error en job: ${job.id}`
+        );
       }
-
-      const durationMs = Date.now() - startTime;
-
-      logger.info(
-        { jobId: job.id, durationMs },
-        `[Scheduler] ✅ Job completado: ${job.id} (${durationMs}ms)`
-      );
-    } catch (error) {
-      const durationMs = Date.now() - startTime;
-
-      logger.error(
-        { jobId: job.id, error, durationMs },
-        `[Scheduler] ❌ Error en job: ${job.id}`
-      );
-    }
+    });
   }
 
   /**
@@ -366,7 +373,7 @@ export class Scheduler {
           entityType: query.entityType as EntityType,
           intervalSeconds: query.syncInterval ?? 1800,
           enabled: true,
-          syncOptions: { syncType: SyncType.INCREMENTAL },
+          syncOptions: { syncType: SyncType.INCREMENTAL, trigger: 'scheduled' },
         };
 
         this.addJob(job);
