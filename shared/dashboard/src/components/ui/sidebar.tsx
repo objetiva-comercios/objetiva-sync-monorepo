@@ -326,18 +326,24 @@ const SidebarInset = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"main">
 >(({ className, ...props }, ref) => {
-  const { state, isMobile } = useSidebar()
+  const { state, isMobile, open } = useSidebar()
+
+  // Calculate margin based on sidebar state
+  const getMarginLeft = () => {
+    if (isMobile) return undefined
+    // When expanded (open=true), use full width; when collapsed (open=false), use icon width
+    return open ? "var(--sidebar-width)" : "var(--sidebar-width-icon)"
+  }
 
   return (
     <main
       ref={ref}
       className={cn(
-        "relative flex min-w-0 flex-1 flex-col bg-background overflow-x-hidden",
+        "relative flex min-w-0 flex-1 flex-col bg-background overflow-x-hidden transition-[margin-left] duration-200 ease-linear",
         className
       )}
       style={{
-        // Add left margin to account for fixed sidebar on desktop
-        marginLeft: !isMobile ? (state === "expanded" ? "var(--sidebar-width)" : "var(--sidebar-width-icon)") : undefined,
+        marginLeft: getMarginLeft(),
       }}
       {...props}
     />
