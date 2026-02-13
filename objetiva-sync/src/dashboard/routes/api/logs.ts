@@ -4,7 +4,7 @@
  */
 
 import type { FastifyInstance} from 'fastify';
-import { requireNoPasswordChange } from '../../middleware/auth.js';
+import { requireNoPasswordChange, requireAuthApi } from '../../middleware/auth.js';
 import {
   getLogs,
   getRecentStats,
@@ -38,6 +38,90 @@ export async function registerLogsApiRoutes(app: FastifyInstance) {
         return reply.status(500).send({
           success: false,
           error: 'Error al obtener estadísticas',
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/logs - Lista de logs con filtros (JSON para React dashboard)
+   */
+  app.get(
+    '/api/logs',
+    { preHandler: requireAuthApi },
+    async (request, reply) => {
+      try {
+        const query = request.query as {
+          limit?: string;
+          offset?: string;
+          entityType?: string;
+          syncType?: string;
+          status?: string;
+          dateFrom?: string;
+          dateTo?: string;
+        };
+
+        const limit = parseInt(query.limit || '25', 10);
+        const offset = parseInt(query.offset || '0', 10);
+
+        // Build filters
+        const filters: {
+          entityType?: EntityType;
+          syncType?: SyncType;
+          status?: LogStatus;
+          dateFrom?: string;
+          dateTo?: string;
+        } = {};
+
+        if (query.entityType) filters.entityType = query.entityType as EntityType;
+        if (query.syncType) filters.syncType = query.syncType as SyncType;
+        if (query.status) filters.status = query.status as LogStatus;
+        if (query.dateFrom) filters.dateFrom = new Date(query.dateFrom).toISOString();
+        if (query.dateTo) filters.dateTo = new Date(query.dateTo).toISOString();
+
+        const result = await getLogs(filters, { limit, offset });
+
+        // Transform to match React dashboard expected format
+        const logs = result.logs.map(log => {
+          // Try to extract source_id from details JSON
+          let sourceId = null;
+          if (log.details) {
+            try {
+              const details = JSON.parse(log.details);
+              sourceId = details.sourceId || details.source_id || null;
+            } catch {
+              // Ignore parse errors
+            }
+          }
+
+          // Calculate finished_at from createdAt + durationMs
+          let finishedAt = null;
+          if (log.createdAt && log.durationMs) {
+            const startDate = new Date(log.createdAt);
+            finishedAt = new Date(startDate.getTime() + log.durationMs).toISOString();
+          }
+
+          return {
+            id: log.id,
+            query_name: log.queryName || log.entityType,
+            status: log.status,
+            records_processed: log.recordsSent || 0,
+            records_failed: log.recordsFailed || 0,
+            started_at: log.createdAt,
+            finished_at: finishedAt,
+            error_message: log.errorMessage || null,
+            source_id: sourceId,
+          };
+        });
+
+        return reply.send({
+          logs,
+          total: result.total,
+        });
+      } catch (error) {
+        logger.error({ error }, 'Error al obtener logs');
+        return reply.status(500).send({
+          error: 'Error al obtener logs',
         });
       }
     }
