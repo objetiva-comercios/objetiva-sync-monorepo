@@ -26,3 +26,23 @@ export const httpRequestsTotal = new Counter({
   labelNames: ['method', 'route', 'status_code'],
   registers: [register]
 })
+
+// Sync operation duration histogram
+// Buckets: 0.1s to 102.4s covering small batches to large syncs
+// Using exponential buckets: [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8, 25.6, 51.2, 102.4]
+export const syncDuration = new Histogram({
+  name: 'gateway_sync_operation_duration_seconds',
+  help: 'Duration of sync operations in seconds',
+  labelNames: ['entity_type', 'source_id', 'sync_type'],
+  buckets: [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8, 25.6, 51.2, 102.4],
+  registers: [register]
+})
+
+// Sync record counter
+// Tracks records processed per entity type, source, and operation result
+export const syncRecordsTotal = new Counter({
+  name: 'gateway_sync_records_total',
+  help: 'Total number of records processed during sync operations',
+  labelNames: ['entity_type', 'source_id', 'operation'], // operation: inserted, updated, failed
+  registers: [register]
+})
