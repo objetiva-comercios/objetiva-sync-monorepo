@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 ## Current Position
 
 Phase: 16 of 17 (Observability)
-Plan: 02 of 04 complete (also 04 complete out of order)
-Status: In progress
-Last activity: 2026-02-12 — Completed 16-02-PLAN.md (Prometheus Metrics)
+Plan: 04 of 04 complete
+Status: Phase 16 COMPLETE
+Last activity: 2026-02-12 — Completed 16-03-PLAN.md (Sync-Specific Metrics)
 
-Progress: [█████████████░░░░░░░░] Phase 16 in progress
+Progress: [████████████████████░] Phase 16 complete, Phase 17 pending
 
 ## Completed Milestones
 
@@ -47,6 +47,8 @@ See: .planning/MILESTONES.md for full details
 | PROM-01 | Custom Registry to avoid default registry pollution | 16-02 | Isolated metrics, enables testing without conflicts |
 | PROM-02 | gateway_ prefix for all metrics | 16-02 | Namespace clarity in multi-service environments |
 | PROM-03 | Use route patterns not URLs to prevent cardinality explosion | 16-02 | /api/articulos/:id instead of /api/articulos/123 |
+| SYNC-METRICS-01 | Exponential buckets 0.1s-102.4s for sync duration | 16-03 | Covers small batches to large syncs |
+| SYNC-METRICS-02 | Labels limited to 3 per metric | 16-03 | Prevents cardinality explosion in Prometheus |
 | TEST-02 | Use app.inject() for in-process auth integration tests | 15-04 | Fast tests without requiring running server |
 
 ## Pending Human Verification
@@ -60,13 +62,13 @@ From v1.1-rc audit (carried forward):
 From Phase 13 (PostgreSQL Adapter):
 5. Test PostgreSQL connection with real Supabase/RDS/local database
 6. Verify SSL enabled/disabled modes work correctly
-7. Run integration tests with real PostgreSQL: `POSTGRES_TEST_HOST=... npm test -- postgresql-adapter.integration.test.ts`
+7. Run integration tests with real PostgreSQL: POSTGRES_TEST_HOST=... npm test -- postgresql-adapter.integration.test.ts
 8. Validate end-to-end sync workflow with PostgreSQL source
 
 From Phase 14 (Origin Tracking):
 9. Run sync from two different sources, verify origin columns populated
 10. Verify conflict logging when same record modified within 5-minute window
-11. Run origin tracking integration tests with gateway: `npm test -- origin-tracking.integration.test.ts`
+11. Run origin tracking integration tests with gateway: npm test -- origin-tracking.integration.test.ts
 
 From Phase 15 (Auth Simplification):
 12. Test token refresh: login, wait, call /auth/refresh, verify new token works
@@ -76,19 +78,21 @@ From Phase 15 (Auth Simplification):
 16. Test password change: call POST /api/auth/change-password with wrong current password, verify PASSWORD_INVALID error
 
 From Phase 16 (Observability):
-17. Verify /metrics endpoint returns Prometheus format: `curl http://localhost:3335/metrics`
+17. Verify /metrics endpoint returns Prometheus format: curl http://localhost:3335/metrics
 18. Confirm gateway_ prefix on all metrics in output
+19. Trigger sync and verify gateway_sync_operation_duration_seconds appears
+20. Verify gateway_sync_records_total counter increments after sync
 
 ## Blockers & Concerns
 
-None currently. Phase 16 Plan 02 and 04 complete. Plans 01 and 03 pending.
+None currently. Phase 16 complete. Phase 17 (Deployment) pending.
 
 ## Session Continuity
 
-Last session: 2026-02-12 — Completed Phase 16 Plan 02 (Prometheus Metrics)
-Stopped at: Phase 16 Plan 02 complete
-Resume file: .planning/phases/16-observability/16-02-SUMMARY.md
-Next action: Execute Plan 16-01 or 16-03
+Last session: 2026-02-12 — Completed Phase 16 Plan 03 (Sync-Specific Metrics)
+Stopped at: Phase 16 complete
+Resume file: .planning/phases/16-observability/16-03-SUMMARY.md
+Next action: Execute Phase 17 deployment plans
 
 ---
-*Last updated: 2026-02-12 after completing Phase 16 Plan 02 (Prometheus Metrics)*
+*Last updated: 2026-02-12 after completing Phase 16 Plan 03 (Sync-Specific Metrics)*
