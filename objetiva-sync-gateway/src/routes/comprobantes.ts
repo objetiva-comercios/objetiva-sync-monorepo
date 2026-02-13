@@ -22,6 +22,7 @@ import { IngestionService } from '../services/ingestion.js'
 import { logger } from '../lib/logger.js'
 import { metrics } from '../lib/metrics.js'
 import { jobTracker } from '../lib/job-tracker.js'
+import { syncDuration, syncRecordsTotal } from '../lib/prometheus.js'
 
 export async function registerComprobantesRoutes(app: FastifyInstance) {
   /**
@@ -31,8 +32,19 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
     '/api/comprobantes/cabecera/batch',
     { preHandler: authenticate },
     async (request, reply) => {
-      const startTime = Date.now()
       const { comprobantes_cabecera } = ComprobanteCabeceraBatchSchema.parse(request.body)
+
+      // Get origin source for Prometheus metrics (defaults to 'unknown')
+      const sourceId = (request.headers['x-origin-source'] as string) || 'unknown'
+
+      // Start Prometheus timer for sync duration tracking
+      const endSyncTimer = syncDuration.startTimer({
+        entity_type: 'comprobante_cabecera',
+        source_id: sourceId,
+        sync_type: 'batch'
+      })
+
+      const startTime = Date.now()
 
       // Leer headers de metadata
       const syncId = request.headers['x-sync-id'] as string | undefined
@@ -57,85 +69,101 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
         originSource
       } : (originSource ? { originSource } : undefined)
 
-      const result = await IngestionService.ingestComprobantesCabecera(
-        prisma,
-        comprobantes_cabecera,
-        metadata
-      )
+      try {
+        const result = await IngestionService.ingestComprobantesCabecera(
+          prisma,
+          comprobantes_cabecera,
+          metadata
+        )
 
-      const durationMs = Date.now() - startTime
+        const durationMs = Date.now() - startTime
 
-      // Si tenemos metadata de job, usar jobTracker
-      if (syncId && queryId && queryName && batchNumber && totalBatches) {
-        const { job, isLastBatch } = jobTracker.trackBatch({
-          syncId,
-          queryId: parseInt(queryId, 10),
-          queryName,
-          entityType: 'comprobante_cabecera',
-          comercioId: 'system',
-          comercioUsername: request.user.username,
-          batchNumber: parseInt(batchNumber, 10),
-          totalBatches: parseInt(totalBatches, 10),
-          result: {
+        // Record Prometheus metrics for sync records
+        if (result.inserted > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_cabecera', source_id: sourceId, operation: 'inserted' }, result.inserted)
+        }
+        if (result.updated > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_cabecera', source_id: sourceId, operation: 'updated' }, result.updated)
+        }
+        if (result.errors.length > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_cabecera', source_id: sourceId, operation: 'failed' }, result.errors.length)
+        }
+
+        // Si tenemos metadata de job, usar jobTracker
+        if (syncId && queryId && queryName && batchNumber && totalBatches) {
+          const { job, isLastBatch } = jobTracker.trackBatch({
+            syncId,
+            queryId: parseInt(queryId, 10),
+            queryName,
+            entityType: 'comprobante_cabecera',
+            comercioId: 'system',
+            comercioUsername: request.user.username,
+            batchNumber: parseInt(batchNumber, 10),
+            totalBatches: parseInt(totalBatches, 10),
+            result: {
+              totalReceived: comprobantes_cabecera.length,
+              inserted: result.inserted,
+              updated: result.updated,
+              failed: result.errors.length,
+              durationMs
+            }
+          })
+
+          // Registrar en metrics CADA batch para mostrar progreso en tiempo real
+          metrics.recordSync({
+            timestamp: new Date(),
+            entityType: 'comprobante_cabecera',
+            comercioId: job.comercioId,
+            comercioUsername: job.comercioUsername,
+            totalReceived: comprobantes_cabecera.length,
+            inserted: result.inserted,
+            updated: result.updated,
+            failed: result.errors.length,
+            durationMs,
+            queryId: job.queryId,
+            queryName: job.queryName,
+            batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
+            status: isLastBatch ? 'completed' : 'in_progress',
+            syncId,
+            batchNumber: job.receivedBatches,
+            totalBatches: job.totalBatches
+          })
+
+          if (isLastBatch) {
+            logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
+          }
+        } else {
+          // Modo legacy sin metadata
+          metrics.recordSync({
+            timestamp: new Date(),
+            entityType: 'comprobante_cabecera',
+            comercioId: 'system',
+            comercioUsername: request.user.username,
             totalReceived: comprobantes_cabecera.length,
             inserted: result.inserted,
             updated: result.updated,
             failed: result.errors.length,
             durationMs
-          }
-        })
-
-        // Registrar en metrics CADA batch para mostrar progreso en tiempo real
-        metrics.recordSync({
-          timestamp: new Date(),
-          entityType: 'comprobante_cabecera',
-          comercioId: job.comercioId,
-          comercioUsername: job.comercioUsername,
-          totalReceived: comprobantes_cabecera.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length,
-          durationMs,
-          queryId: job.queryId,
-          queryName: job.queryName,
-          batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
-          status: isLastBatch ? 'completed' : 'in_progress',
-          syncId,
-          batchNumber: job.receivedBatches,
-          totalBatches: job.totalBatches
-        })
-
-        if (isLastBatch) {
-          logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
+          })
         }
-      } else {
-        // Modo legacy sin metadata
-        metrics.recordSync({
-          timestamp: new Date(),
-          entityType: 'comprobante_cabecera',
-          comercioId: 'system',
-          comercioUsername: request.user.username,
-          totalReceived: comprobantes_cabecera.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length,
-          durationMs
+
+        const hasErrors = result.errors.length > 0
+
+        return reply.status(hasErrors ? 207 : 200).send({
+          success: result.errors.length === 0,
+          message: `Procesados ${result.inserted + result.updated} comprobantes cabecera`,
+          result: {
+            total_received: comprobantes_cabecera.length,
+            inserted: result.inserted,
+            updated: result.updated,
+            failed: result.errors.length
+          },
+          errors: result.errors.length > 0 ? result.errors : undefined
         })
+      } finally {
+        // Always record sync duration (even on error)
+        endSyncTimer()
       }
-
-      const hasErrors = result.errors.length > 0
-
-      return reply.status(hasErrors ? 207 : 200).send({
-        success: result.errors.length === 0,
-        message: `Procesados ${result.inserted + result.updated} comprobantes cabecera`,
-        result: {
-          total_received: comprobantes_cabecera.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length
-        },
-        errors: result.errors.length > 0 ? result.errors : undefined
-      })
     }
   )
 
@@ -146,8 +174,19 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
     '/api/comprobantes/detalle/batch',
     { preHandler: authenticate },
     async (request, reply) => {
-      const startTime = Date.now()
       const { comprobantes_detalle } = ComprobanteDetalleBatchSchema.parse(request.body)
+
+      // Get origin source for Prometheus metrics (defaults to 'unknown')
+      const sourceId = (request.headers['x-origin-source'] as string) || 'unknown'
+
+      // Start Prometheus timer for sync duration tracking
+      const endSyncTimer = syncDuration.startTimer({
+        entity_type: 'comprobante_detalle',
+        source_id: sourceId,
+        sync_type: 'batch'
+      })
+
+      const startTime = Date.now()
 
       // Leer headers de metadata
       const syncId = request.headers['x-sync-id'] as string | undefined
@@ -172,85 +211,101 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
         originSource
       } : (originSource ? { originSource } : undefined)
 
-      const result = await IngestionService.ingestComprobantesDetalle(
-        prisma,
-        comprobantes_detalle,
-        metadata
-      )
+      try {
+        const result = await IngestionService.ingestComprobantesDetalle(
+          prisma,
+          comprobantes_detalle,
+          metadata
+        )
 
-      const durationMs = Date.now() - startTime
+        const durationMs = Date.now() - startTime
 
-      // Si tenemos metadata de job, usar jobTracker
-      if (syncId && queryId && queryName && batchNumber && totalBatches) {
-        const { job, isLastBatch } = jobTracker.trackBatch({
-          syncId,
-          queryId: parseInt(queryId, 10),
-          queryName,
-          entityType: 'comprobante_detalle',
-          comercioId: 'system',
-          comercioUsername: request.user.username,
-          batchNumber: parseInt(batchNumber, 10),
-          totalBatches: parseInt(totalBatches, 10),
-          result: {
+        // Record Prometheus metrics for sync records
+        if (result.inserted > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_detalle', source_id: sourceId, operation: 'inserted' }, result.inserted)
+        }
+        if (result.updated > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_detalle', source_id: sourceId, operation: 'updated' }, result.updated)
+        }
+        if (result.errors.length > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_detalle', source_id: sourceId, operation: 'failed' }, result.errors.length)
+        }
+
+        // Si tenemos metadata de job, usar jobTracker
+        if (syncId && queryId && queryName && batchNumber && totalBatches) {
+          const { job, isLastBatch } = jobTracker.trackBatch({
+            syncId,
+            queryId: parseInt(queryId, 10),
+            queryName,
+            entityType: 'comprobante_detalle',
+            comercioId: 'system',
+            comercioUsername: request.user.username,
+            batchNumber: parseInt(batchNumber, 10),
+            totalBatches: parseInt(totalBatches, 10),
+            result: {
+              totalReceived: comprobantes_detalle.length,
+              inserted: result.inserted,
+              updated: result.updated,
+              failed: result.errors.length,
+              durationMs
+            }
+          })
+
+          // Registrar en metrics CADA batch para mostrar progreso en tiempo real
+          metrics.recordSync({
+            timestamp: new Date(),
+            entityType: 'comprobante_detalle',
+            comercioId: job.comercioId,
+            comercioUsername: job.comercioUsername,
+            totalReceived: comprobantes_detalle.length,
+            inserted: result.inserted,
+            updated: result.updated,
+            failed: result.errors.length,
+            durationMs,
+            queryId: job.queryId,
+            queryName: job.queryName,
+            batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
+            status: isLastBatch ? 'completed' : 'in_progress',
+            syncId,
+            batchNumber: job.receivedBatches,
+            totalBatches: job.totalBatches
+          })
+
+          if (isLastBatch) {
+            logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
+          }
+        } else {
+          // Modo legacy sin metadata
+          metrics.recordSync({
+            timestamp: new Date(),
+            entityType: 'comprobante_detalle',
+            comercioId: 'system',
+            comercioUsername: request.user.username,
             totalReceived: comprobantes_detalle.length,
             inserted: result.inserted,
             updated: result.updated,
             failed: result.errors.length,
             durationMs
-          }
-        })
-
-        // Registrar en metrics CADA batch para mostrar progreso en tiempo real
-        metrics.recordSync({
-          timestamp: new Date(),
-          entityType: 'comprobante_detalle',
-          comercioId: job.comercioId,
-          comercioUsername: job.comercioUsername,
-          totalReceived: comprobantes_detalle.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length,
-          durationMs,
-          queryId: job.queryId,
-          queryName: job.queryName,
-          batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
-          status: isLastBatch ? 'completed' : 'in_progress',
-          syncId,
-          batchNumber: job.receivedBatches,
-          totalBatches: job.totalBatches
-        })
-
-        if (isLastBatch) {
-          logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
+          })
         }
-      } else {
-        // Modo legacy sin metadata
-        metrics.recordSync({
-          timestamp: new Date(),
-          entityType: 'comprobante_detalle',
-          comercioId: 'system',
-          comercioUsername: request.user.username,
-          totalReceived: comprobantes_detalle.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length,
-          durationMs
+
+        const hasErrors = result.errors.length > 0
+
+        return reply.status(hasErrors ? 207 : 200).send({
+          success: result.errors.length === 0,
+          message: `Procesados ${result.inserted + result.updated} comprobantes detalle`,
+          result: {
+            total_received: comprobantes_detalle.length,
+            inserted: result.inserted,
+            updated: result.updated,
+            failed: result.errors.length
+          },
+          errors: result.errors.length > 0 ? result.errors : undefined
         })
+      } finally {
+        // Always record sync duration (even on error)
+        endSyncTimer()
       }
-
-      const hasErrors = result.errors.length > 0
-
-      return reply.status(hasErrors ? 207 : 200).send({
-        success: result.errors.length === 0,
-        message: `Procesados ${result.inserted + result.updated} comprobantes detalle`,
-        result: {
-          total_received: comprobantes_detalle.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length
-        },
-        errors: result.errors.length > 0 ? result.errors : undefined
-      })
     }
   )
 
@@ -261,8 +316,19 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
     '/api/comprobantes/pagos/batch',
     { preHandler: authenticate },
     async (request, reply) => {
-      const startTime = Date.now()
       const { comprobantes_pagos } = ComprobantePagosBatchSchema.parse(request.body)
+
+      // Get origin source for Prometheus metrics (defaults to 'unknown')
+      const sourceId = (request.headers['x-origin-source'] as string) || 'unknown'
+
+      // Start Prometheus timer for sync duration tracking
+      const endSyncTimer = syncDuration.startTimer({
+        entity_type: 'comprobante_pago',
+        source_id: sourceId,
+        sync_type: 'batch'
+      })
+
+      const startTime = Date.now()
 
       // Leer headers de metadata
       const syncId = request.headers['x-sync-id'] as string | undefined
@@ -287,85 +353,101 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
         originSource
       } : (originSource ? { originSource } : undefined)
 
-      const result = await IngestionService.ingestComprobantesPagos(
-        prisma,
-        comprobantes_pagos,
-        metadata
-      )
+      try {
+        const result = await IngestionService.ingestComprobantesPagos(
+          prisma,
+          comprobantes_pagos,
+          metadata
+        )
 
-      const durationMs = Date.now() - startTime
+        const durationMs = Date.now() - startTime
 
-      // Si tenemos metadata de job, usar jobTracker
-      if (syncId && queryId && queryName && batchNumber && totalBatches) {
-        const { job, isLastBatch } = jobTracker.trackBatch({
-          syncId,
-          queryId: parseInt(queryId, 10),
-          queryName,
-          entityType: 'comprobante_pago',
-          comercioId: 'system',
-          comercioUsername: request.user.username,
-          batchNumber: parseInt(batchNumber, 10),
-          totalBatches: parseInt(totalBatches, 10),
-          result: {
+        // Record Prometheus metrics for sync records
+        if (result.inserted > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_pago', source_id: sourceId, operation: 'inserted' }, result.inserted)
+        }
+        if (result.updated > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_pago', source_id: sourceId, operation: 'updated' }, result.updated)
+        }
+        if (result.errors.length > 0) {
+          syncRecordsTotal.inc({ entity_type: 'comprobante_pago', source_id: sourceId, operation: 'failed' }, result.errors.length)
+        }
+
+        // Si tenemos metadata de job, usar jobTracker
+        if (syncId && queryId && queryName && batchNumber && totalBatches) {
+          const { job, isLastBatch } = jobTracker.trackBatch({
+            syncId,
+            queryId: parseInt(queryId, 10),
+            queryName,
+            entityType: 'comprobante_pago',
+            comercioId: 'system',
+            comercioUsername: request.user.username,
+            batchNumber: parseInt(batchNumber, 10),
+            totalBatches: parseInt(totalBatches, 10),
+            result: {
+              totalReceived: comprobantes_pagos.length,
+              inserted: result.inserted,
+              updated: result.updated,
+              failed: result.errors.length,
+              durationMs
+            }
+          })
+
+          // Registrar en metrics CADA batch para mostrar progreso en tiempo real
+          metrics.recordSync({
+            timestamp: new Date(),
+            entityType: 'comprobante_pago',
+            comercioId: job.comercioId,
+            comercioUsername: job.comercioUsername,
+            totalReceived: comprobantes_pagos.length,
+            inserted: result.inserted,
+            updated: result.updated,
+            failed: result.errors.length,
+            durationMs,
+            queryId: job.queryId,
+            queryName: job.queryName,
+            batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
+            status: isLastBatch ? 'completed' : 'in_progress',
+            syncId,
+            batchNumber: job.receivedBatches,
+            totalBatches: job.totalBatches
+          })
+
+          if (isLastBatch) {
+            logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
+          }
+        } else {
+          // Modo legacy sin metadata
+          metrics.recordSync({
+            timestamp: new Date(),
+            entityType: 'comprobante_pago',
+            comercioId: 'system',
+            comercioUsername: request.user.username,
             totalReceived: comprobantes_pagos.length,
             inserted: result.inserted,
             updated: result.updated,
             failed: result.errors.length,
             durationMs
-          }
-        })
-
-        // Registrar en metrics CADA batch para mostrar progreso en tiempo real
-        metrics.recordSync({
-          timestamp: new Date(),
-          entityType: 'comprobante_pago',
-          comercioId: job.comercioId,
-          comercioUsername: job.comercioUsername,
-          totalReceived: comprobantes_pagos.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length,
-          durationMs,
-          queryId: job.queryId,
-          queryName: job.queryName,
-          batchProgress: `${job.receivedBatches}/${job.totalBatches}`,
-          status: isLastBatch ? 'completed' : 'in_progress',
-          syncId,
-          batchNumber: job.receivedBatches,
-          totalBatches: job.totalBatches
-        })
-
-        if (isLastBatch) {
-          logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
+          })
         }
-      } else {
-        // Modo legacy sin metadata
-        metrics.recordSync({
-          timestamp: new Date(),
-          entityType: 'comprobante_pago',
-          comercioId: 'system',
-          comercioUsername: request.user.username,
-          totalReceived: comprobantes_pagos.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length,
-          durationMs
+
+        const hasErrors = result.errors.length > 0
+
+        return reply.status(hasErrors ? 207 : 200).send({
+          success: result.errors.length === 0,
+          message: `Procesados ${result.inserted + result.updated} comprobantes pagos`,
+          result: {
+            total_received: comprobantes_pagos.length,
+            inserted: result.inserted,
+            updated: result.updated,
+            failed: result.errors.length
+          },
+          errors: result.errors.length > 0 ? result.errors : undefined
         })
+      } finally {
+        // Always record sync duration (even on error)
+        endSyncTimer()
       }
-
-      const hasErrors = result.errors.length > 0
-
-      return reply.status(hasErrors ? 207 : 200).send({
-        success: result.errors.length === 0,
-        message: `Procesados ${result.inserted + result.updated} comprobantes pagos`,
-        result: {
-          total_received: comprobantes_pagos.length,
-          inserted: result.inserted,
-          updated: result.updated,
-          failed: result.errors.length
-        },
-        errors: result.errors.length > 0 ? result.errors : undefined
-      })
     }
   )
 }
