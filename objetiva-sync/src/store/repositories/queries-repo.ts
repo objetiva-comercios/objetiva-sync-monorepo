@@ -41,6 +41,23 @@ export async function getQueriesByEntity(entityType: EntityType): Promise<Query[
 }
 
 /**
+ * Obtiene todas las queries de una conexión específica
+ */
+export async function getQueriesByConnection(connectionId: number): Promise<Query[]> {
+  try {
+    const db = getDatabase();
+    const result = await db
+      .select()
+      .from(queries)
+      .where(eq(queries.connectionId, connectionId));
+    return result;
+  } catch (error) {
+    logger.error(error, `Error al obtener queries de conexión: ${connectionId}`);
+    throw error;
+  }
+}
+
+/**
  * Obtiene la query activa de una entidad
  */
 export async function getActiveQueryByEntity(entityType: EntityType): Promise<Query | null> {
@@ -95,7 +112,10 @@ export async function createQuery(data: {
   incrementalField?: string;
   incrementalType?: 'date' | 'id';
   joinField?: string;
+  connectionId?: number | null;
   isActive?: boolean;
+  isScheduled?: boolean;
+  syncInterval?: number;
 }): Promise<number> {
   try {
     const db = getDatabase();
@@ -107,7 +127,10 @@ export async function createQuery(data: {
       incrementalField: data.incrementalField ?? null,
       incrementalType: data.incrementalType ?? null,
       joinField: data.joinField ?? null,
+      connectionId: data.connectionId ?? null,
       isActive: data.isActive ?? true,
+      isScheduled: data.isScheduled ?? false,
+      syncInterval: data.syncInterval ?? 1800,
     };
 
     const result = await db.insert(queries).values(newQuery).returning();
@@ -117,7 +140,7 @@ export async function createQuery(data: {
       throw new Error('No se pudo obtener el ID de la query creada');
     }
 
-    logger.info(`Query creada: ${data.name} (ID: ${insertedId})`);
+    logger.info(`Query creada: ${data.name} (ID: ${insertedId}, connectionId: ${data.connectionId ?? 'default'})`);
     return insertedId;
   } catch (error) {
     logger.error(error, `Error al crear query: ${data.name}`);
@@ -132,12 +155,15 @@ export async function updateQuery(
   id: number,
   data: {
     name?: string;
-    entityType?: EntityType;  // ← AGREGAR ESTA LÍNEA
+    entityType?: EntityType;
     sqlQuery?: string;
     incrementalField?: string | null;
     incrementalType?: 'date' | 'id' | null;
     joinField?: string | null;
+    connectionId?: number | null;
     isActive?: boolean;
+    isScheduled?: boolean;
+    syncInterval?: number;
   }
 ): Promise<void> {
   try {
@@ -148,12 +174,15 @@ export async function updateQuery(
     };
 
     if (data.name !== undefined) updateData.name = data.name;
-    if (data.entityType !== undefined) updateData.entityType = data.entityType;  // ← AGREGAR ESTA LÍNEA
+    if (data.entityType !== undefined) updateData.entityType = data.entityType;
     if (data.sqlQuery !== undefined) updateData.sqlQuery = data.sqlQuery;
     if (data.incrementalField !== undefined) updateData.incrementalField = data.incrementalField;
     if (data.incrementalType !== undefined) updateData.incrementalType = data.incrementalType;
     if (data.joinField !== undefined) updateData.joinField = data.joinField;
+    if (data.connectionId !== undefined) updateData.connectionId = data.connectionId;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.isScheduled !== undefined) updateData.isScheduled = data.isScheduled;
+    if (data.syncInterval !== undefined) updateData.syncInterval = data.syncInterval;
 
     await db.update(queries).set(updateData).where(eq(queries.id, id));
 

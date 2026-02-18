@@ -54,6 +54,7 @@ export const queries = sqliteTable(
     incrementalField: text('incremental_field'), // Campo para sync incremental
     incrementalType: text('incremental_type'), // 'date' o 'id'
     joinField: text('join_field'), // Campo de asociación (solo detalle/pagos)
+    connectionId: integer('connection_id').references(() => connectionConfig.id, { onDelete: 'set null' }), // Origen de datos específico (null = conexión activa)
     isActive: integer('is_active', { mode: 'boolean' }).default(true),
     displayOrder: integer('display_order').default(0), // Orden para UI y ejecución
     syncInterval: integer('sync_interval').default(1800), // Intervalo en segundos (30 min default)
@@ -69,6 +70,7 @@ export const queries = sqliteTable(
     activeIdx: index('idx_queries_active').on(table.isActive),
     displayOrderIdx: index('idx_queries_display_order').on(table.displayOrder),
     scheduledIdx: index('idx_queries_scheduled').on(table.isScheduled),
+    connectionIdx: index('idx_queries_connection').on(table.connectionId),
   })
 );
 
@@ -80,7 +82,8 @@ export const queries = sqliteTable(
 
 /**
  * Tabla: sync_state
- * Estado de sincronización por query (cambiado de entityType a queryId)
+ * Estado de sincronización por query y source (multi-source tracking)
+ * Changed from unique queryId to composite unique (queryId, sourceId)
  */
 export const syncState = sqliteTable(
   'sync_state',
@@ -88,8 +91,8 @@ export const syncState = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     queryId: integer('query_id')
       .notNull()
-      .unique()
-      .references(() => queries.id, { onDelete: 'cascade' }), // CAMBIO: ahora es por queryId
+      .references(() => queries.id, { onDelete: 'cascade' }),
+    sourceId: text('source_id').notNull().default('default'), // Per-source tracking
     entityType: text('entity_type').notNull(), // Mantener para logs/reporting
     lastSyncValue: text('last_sync_value'), // Último valor sincronizado (fecha ISO o ID)
     lastSyncAt: text('last_sync_at'), // Timestamp de última sync exitosa
@@ -100,7 +103,8 @@ export const syncState = sqliteTable(
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
-    queryIdIdx: uniqueIndex('idx_sync_state_query_id').on(table.queryId),
+    // Composite unique on (queryId, sourceId) for per-source watermarks
+    querySourceIdx: uniqueIndex('idx_sync_state_query_source').on(table.queryId, table.sourceId),
     entityTypeIdx: index('idx_sync_state_entity_type').on(table.entityType),
   })
 );

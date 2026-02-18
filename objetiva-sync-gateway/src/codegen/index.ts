@@ -125,10 +125,12 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
   const prismaContent = generatePrismaSchema(schemas, prismaSchemaPath);
 
   console.log(chalk.cyan('Generating Zod schemas...'));
+  // Output to monorepo root's shared/ folder (go up one level from gateway)
+  const monorepoRoot = resolve(process.cwd(), '..');
   const zodSchemas = schemas.map((schema) => ({
     entity: schema.entity,
     content: generateZodSchema(schema),
-    filePath: resolve(process.cwd(), 'shared/schemas/generated', `${schema.entity}.generated.ts`),
+    filePath: resolve(monorepoRoot, 'shared/schemas/generated', `${schema.entity}.schema.ts`),
   }));
 
   // Step 6: Compute all diffs
@@ -148,7 +150,7 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
       ? readFileSync(zodSchema.filePath, 'utf-8').replace(/\r\n/g, '\n')
       : '';
     const zodDiff = computeDiff(
-      `shared/schemas/generated/${zodSchema.entity}.generated.ts`,
+      `../shared/schemas/generated/${zodSchema.entity}.schema.ts`,
       oldZodContent,
       zodSchema.content.replace(/\r\n/g, '\n')
     );
@@ -216,8 +218,8 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
   console.log(chalk.cyan('\nWriting files...'));
   let filesWritten = 0;
 
-  // Create generated directory if it doesn't exist
-  const generatedDir = resolve(process.cwd(), 'shared/schemas/generated');
+  // Create generated directory in monorepo root's shared/ if it doesn't exist
+  const generatedDir = resolve(monorepoRoot, 'shared/schemas/generated');
   if (!existsSync(generatedDir)) {
     mkdirSync(generatedDir, { recursive: true });
   }

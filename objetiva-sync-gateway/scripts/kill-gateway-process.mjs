@@ -7,10 +7,12 @@
 import { execSync } from 'child_process';
 import { platform } from 'os';
 
+// Both ports must be killed because they share the Prisma DLL in the monorepo
 const GATEWAY_PORT = 3335;
+const SYNC_PORT = 3334;
 
 /**
- * Find PID listening on gateway port (Windows)
+ * Find PID listening on a given port (Windows)
  */
 function findPidByPortWindows(port) {
   try {
@@ -106,7 +108,31 @@ function sleep(ms) {
 }
 
 /**
- * Main function - returns true if gateway was running
+ * Kill process on a specific port with its parent tsx watch if applicable
+ */
+function killPortProcess(port, portName) {
+  const pid = findPidByPortWindows(port);
+
+  if (!pid) {
+    return false;
+  }
+
+  // Check if process is running under tsx watch — kill both to prevent respawn
+  const parentPid = findParentPid(pid);
+
+  if (parentPid) {
+    console.log(`  Stopping tsx watch (PID ${parentPid}) + ${portName} (PID ${pid})...`);
+    killProcessTreeWindows(parentPid, pid);
+  } else {
+    console.log(`  Stopping ${portName} (PID ${pid})...`);
+    killProcessWindows(pid);
+  }
+
+  return true;
+}
+
+/**
+ * Main function - returns true if any service was running
  */
 function main() {
   if (platform() !== 'win32') {
@@ -114,36 +140,37 @@ function main() {
     return false;
   }
 
-  const pid = findPidByPortWindows(GATEWAY_PORT);
+  let killedAny = false;
 
-  if (!pid) {
-    // No process found - safe to continue
-    return false;
+  // Kill objetiva-sync first (port 3334) - it also loads Prisma DLL
+  if (killPortProcess(SYNC_PORT, 'objetiva-sync')) {
+    killedAny = true;
   }
 
-  // Check if gateway is running under tsx watch — kill both to prevent respawn
-  const parentPid = findParentPid(pid);
+  // Kill gateway (port 3335)
+  if (killPortProcess(GATEWAY_PORT, 'gateway')) {
+    killedAny = true;
+  }
 
-  if (parentPid) {
-    console.log(`Stopping tsx watch (PID ${parentPid}) + gateway (PID ${pid})...`);
-    killProcessTreeWindows(parentPid, pid);
-  } else {
-    console.log(`Stopping gateway (PID ${pid})...`);
-    killProcessWindows(pid);
+  if (!killedAny) {
+    // No processes found - safe to continue
+    return false;
   }
 
   // Wait for processes to fully terminate and release file handles
   sleep(2000);
 
-  // Verify port is actually free
-  const stillRunning = findPidByPortWindows(GATEWAY_PORT);
-  if (stillRunning) {
-    console.log(`Port still in use by PID ${stillRunning}, force killing...`);
-    killProcessWindows(stillRunning);
-    sleep(1500);
+  // Verify both ports are actually free
+  for (const [port, name] of [[SYNC_PORT, 'objetiva-sync'], [GATEWAY_PORT, 'gateway']]) {
+    const stillRunning = findPidByPortWindows(port);
+    if (stillRunning) {
+      console.log(`  Port ${port} still in use by PID ${stillRunning}, force killing...`);
+      killProcessWindows(stillRunning);
+      sleep(1000);
+    }
   }
 
-  console.log('✓ Gateway stopped\n');
+  console.log('✓ Services stopped\n');
   return true;
 }
 

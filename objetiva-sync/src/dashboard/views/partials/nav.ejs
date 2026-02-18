@@ -1,0 +1,116 @@
+<div class="navbar bg-base-100 shadow-lg">
+  <div class="navbar-start">
+    <!-- Mobile Menu Toggle -->
+    <div class="dropdown">
+      <div tabindex="0" role="button" class="btn btn-ghost lg:hidden">
+        <i data-lucide="menu" class="h-5 w-5"></i>
+      </div>
+      <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
+        <li>
+          <a href="/dashboard" class="<%= locals.currentPath === '/dashboard' ? 'active' : '' %>">
+            <i data-lucide="home" class="w-4 h-4"></i>
+            Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="/config" class="<%= locals.currentPath && locals.currentPath.startsWith('/config') ? 'active' : '' %>">
+            <i data-lucide="settings" class="w-4 h-4"></i>
+            Configuración
+          </a>
+        </li>
+        <li>
+          <a href="/sync" class="<%= locals.currentPath && locals.currentPath.startsWith('/sync') ? 'active' : '' %>">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            Sincronización
+          </a>
+        </li>
+        <li>
+          <a href="/logs" class="<%= locals.currentPath && locals.currentPath.startsWith('/logs') ? 'active' : '' %>">
+            <i data-lucide="file-text" class="w-4 h-4"></i>
+            Logs
+          </a>
+        </li>
+        <li>
+          <a href="/scheduler" class="<%= locals.currentPath && locals.currentPath.startsWith('/scheduler') ? 'active' : '' %>">
+            <i data-lucide="clock" class="w-4 h-4"></i>
+            Scheduler
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Logo and Brand -->
+    <a href="/dashboard" class="btn btn-ghost text-xl">
+      <div class="bg-primary rounded-lg p-2">
+        <i data-lucide="database" class="w-6 h-6 text-primary-content"></i>
+      </div>
+      <span class="ml-2 font-bold"><%= locals.appName || 'Sync System' %></span>
+    </a>
+  </div>
+
+  <!-- Desktop Menu -->
+  <div class="navbar-center hidden lg:flex">
+    <ul class="menu menu-horizontal px-1">
+      <li>
+        <a href="/dashboard" class="<%= locals.currentPath === '/dashboard' ? 'active' : '' %>">
+          <i data-lucide="home" class="w-4 h-4"></i>
+          Dashboard
+        </a>
+      </li>
+      <li>
+        <a href="/config" class="<%= locals.currentPath && locals.currentPath.startsWith('/config') ? 'active' : '' %>">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+          Configuración
+        </a>
+      </li>
+      <li>
+        <a href="/sync" class="<%= locals.currentPath && locals.currentPath.startsWith('/sync') ? 'active' : '' %>">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          Sincronización
+        </a>
+      </li>
+      <li>
+        <a href="/logs" class="<%= locals.currentPath && locals.currentPath.startsWith('/logs') ? 'active' : '' %>">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          Logs
+        </a>
+      </li>
+      <li>
+        <a href="/scheduler" class="<%= locals.currentPath && locals.currentPath.startsWith('/scheduler') ? 'active' : '' %>">
+          <i data-lucide="clock" class="w-4 h-4"></i>
+          Scheduler
+        </a>
+      </li>
+    </ul>
+  </div>
+
+  <!-- User Menu -->
+  <div class="navbar-end">
+    <div class="dropdown dropdown-end">
+      <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar placeholder">
+        <div class="bg-neutral text-neutral-content rounded-full w-10">
+          <span class="text-xs"><%= locals.user ? locals.user.username.substring(0, 2).toUpperCase() : 'US' %></span>
+        </div>
+      </div>
+      <ul tabindex="0" class="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+        <li class="menu-title">
+          <span><%= locals.user ? locals.user.username : 'Usuario' %></span>
+        </li>
+        <li>
+          <a href="/auth/change-password">
+            <i data-lucide="key" class="w-4 h-4"></i>
+            Cambiar contraseña
+          </a>
+        </li>
+        <li>
+          <form action="/auth/logout" method="POST" class="w-full">
+            <button type="submit" class="w-full flex items-center">
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+              Cerrar sesión
+            </button>
+          </form>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>

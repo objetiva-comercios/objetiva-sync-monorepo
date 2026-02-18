@@ -1,0 +1,411 @@
+<div class="py-6">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Config Tabs -->
+    <%- include('../partials/config-tabs.ejs') %>
+  </div>
+
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Page Header -->
+    <div class="md:flex md:items-center md:justify-between mb-6">
+      <div class="flex-1 min-w-0">
+        <h1 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+          Configuración de API
+        </h1>
+        <p class="mt-1 text-sm text-gray-500">
+          Configurar credenciales y endpoints de la API remota
+        </p>
+      </div>
+    </div>
+
+    <!-- Current Status Card -->
+    <div class="mb-6" id="api-status-container">
+      <!-- Loaded via HTMX -->
+    </div>
+
+    <!-- API Configuration Form -->
+    <div class="bg-white shadow sm:rounded-lg">
+      <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">
+          Configuración de Endpoints y Credenciales
+        </h3>
+
+        <form id="api-config-form" onsubmit="saveApiConfig(event)" class="space-y-6">
+          <!-- Base URL -->
+          <div>
+            <label for="api-url" class="block text-sm font-medium text-gray-700">
+              URL Base de la API
+            </label>
+            <div class="mt-1">
+              <input
+                type="url"
+                id="api-url"
+                name="url"
+                required
+                class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                placeholder="https://api.example.com"
+              >
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              URL base del servidor API donde se enviarán los datos sincronizados
+            </p>
+          </div>
+
+          <!-- Username -->
+          <div>
+            <label for="api-username" class="block text-sm font-medium text-gray-700">
+              Usuario / Client ID
+            </label>
+            <div class="mt-1">
+              <input
+                type="text"
+                id="api-username"
+                name="username"
+                required
+                class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                placeholder="usuario_api"
+              >
+            </div>
+          </div>
+
+          <!-- Password / API Key -->
+          <div>
+            <label for="api-password" class="block text-sm font-medium text-gray-700">
+              Contraseña / API Key
+            </label>
+            <div class="mt-1 relative">
+              <input
+                type="password"
+                id="api-password"
+                name="password"
+                required
+                class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm pr-10"
+                placeholder="••••••••"
+              >
+              <button
+                type="button"
+                onclick="togglePasswordVisibility()"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center"
+              >
+                <i id="password-icon" data-lucide="eye" class="h-5 w-5 text-gray-400"></i>
+              </button>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              La contraseña/API key se almacenará encriptada
+            </p>
+          </div>
+
+          <!-- Connection Timeout -->
+          <div>
+            <label for="api-timeout" class="block text-sm font-medium text-gray-700">
+              Timeout de Conexión (ms)
+            </label>
+            <div class="mt-1">
+              <input
+                type="number"
+                id="api-timeout"
+                name="timeout"
+                value="30000"
+                min="1000"
+                max="300000"
+                class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              >
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              Tiempo máximo de espera para las peticiones HTTP (1000-300000 ms)
+            </p>
+          </div>
+
+          <!-- Retry Configuration -->
+          <div>
+            <label for="api-retry-attempts" class="block text-sm font-medium text-gray-700">
+              Intentos de Reintento
+            </label>
+            <div class="mt-1">
+              <input
+                type="number"
+                id="api-retry-attempts"
+                name="retryAttempts"
+                value="3"
+                min="0"
+                max="10"
+                class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              >
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              Número de intentos en caso de fallo (0-10)
+            </p>
+          </div>
+
+          <!-- Endpoints Configuration (Collapsible) -->
+          <div class="border-t border-gray-200 pt-6">
+            <button
+              type="button"
+              onclick="toggleEndpoints()"
+              class="flex items-center justify-between w-full text-left"
+            >
+              <h4 class="text-md font-medium text-gray-900">Endpoints Personalizados (Opcional)</h4>
+              <i id="endpoints-icon" data-lucide="chevron-down" class="h-5 w-5 text-gray-400"></i>
+            </button>
+
+            <div id="endpoints-section" class="hidden mt-4 space-y-4">
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label for="api-endpoint-articulos" class="block text-sm font-medium text-gray-700">
+                    Endpoint Artículos
+                  </label>
+                  <input
+                    type="text"
+                    id="api-endpoint-articulos"
+                    name="endpointArticulos"
+                    placeholder="/api/v1/articulos"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                </div>
+
+                <div>
+                  <label for="api-endpoint-comprobantes" class="block text-sm font-medium text-gray-700">
+                    Endpoint Comprobantes
+                  </label>
+                  <input
+                    type="text"
+                    id="api-endpoint-comprobantes"
+                    name="endpointComprobantes"
+                    placeholder="/api/v1/comprobantes"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                </div>
+
+                <div>
+                  <label for="api-endpoint-pagos" class="block text-sm font-medium text-gray-700">
+                    Endpoint Pagos
+                  </label>
+                  <input
+                    type="text"
+                    id="api-endpoint-pagos"
+                    name="endpointPagos"
+                    placeholder="/api/v1/pagos"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                </div>
+              </div>
+              <p class="text-xs text-gray-500">
+                Si no se especifican, se usarán las rutas por defecto
+              </p>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="pt-5 border-t border-gray-200">
+            <div class="flex justify-end space-x-3">
+              <button
+                type="button"
+                onclick="testApiConnection()"
+                class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <i data-lucide="activity" class="w-4 h-4 mr-2"></i>
+                Probar Conexión
+              </button>
+              <button
+                type="submit"
+                class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                Guardar Configuración
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Documentation Section -->
+    <div class="mt-6 bg-blue-50 rounded-lg p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <i data-lucide="info" class="h-5 w-5 text-blue-400"></i>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-blue-800">
+            Acerca de la Configuración de API
+          </h3>
+          <div class="mt-2 text-sm text-blue-700">
+            <ul class="list-disc list-inside space-y-1">
+              <li>La URL base debe incluir el protocolo (https://)</li>
+              <li>Las credenciales se almacenan encriptadas en la base de datos</li>
+              <li>Puede usar autenticación básica o API keys según el servidor</li>
+              <li>Los endpoints personalizados son opcionales, se usarán rutas por defecto si no se especifican</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Load current configuration on page load
+  loadApiConfig();
+  loadApiStatus();
+
+  // Auto-prepend https:// to URL field if no protocol is specified
+  document.getElementById('api-url').addEventListener('blur', function(e) {
+    const input = e.target;
+    const value = input.value.trim();
+    if (value && !value.match(/^https?:\/\//i)) {
+      input.value = 'https://' + value;
+    }
+  });
+
+  async function loadApiConfig() {
+    try {
+      const response = await fetch('/api/config/api');
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const config = result.data;
+
+        // Populate form fields
+        if (config.url) document.getElementById('api-url').value = config.url;
+        if (config.username) document.getElementById('api-username').value = config.username;
+        // Don't populate password for security
+        if (config.timeout) document.getElementById('api-timeout').value = config.timeout;
+        if (config.retryAttempts !== undefined) document.getElementById('api-retry-attempts').value = config.retryAttempts;
+
+        // Populate endpoint fields if they exist
+        if (config.endpointArticulos) document.getElementById('api-endpoint-articulos').value = config.endpointArticulos;
+        if (config.endpointComprobantes) document.getElementById('api-endpoint-comprobantes').value = config.endpointComprobantes;
+        if (config.endpointPagos) document.getElementById('api-endpoint-pagos').value = config.endpointPagos;
+      }
+    } catch (error) {
+      console.error('Error loading API config:', error);
+    }
+  }
+
+  function loadApiStatus() {
+    htmx.ajax('GET', '/api/config/api/status', {
+      target: '#api-status-container',
+      swap: 'innerHTML'
+    });
+  }
+
+  async function saveApiConfig(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+
+    // Auto-prepend https:// if no protocol is specified
+    let url = formData.get('url');
+    if (url && !url.match(/^https?:\/\//i)) {
+      url = 'https://' + url;
+    }
+
+    const config = {
+      url: url,
+      username: formData.get('username'),
+      password: formData.get('password'),
+      timeout: parseInt(formData.get('timeout')),
+      retryAttempts: parseInt(formData.get('retryAttempts')),
+      endpointArticulos: formData.get('endpointArticulos') || null,
+      endpointComprobantes: formData.get('endpointComprobantes') || null,
+      endpointPagos: formData.get('endpointPagos') || null,
+    };
+
+    try {
+      const response = await fetch('/api/config/api', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification('Configuración guardada exitosamente', 'success');
+        loadApiStatus();
+
+        // Clear password field for security
+        document.getElementById('api-password').value = '';
+      } else {
+        showNotification(result.error || 'Error al guardar configuración', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving API config:', error);
+      showNotification('Error al guardar configuración', 'error');
+    }
+  }
+
+  async function testApiConnection() {
+    try {
+      showNotification('Probando conexión a la API...', 'info');
+
+      const response = await fetch('/api/config/api/test', {
+        method: 'POST'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification(result.message || 'Conexión exitosa', 'success');
+        loadApiStatus();
+      } else {
+        showNotification(result.error || 'Error en la conexión', 'error');
+      }
+    } catch (error) {
+      console.error('Error testing API connection:', error);
+      showNotification('Error al probar conexión', 'error');
+    }
+  }
+
+  function togglePasswordVisibility() {
+    const passwordField = document.getElementById('api-password');
+    const icon = document.getElementById('password-icon');
+
+    if (passwordField.type === 'password') {
+      passwordField.type = 'text';
+      icon.setAttribute('data-lucide', 'eye-off');
+    } else {
+      passwordField.type = 'password';
+      icon.setAttribute('data-lucide', 'eye');
+    }
+
+    // Refresh lucide icons
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  }
+
+  function toggleEndpoints() {
+    const section = document.getElementById('endpoints-section');
+    const icon = document.getElementById('endpoints-icon');
+
+    if (section.classList.contains('hidden')) {
+      section.classList.remove('hidden');
+      icon.setAttribute('data-lucide', 'chevron-up');
+    } else {
+      section.classList.add('hidden');
+      icon.setAttribute('data-lucide', 'chevron-down');
+    }
+
+    // Refresh lucide icons
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  }
+
+  // Refresh lucide icons after HTMX swaps
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  });
+
+  // Make functions globally available
+  window.loadApiConfig = loadApiConfig;
+  window.loadApiStatus = loadApiStatus;
+  window.saveApiConfig = saveApiConfig;
+  window.testApiConnection = testApiConnection;
+  window.togglePasswordVisibility = togglePasswordVisibility;
+  window.toggleEndpoints = toggleEndpoints;
+</script>

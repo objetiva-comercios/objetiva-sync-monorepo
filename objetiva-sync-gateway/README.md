@@ -97,6 +97,21 @@ Consulta **[SETUP.md](./SETUP.md)**
 - `npm run prisma:generate` - Generar Prisma Client
 - `npm run prisma:push` - Sincronizar schema con DB
 - `npm run prisma:studio` - Abrir interfaz visual de DB
+- `npm run regenerate-schemas` - **Regenerar esquemas Zod desde PostgreSQL**
+
+## Regenerar Esquemas
+
+Cuando se modifica la estructura de tablas en PostgreSQL:
+
+```bash
+npm run regenerate-schemas
+```
+
+Esto regenera automáticamente:
+- Esquemas Zod en `../shared/schemas/generated/`
+- Esquema Prisma en `prisma/schema.prisma`
+
+Ver `../shared/README.md` para documentación completa del sistema de esquemas compartidos.
 
 ## Importante
 

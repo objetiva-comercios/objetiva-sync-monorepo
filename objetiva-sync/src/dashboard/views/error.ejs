@@ -1,0 +1,59 @@
+<div class="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
+  <div class="max-w-2xl w-full">
+    <!-- Icon -->
+    <div class="flex justify-center">
+      <div class="bg-red-100 rounded-full p-6">
+        <i data-lucide="alert-triangle" class="w-20 h-20 text-red-600"></i>
+      </div>
+    </div>
+
+    <!-- Error Code -->
+    <h1 class="mt-6 text-center text-6xl font-extrabold text-gray-900">
+      <%= statusCode || 500 %>
+    </h1>
+
+    <!-- Error Message -->
+    <h2 class="mt-4 text-center text-2xl font-bold text-gray-900">
+      <%= statusCode === 500 ? 'Error interno del servidor' : 'Error' %>
+    </h2>
+    <p class="mt-2 text-center text-base text-gray-600">
+      <%= message || 'Ha ocurrido un error inesperado' %>
+    </p>
+
+    <!-- Stack Trace (only in development) -->
+    <% if (locals.stack) { %>
+      <div class="mt-6">
+        <details class="bg-gray-50 rounded-lg p-4">
+          <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+            <i data-lucide="bug" class="inline w-4 h-4 mr-1"></i>
+            Ver detalles técnicos (desarrollo)
+          </summary>
+          <pre class="mt-3 text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap font-mono"><%= stack %></pre>
+        </details>
+      </div>
+    <% } %>
+
+    <!-- Actions -->
+    <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+      <a
+        href="/dashboard"
+        class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+      >
+        <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+        Ir al Dashboard
+      </a>
+      <button
+        onclick="window.location.reload()"
+        class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+      >
+        <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Support Info -->
+    <div class="mt-8 text-center text-sm text-gray-500">
+      <p>Si el problema persiste, contacta al administrador del sistema</p>
+    </div>
+  </div>
+</div>

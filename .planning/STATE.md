@@ -9,12 +9,13 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 
 ## Current Position
 
-Phase: 17 of 17 (Dashboard Modernization)
-Plan: 06 of 06 complete
-Status: Phase complete
-Last activity: 2026-02-13 — Completed 17-06-PLAN.md (React Dashboard Integration)
+Phase: 16 of 16 (Observability)
+Status: Milestone v1.1-rc2 in progress
+Last activity: 2026-02-14 — **ROLLBACK** Phase 17 (shadcn dashboard) reverted
 
-Progress: [██████████████████████████] Phase 17 complete!
+Progress: [████████████████████████░░] Phase 16 complete, Phase 17 rolled back
+
+**Rollback note:** Phase 17 (Dashboard Modernization with shadcn/React) was removed due to implementation issues. HTMX dashboard remains at /dashboard.
 
 ## Completed Milestones
 
@@ -50,10 +51,6 @@ See: .planning/MILESTONES.md for full details
 | SYNC-METRICS-01 | Exponential buckets 0.1s-102.4s for sync duration | 16-03 | Covers small batches to large syncs |
 | SYNC-METRICS-02 | Labels limited to 3 per metric | 16-03 | Prevents cardinality explosion in Prometheus |
 | TEST-02 | Use app.inject() for in-process auth integration tests | 15-04 | Fast tests without requiring running server |
-| VITE-01 | Use Vite 5.x for build compatibility | 17-01 | Consistent build behavior with vitest versions |
-| REACT-PEER-01 | React as peerDependency in dashboard package | 17-01 | Prevents duplicate React instances across workspace |
-| SERVE-01 | React dashboard at /dashboard, HTMX at /admin | 17-06 | Clean separation, React as primary |
-| BUILD-01 | Vite builds to dist/dashboard-react with base /dashboard/ | 17-06 | Matches Fastify static serving path |
 
 ## Pending Human Verification
 
@@ -87,23 +84,21 @@ From Phase 16 (Observability):
 19. Trigger sync and verify gateway_sync_operation_duration_seconds appears
 20. Verify gateway_sync_records_total counter increments after sync
 
-From Phase 17 (Dashboard Modernization):
-21. Access React dashboard at http://localhost:3333/dashboard
-22. Verify sidebar navigation works (Overview, Metrics, Records)
-23. Verify charts load data from API
-24. Access HTMX dashboard at http://localhost:3333/admin
-25. Verify HTMX interactions still work
-
 ## Blockers & Concerns
 
-None. Phase 17 complete!
+None.
 
 ## Session Continuity
 
-Last session: 2026-02-13 — Completed Plan 17-06 (React Dashboard Integration)
-Stopped at: Phase 17 complete
-Resume file: .planning/phases/17-dashboard-modernization/17-06-SUMMARY.md
-Next action: All phases complete. Consider v1.1-rc2 release preparation.
+Last session: 2026-02-14 — Rollback de Phase 17 (shadcn dashboard)
+Stopped at: Phase 16 complete, Phase 17 rolled back
+Next action: Continuar con HTMX dashboard en /dashboard. Decidir próximo milestone.
+
+## Rollback Log
+
+| Date | Phase | Reason |
+|------|-------|--------|
+| 2026-02-14 | 17 (Dashboard Modernization) | shadcn/React dashboard removed — keeping HTMX dashboard at /dashboard |
 
 ---
-*Last updated: 2026-02-13 after completing Plan 17-06 (React Dashboard Integration)*
+*Last updated: 2026-02-14 after rolling back Phase 17 (shadcn dashboard)*

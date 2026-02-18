@@ -1,26 +1,24 @@
 /**
  * Rutas del dashboard principal HTMX
- * Vista general del sistema (legacy - movido a /admin)
+ * Vista general del sistema
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { requireNoPasswordChange } from '../middleware/auth.js';
 
 /**
- * Registra las rutas del dashboard HTMX (legacy)
- * Estas rutas estan en /admin para mantener compatibilidad
- * El nuevo React dashboard esta en /dashboard
+ * Registra las rutas del dashboard HTMX
  */
 export async function registerDashboardRoutes(app: FastifyInstance) {
   /**
-   * GET /admin - Dashboard principal HTMX (legacy)
+   * GET /dashboard - Dashboard principal HTMX
    */
   app.get(
-    '/admin',
+    '/dashboard',
     { preHandler: requireNoPasswordChange },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       return reply.view('dashboard/index.ejs', {
-        title: 'Dashboard (Legacy)',
+        title: 'Dashboard',
       });
     }
   );

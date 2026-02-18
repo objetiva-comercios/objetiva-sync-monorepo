@@ -40,11 +40,31 @@ interface EntityStats {
   lastBatchDurationMs: number
 }
 
+interface TrackedJob {
+  syncId: string
+  entityType: string
+  queryName: string
+  comercio: string
+  startTime: Date
+  lastUpdate: Date
+  currentBatch: number
+  totalBatches: number
+  totalReceived: number
+  totalInserted: number
+  totalUpdated: number
+  totalFailed: number
+  totalDurationMs: number
+  status: string
+}
+
 class MetricsCollector {
   private syncEvents: SyncEvent[] = []
   private loginEvents: LoginEvent[] = []
   private cancelledJobs = new Set<string>() // syncIds cancelados explícitamente
   private maxEvents = 1000 // Mantener últimos 1000 eventos
+
+  // Jobs rastreados incrementalmente (se actualizan UNA vez por evento, no se re-computan)
+  private trackedJobs = new Map<string, TrackedJob>()
 
   // Stats acumuladas por tipo de entidad (se resetean manualmente)
   private entityStats: Record<string, EntityStats> = {
@@ -72,6 +92,39 @@ class MetricsCollector {
       this.entityStats[entityType].failed += event.failed
       this.entityStats[entityType].lastBatchSize = event.totalReceived
       this.entityStats[entityType].lastBatchDurationMs = event.durationMs
+    }
+
+    // Actualizar tracking incremental de jobs (una sola vez por evento)
+    if (event.syncId) {
+      const existing = this.trackedJobs.get(event.syncId)
+      if (!existing) {
+        this.trackedJobs.set(event.syncId, {
+          syncId: event.syncId,
+          entityType: event.entityType,
+          queryName: event.queryName || 'Unknown',
+          comercio: event.comercioUsername || event.comercioId.substring(0, 8),
+          startTime: event.timestamp,
+          lastUpdate: event.timestamp,
+          currentBatch: event.batchNumber || 1,
+          totalBatches: event.totalBatches || 1,
+          totalReceived: event.totalReceived,
+          totalInserted: event.inserted,
+          totalUpdated: event.updated,
+          totalFailed: event.failed,
+          totalDurationMs: event.durationMs,
+          status: event.status || 'in_progress'
+        })
+      } else {
+        // Acumular resultados del batch
+        existing.totalReceived += event.totalReceived
+        existing.totalInserted += event.inserted
+        existing.totalUpdated += event.updated
+        existing.totalFailed += event.failed
+        existing.totalDurationMs += event.durationMs
+        existing.lastUpdate = event.timestamp
+        if (event.batchNumber) existing.currentBatch = event.batchNumber
+        if (event.status) existing.status = event.status
+      }
     }
   }
 
@@ -104,6 +157,7 @@ class MetricsCollector {
     this.syncEvents = []
     this.loginEvents = []
     this.cancelledJobs.clear()
+    this.trackedJobs.clear()
     this.entityStats = {
       articulo: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 },
       comprobante_cabecera: { received: 0, inserted: 0, updated: 0, failed: 0, lastBatchSize: 0, lastBatchDurationMs: 0 },
@@ -251,81 +305,26 @@ class MetricsCollector {
   }
 
   /**
-   * Obtener jobs de sincronización agrupados por syncId
+   * Obtener jobs de sincronización (lectura del mapa incremental, sin re-agregación)
    */
   getActiveJobs(limit = 5) {
-    // Agrupar eventos por syncId
-    const jobMap = new Map<string, {
-      syncId: string
-      entityType: string
-      queryName: string
-      comercio: string
-      startTime: Date
-      lastUpdate: Date
-      currentBatch: number
-      totalBatches: number
-      totalReceived: number
-      totalInserted: number
-      totalUpdated: number
-      totalFailed: number
-      totalDurationMs: number
-      status: string
-    }>()
-
-    for (const event of this.syncEvents) {
-      if (!event.syncId) continue
-
-      const existing = jobMap.get(event.syncId)
-      if (!existing) {
-        jobMap.set(event.syncId, {
-          syncId: event.syncId,
-          entityType: event.entityType,
-          queryName: event.queryName || 'Unknown',
-          comercio: event.comercioUsername || event.comercioId.substring(0, 8),
-          startTime: event.timestamp,
-          lastUpdate: event.timestamp,
-          currentBatch: event.batchNumber || 1,
-          totalBatches: event.totalBatches || 1,
-          totalReceived: event.totalReceived,
-          totalInserted: event.inserted,
-          totalUpdated: event.updated,
-          totalFailed: event.failed,
-          totalDurationMs: event.durationMs,
-          status: event.status || 'in_progress'
-        })
-      } else {
-        // Actualizar con datos más recientes
-        if (event.timestamp > existing.lastUpdate) {
-          existing.lastUpdate = event.timestamp
-          existing.currentBatch = event.batchNumber || existing.currentBatch
-          existing.status = event.status || existing.status
-        }
-        if (event.timestamp < existing.startTime) {
-          existing.startTime = event.timestamp
-        }
-        existing.totalReceived += event.totalReceived
-        existing.totalInserted += event.inserted
-        existing.totalUpdated += event.updated
-        existing.totalFailed += event.failed
-        existing.totalDurationMs += event.durationMs
-      }
-    }
-
     const now = Date.now()
 
-    // Aplicar estados de cancelación y timeout
-    for (const job of jobMap.values()) {
-      if (job.status === 'in_progress') {
+    // Aplicar estados de cancelación y timeout sobre copias para no mutar el mapa
+    const jobs = Array.from(this.trackedJobs.values()).map(job => {
+      let status = job.status
+      if (status === 'in_progress') {
         if (this.cancelledJobs.has(job.syncId)) {
-          job.status = 'cancelled'
+          status = 'cancelled'
         } else if (now - job.lastUpdate.getTime() > JOB_TIMEOUT_MS) {
-          job.status = 'timeout'
+          status = 'timeout'
         }
       }
-    }
+      return { ...job, status }
+    })
 
-    // Convertir a array y ordenar por última actualización
-    return Array.from(jobMap.values())
+    // Ordenar por última actualización y limitar
+    return jobs
       .sort((a, b) => b.lastUpdate.getTime() - a.lastUpdate.getTime())
       .slice(0, limit)
   }
@@ -337,6 +336,12 @@ class MetricsCollector {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // 7 días
     this.syncEvents = this.syncEvents.filter(e => e.timestamp >= cutoff)
     this.loginEvents = this.loginEvents.filter(e => e.timestamp >= cutoff)
+    // Limpiar jobs completados antiguos
+    for (const [syncId, job] of this.trackedJobs) {
+      if (job.lastUpdate < cutoff) {
+        this.trackedJobs.delete(syncId)
+      }
+    }
   }
 }
 

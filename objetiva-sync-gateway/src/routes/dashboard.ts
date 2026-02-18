@@ -90,7 +90,7 @@ export async function registerDashboardRoutes(app: FastifyInstance) {
         id: job.syncId,
         entity: job.entityType,
         queryName: job.queryName,
-        timestamp: job.lastUpdate.toISOString(),
+        timestamp: job.startTime.toISOString(),
         size: job.totalReceived,
         processed: job.totalInserted + job.totalUpdated,
         failed: job.totalFailed,

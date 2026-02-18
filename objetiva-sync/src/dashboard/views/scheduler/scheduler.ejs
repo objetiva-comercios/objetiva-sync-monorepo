@@ -1,0 +1,143 @@
+<div class="py-6 bg-base-200 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+      <div class="flex-1 min-w-0">
+        <h1 class="text-3xl font-bold mb-2">
+          <i data-lucide="calendar-clock" class="w-8 h-8 inline mr-2"></i>
+          Scheduler Automático
+        </h1>
+        <p class="text-base-content/60">
+          Gestionar la ejecución automática de sincronizaciones programadas
+        </p>
+      </div>
+      <div class="mt-4 sm:mt-0 sm:ml-4 flex gap-2">
+        <button
+          type="button"
+          onclick="restartScheduler()"
+          class="btn btn-primary gap-2"
+        >
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          Reiniciar Scheduler
+        </button>
+        <button
+          type="button"
+          onclick="stopScheduler()"
+          class="btn btn-error btn-outline gap-2"
+        >
+          <i data-lucide="stop-circle" class="w-4 h-4"></i>
+          Detener
+        </button>
+      </div>
+    </div>
+
+    <!-- Status Container (loaded via HTMX) -->
+    <div id="scheduler-status-container"
+         hx-get="/api/scheduler/status"
+         hx-trigger="load, every 30s"
+         hx-swap="innerHTML">
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          <div class="flex items-center gap-3">
+            <span class="loading loading-spinner loading-md"></span>
+            <p class="text-base-content/60">Cargando estado del scheduler...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card bg-base-100 shadow-xl mt-6">
+      <div class="card-body">
+        <h3 class="card-title mb-4">
+          <i data-lucide="info" class="w-5 h-5 text-info"></i>
+          Cómo Funciona
+        </h3>
+        <div class="space-y-4 text-sm">
+          <div class="flex items-start gap-3">
+            <span class="badge badge-primary badge-sm mt-0.5">1</span>
+            <div>
+              <p class="font-medium">Configurar Consultas</p>
+              <p class="text-base-content/60">Ve a <a href="/config/queries" class="link link-primary">Configuración → Consultas</a> y activa "Programar ejecución" para las consultas que deseas automatizar.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="badge badge-primary badge-sm mt-0.5">2</span>
+            <div>
+              <p class="font-medium">Definir Intervalos</p>
+              <p class="text-base-content/60">Cada consulta puede tener su propio intervalo (1 min a 24 horas).</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="badge badge-primary badge-sm mt-0.5">3</span>
+            <div>
+              <p class="font-medium">Reiniciar Scheduler</p>
+              <p class="text-base-content/60">Después de cambiar la configuración, reinicia el scheduler para aplicar los cambios.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Reiniciar scheduler
+  async function restartScheduler() {
+    if (!confirm('¿Reiniciar el scheduler? Esto aplicará cualquier cambio en la configuración de consultas.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/scheduler/restart', {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification(result.message || 'Scheduler reiniciado correctamente', 'success');
+        htmx.trigger('#scheduler-status-container', 'load');
+      } else {
+        showNotification('Error: ' + (result.error || 'Error desconocido'), 'error');
+      }
+    } catch (error) {
+      console.error('Error al reiniciar scheduler:', error);
+      showNotification('Error al reiniciar scheduler', 'error');
+    }
+  }
+
+  // Detener scheduler
+  async function stopScheduler() {
+    if (!confirm('¿Detener el scheduler? Las consultas programadas dejarán de ejecutarse automáticamente.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/scheduler/stop', {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification(result.message || 'Scheduler detenido correctamente', 'success');
+        htmx.trigger('#scheduler-status-container', 'load');
+      } else {
+        showNotification('Error: ' + (result.error || 'Error desconocido'), 'error');
+      }
+    } catch (error) {
+      console.error('Error al detener scheduler:', error);
+      showNotification('Error al detener scheduler', 'error');
+    }
+  }
+
+  // Helper notification function
+  function showNotification(message, type) {
+    if (window.showNotification) {
+      window.showNotification(message, type);
+    } else {
+      alert(message);
+    }
+  }
+</script>

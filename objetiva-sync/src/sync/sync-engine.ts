@@ -11,6 +11,7 @@ import type { IComprobanteDetallePayload } from '../types/comprobantes-detalle.j
 import type { IComprobantePagosPayload } from '../types/comprobantes-pagos.js';
 import { EntityType, SyncType, LogStatus, SyncStatus } from '../types/common.js';
 import type { SyncResult } from '../types/common.js';
+import type { Query } from '../store/schema.js';
 import * as QueriesRepo from '../store/repositories/queries-repo.js';
 import * as SyncStateRepo from '../store/repositories/sync-state-repo.js';
 import * as SyncLogsRepo from '../store/repositories/sync-logs-repo.js';
@@ -20,6 +21,7 @@ import { processBatches } from './batch-processor.js';
 import type { BatchProcessorOptions } from './batch-processor.js';
 import { RetryQueueManager } from './retry-queue-manager.js';
 import { syncStateManager } from './sync-state-manager.js';
+import { getAdapter as getPooledAdapter } from '../adapters/adapter-pool.js';
 import { logger } from '../utils/logger.js';
 import { SYNC_CONFIG } from '../config/constants.js';
 
@@ -73,6 +75,11 @@ export interface SyncEngineConfig {
 }
 
 /**
+ * Trigger de sincronización (quién inició la sincronización)
+ */
+export type SyncTrigger = 'manual' | 'scheduled';
+
+/**
  * Opciones de sincronización
  */
 export interface SyncOptions {
@@ -95,6 +102,11 @@ export interface SyncOptions {
    * Continuar en caso de error
    */
   continueOnError?: boolean;
+
+  /**
+   * Quién inició la sincronización: 'manual' o 'scheduled'
+   */
+  trigger?: SyncTrigger;
 }
 
 /**
@@ -150,6 +162,27 @@ export class SyncEngine {
     // Lexicographic sort works for ISO date strings
     return values.sort().reverse()[0] ?? null;
   }
+
+  /**
+   * Helper: Get the appropriate adapter for a query
+   * If query has connectionId, get from pool; otherwise use default adapter
+   */
+  private async getAdapterForQuery(query: Query): Promise<IDataSourceAdapter> {
+    if (query.connectionId) {
+      logger.debug({ queryId: query.id, connectionId: query.connectionId }, '[SyncEngine] Using pooled adapter for query');
+      return await getPooledAdapter(query.connectionId);
+    }
+    // Use default adapter (active connection)
+    return this.adapter;
+  }
+
+  /**
+   * Helper: Get sourceId for sync state tracking based on query's connectionId
+   */
+  private getSourceIdForQuery(query: Query): string {
+    return query.connectionId ? `conn-${query.connectionId}` : 'default';
+  }
+
   /**
    * Sincroniza artículos (wrapper para compatibilidad)
    * Utiliza syncQuery internamente, pasando automáticamente metadata
@@ -342,11 +375,13 @@ export class SyncEngine {
    */
   async syncQuery(queryId: number, options: SyncOptions = {}, syncId?: string): Promise<SyncResult> {
     const startTime = Date.now();
-    const syncType = options.syncType ?? SyncType.INCREMENTAL;
+    // Si fullSync está activo, forzar syncType a FULL
+    const syncType = options.fullSync ? SyncType.FULL : (options.syncType ?? SyncType.INCREMENTAL);
+    const trigger = options.trigger ?? 'manual';
 
     logger.info(
-      { queryId, syncType },
-      `[SyncEngine] Iniciando sincronización de query ID ${queryId}...`
+      { queryId, syncType, trigger },
+      `[SyncEngine] Iniciando sincronización de query ID ${queryId} [${trigger.toUpperCase()}] [${syncType.toUpperCase()}]...`
     );
 
     // Obtener query por ID
@@ -424,14 +459,31 @@ export class SyncEngine {
       logger.debug({ lastSyncValue }, '[SyncEngine] Último valor de sincronización');
 
       // 5. Ejecutar query en ERP
-      const queryParams = lastSyncValue ? { lastSync: lastSyncValue } : undefined;
+      // Si el query contiene @lastSync, SIEMPRE debemos pasar un valor
+      // Para fullSync usamos una fecha muy antigua para traer todos los registros
+      const queryContainsLastSync = /@lastSync/i.test(query.sqlQuery);
+      let queryParams: { lastSync: string } | undefined;
+
+      if (queryContainsLastSync) {
+        // Si es fullSync o no hay lastSyncValue, usar fecha antigua para traer TODO
+        const effectiveLastSync = lastSyncValue ?? '1900-01-01T00:00:00.000Z';
+        queryParams = { lastSync: effectiveLastSync };
+
+        if (options.fullSync) {
+          logger.info('[SyncEngine] Sincronización completa: usando fecha mínima para @lastSync');
+        }
+      }
+
+      // Get adapter for this query (from pool if connectionId set, else default)
+      const adapter = await this.getAdapterForQuery(query);
+      const sourceId = this.getSourceIdForQuery(query);
 
       logger.info(
-        { sql: query.sqlQuery.substring(0, 100) + '...', params: queryParams },
+        { sql: query.sqlQuery.substring(0, 100) + '...', params: queryParams, fullSync: options.fullSync, connectionId: query.connectionId, sourceId },
         '[SyncEngine] Ejecutando query en ERP...'
       );
 
-      const queryResult = await this.adapter.executeQuery(query.sqlQuery, queryParams);
+      const queryResult = await adapter.executeQuery(query.sqlQuery, queryParams);
 
       result.recordsFetched = queryResult.rowCount;
 
@@ -472,7 +524,7 @@ export class SyncEngine {
       // Determinar el tipo de datos según entityType
       type PayloadType = IArticuloPayload | IComprobanteCabeceraPayload | IComprobanteDetallePayload | IComprobantePagosPayload;
 
-      const validation = validateQueryResult(queryResult.rows as Record<string, unknown>[], entityType);
+      const validation = await validateQueryResult(queryResult.rows as Record<string, unknown>[], entityType);
 
       // Validate against live PostgreSQL schema from gateway
       logger.info('[SyncEngine] Validando contra schema de PostgreSQL en gateway...');

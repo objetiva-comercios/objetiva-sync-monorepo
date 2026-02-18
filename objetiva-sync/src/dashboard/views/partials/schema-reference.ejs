@@ -1,0 +1,240 @@
+<!-- Schema Reference Component - Shows available fields for each entity type -->
+<!-- DATOS CARGADOS DINÁMICAMENTE DESDE ENDPOINT /api/schema-info/:entityType -->
+<div id="schema-reference" class="bg-white shadow sm:rounded-lg hidden">
+  <div class="px-4 py-5 border-b border-gray-200 sm:px-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-lg leading-6 font-medium text-gray-900">
+          📋 Referencia de Campos
+        </h3>
+        <p class="mt-1 text-sm text-gray-500">
+          Campos disponibles para <span id="schema-entity-type" class="font-medium"></span>
+        </p>
+      </div>
+      <button
+        type="button"
+        onclick="hideSchemaReference()"
+        class="text-gray-400 hover:text-gray-500"
+      >
+        <i data-lucide="x" class="h-5 w-5"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="px-4 py-5 sm:p-6">
+    <!-- Loading state -->
+    <div id="schema-reference-loading" class="hidden text-center py-8">
+      <i data-lucide="loader" class="h-8 w-8 mx-auto animate-spin text-blue-600"></i>
+      <p class="mt-2 text-sm text-gray-500">Cargando información de campos...</p>
+    </div>
+
+    <!-- Error state -->
+    <div id="schema-reference-error" class="hidden">
+      <div class="bg-red-50 border-l-4 border-red-400 p-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <i data-lucide="alert-circle" class="h-5 w-5 text-red-400"></i>
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-red-700" id="schema-reference-error-message"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div id="schema-reference-content" class="space-y-6">
+      <!-- Required Fields -->
+      <div>
+        <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 mr-2">
+            REQUERIDO
+          </span>
+          Campos Obligatorios
+        </h4>
+        <div id="schema-required-fields" class="space-y-2">
+          <!-- Will be populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Optional Fields -->
+      <div class="border-t border-gray-200 pt-6">
+        <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 mr-2">
+            OPCIONAL
+          </span>
+          Campos Opcionales
+        </h4>
+        <div id="schema-optional-fields" class="space-y-2 max-h-96 overflow-y-auto">
+          <!-- Will be populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Naming Convention Info -->
+      <div class="border-t border-gray-200 pt-6">
+        <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <i data-lucide="info" class="h-5 w-5 text-blue-400"></i>
+            </div>
+            <div class="ml-3">
+              <p class="text-sm text-blue-700">
+                <strong>Importante:</strong> Los alias de tu query SQL deben coincidir <strong>exactamente</strong> con los nombres de campo mostrados (snake_case).
+              </p>
+              <p class="mt-2 text-sm text-blue-700">
+                Ejemplo: <code class="bg-blue-100 px-1 rounded">SELECT codigo AS erp_codigo, nombre AS erp_nombre FROM articulos</code>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * Carga información de schema desde la API
+ *
+ * NOTA: No usamos cache en el frontend porque el backend siempre devuelve
+ * datos frescos del gateway (que a su vez lee de PostgreSQL con force=true).
+ * Esto garantiza que cualquier cambio en la estructura de la base de datos
+ * se refleje inmediatamente en la UI sin necesidad de F5.
+ */
+async function loadSchemaInfo(entityType) {
+  const response = await fetch(`/api/schema-info/${entityType}`);
+
+  if (!response.ok) {
+    throw new Error(`Error al cargar schema: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.success) {
+    throw new Error(data.error || 'Error desconocido');
+  }
+
+  return data.data;
+}
+
+/**
+ * Muestra la referencia de schema para un tipo de entidad
+ */
+async function showSchemaReference(entityType) {
+  const schemaRef = document.getElementById('schema-reference');
+  const entityTypeSpan = document.getElementById('schema-entity-type');
+  const loadingDiv = document.getElementById('schema-reference-loading');
+  const errorDiv = document.getElementById('schema-reference-error');
+  const errorMsg = document.getElementById('schema-reference-error-message');
+  const contentDiv = document.getElementById('schema-reference-content');
+  const requiredFields = document.getElementById('schema-required-fields');
+  const optionalFields = document.getElementById('schema-optional-fields');
+
+  // Mostrar panel
+  schemaRef.classList.remove('hidden');
+
+  // Mostrar loading, ocultar contenido y error
+  loadingDiv.classList.remove('hidden');
+  contentDiv.classList.add('hidden');
+  errorDiv.classList.add('hidden');
+
+  try {
+    // Cargar schema info desde API
+    const schemaInfo = await loadSchemaInfo(entityType);
+
+    // Update entity type label
+    const entityLabels = {
+      'articulo': 'Artículos',
+      'comprobante_cabecera': 'Comprobantes - Cabecera',
+      'comprobante_detalle': 'Comprobantes - Detalle',
+      'comprobante_pago': 'Comprobantes - Pagos'
+    };
+    entityTypeSpan.textContent = entityLabels[entityType] || entityType;
+
+    // Render required fields
+    requiredFields.innerHTML = schemaInfo.required.map(field => `
+      <div class="flex items-start p-3 bg-gray-50 rounded-md border border-gray-200">
+        <div class="flex-1">
+          <div class="flex items-center">
+            <code class="text-sm font-mono font-semibold text-gray-900">${escapeHtml(field.name)}</code>
+            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              ${escapeHtml(field.type)}
+            </span>
+          </div>
+          <p class="mt-1 text-sm text-gray-600">${escapeHtml(field.description)}</p>
+          <p class="mt-1 text-xs text-gray-500">
+            Ejemplo: <code class="bg-gray-100 px-1 rounded">${escapeHtml(field.example)}</code>
+          </p>
+        </div>
+      </div>
+    `).join('');
+
+    // Render optional fields
+    optionalFields.innerHTML = schemaInfo.optional.map(field => `
+      <div class="flex items-start p-3 bg-white rounded-md border border-gray-200">
+        <div class="flex-1">
+          <div class="flex items-center">
+            <code class="text-sm font-mono font-semibold text-gray-900">${escapeHtml(field.name)}</code>
+            <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+              ${escapeHtml(field.type)}
+            </span>
+          </div>
+          <p class="mt-1 text-sm text-gray-600">${escapeHtml(field.description)}</p>
+          <p class="mt-1 text-xs text-gray-500">
+            Ejemplo: <code class="bg-gray-100 px-1 rounded">${escapeHtml(field.example)}</code>
+          </p>
+        </div>
+      </div>
+    `).join('');
+
+    // Mostrar contenido, ocultar loading
+    loadingDiv.classList.add('hidden');
+    contentDiv.classList.remove('hidden');
+
+    // Refresh lucide icons
+    lucide.createIcons();
+
+  } catch (error) {
+    console.error('Error al cargar schema:', error);
+
+    // Mostrar error
+    loadingDiv.classList.add('hidden');
+    errorDiv.classList.remove('hidden');
+    errorMsg.textContent = error.message || 'Error al cargar información de schema';
+
+    // Refresh lucide icons
+    lucide.createIcons();
+  }
+}
+
+/**
+ * Oculta la referencia de schema
+ */
+function hideSchemaReference() {
+  document.getElementById('schema-reference').classList.add('hidden');
+}
+
+/**
+ * Escape HTML para prevenir XSS
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Toggle schema reference when entity type changes
+document.addEventListener('DOMContentLoaded', function() {
+  const entityTypeSelect = document.getElementById('query-entity-type');
+  if (entityTypeSelect) {
+    entityTypeSelect.addEventListener('change', function() {
+      const entityType = this.value;
+      if (entityType) {
+        showSchemaReference(entityType);
+      } else {
+        hideSchemaReference();
+      }
+    });
+  }
+});
+</script>

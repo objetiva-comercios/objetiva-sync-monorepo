@@ -1,0 +1,108 @@
+<div class="hero min-h-screen bg-base-200">
+  <div class="hero-content flex-col lg:flex-row-reverse max-w-5xl w-full">
+    <!-- Info Section -->
+    <div class="text-center lg:text-left lg:ml-12">
+      <div class="flex justify-center lg:justify-start mb-6">
+        <div class="bg-primary rounded-2xl p-4 shadow-xl">
+          <i data-lucide="database" class="w-16 h-16 text-primary-content"></i>
+        </div>
+      </div>
+      <h1 class="text-5xl font-bold">
+        <%= locals.appName || 'Sync System' %>
+      </h1>
+      <p class="py-6 text-base-content/70 max-w-md">
+        Sistema de sincronización inteligente entre ERP local y gateway remoto.
+        Gestiona tus datos de forma segura y eficiente.
+      </p>
+      <div class="stats shadow">
+        <div class="stat">
+          <div class="stat-figure text-primary">
+            <i data-lucide="shield-check" class="w-8 h-8"></i>
+          </div>
+          <div class="stat-title">Seguridad</div>
+          <div class="stat-value text-primary">100%</div>
+          <div class="stat-desc">Encriptación end-to-end</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Login Card -->
+    <div class="card shrink-0 w-full max-w-md shadow-2xl bg-base-100">
+      <form class="card-body" action="/auth/login" method="POST">
+        <h2 class="card-title text-2xl font-bold justify-center mb-2">
+          Iniciar Sesión
+        </h2>
+        <p class="text-center text-base-content/60 mb-4">
+          Accede al panel de administración
+        </p>
+
+        <!-- Error Alert -->
+        <% if (locals.error) { %>
+          <div class="alert alert-error mb-4">
+            <i data-lucide="alert-circle" class="h-5 w-5"></i>
+            <span><%= error %></span>
+          </div>
+        <% } %>
+
+        <!-- Username Field -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">Usuario</span>
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i data-lucide="user" class="h-5 w-5 text-base-content/40"></i>
+            </div>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autocomplete="username"
+              required
+              placeholder="Ingresa tu usuario"
+              class="input input-bordered w-full pl-10"
+            />
+          </div>
+        </div>
+
+        <!-- Password Field -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">Contraseña</span>
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i data-lucide="lock" class="h-5 w-5 text-base-content/40"></i>
+            </div>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="Ingresa tu contraseña"
+              class="input input-bordered w-full pl-10"
+            />
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="form-control mt-6">
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="log-in" class="h-5 w-5"></i>
+            Iniciar Sesión
+          </button>
+        </div>
+
+        <!-- Footer -->
+        <div class="divider text-xs"></div>
+        <div class="text-center">
+          <p class="text-xs text-base-content/60">
+            Sistema de sincronización ERP
+          </p>
+          <div class="badge badge-outline badge-sm mt-2">v1.0.0</div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

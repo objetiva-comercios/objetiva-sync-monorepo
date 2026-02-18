@@ -9,8 +9,7 @@
  */
 
 import { closest, distance } from 'fastest-levenshtein';
-import type { SchemaResponse } from '../types/schema.js';
-import { schemaCache } from '../services/schema-cache.js';
+import { schemaCache, type SchemaResponse } from '../services/schema-cache.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -246,13 +245,18 @@ export async function validateQueryAgainstSchema(
   // Try to get schema from cache
   const schema = await schemaCache.getSchema(entity);
 
-  // Schema unavailable - graceful degradation
+  // Schema unavailable - FAIL validation, gateway is REQUIRED
   if (!schema) {
-    logger.warn({ entity }, 'Schema unavailable for validation - skipping');
+    logger.error({ entity }, 'Schema unavailable for validation - gateway MUST be running');
     return {
-      isValid: true,
-      errors: [],
-      warnings: ['Schema unavailable, validation skipped'],
+      isValid: false,
+      errors: [{
+        field: '*',
+        type: 'MISSING_REQUIRED',
+        message: 'No se pudo obtener el schema del gateway. El servicio gateway DEBE estar ejecutándose.',
+        suggestion: 'Ejecute "npm run dev" en el directorio objetiva-sync-gateway para iniciar el gateway.',
+      }],
+      warnings: [],
       schemaUnavailable: true,
     };
   }
@@ -289,16 +293,14 @@ export async function validateQueryAgainstSchema(
     }
   }
 
-  // 2. Check for unexpected fields
+  // 2. Check for unexpected fields (WARNING only, not error)
+  // The UI already shows extra fields as yellow warnings in "Campos Fuera de Modelo"
+  // section, so we don't fail validation for this - just log for debugging.
+  // Unexpected fields are common when ERP queries return extra columns.
   for (const fieldName of Object.keys(firstRow)) {
     if (!validFields.includes(fieldName)) {
-      const suggestion = findSuggestion(fieldName, validFields);
-      errors.push({
-        field: fieldName,
-        type: 'UNEXPECTED_FIELD',
-        message: `Field '${fieldName}' is not in the schema for entity '${entity}'`,
-        suggestion: suggestion ? `Did you mean '${suggestion}'?` : undefined,
-      });
+      logger.debug({ entity, fieldName }, 'Extra field in query result (not in PostgreSQL schema)');
+      // Intentionally NOT adding to errors - UI handles this as warning
     }
   }
 

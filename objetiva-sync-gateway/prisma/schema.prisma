@@ -54,11 +54,9 @@ model Articulo {
   erp_actualizado DateTime? @db.Timestamp(6)
   erp_sincronizado Boolean? @default(false)
   erp_fecha_sync DateTime? @db.Timestamp(6)
-
-  // Origin tracking for multi-source sync
-  origin_source     String?   @db.Text      // Which sync client wrote this record
-  origin_sync_id    String?   @db.Text      // Which sync run wrote this record
-  origin_synced_at  DateTime? @db.Timestamp(6)  // When this source wrote this record
+  origin_source String? @db.Text
+  origin_sync_id String? @db.Text
+  origin_synced_at DateTime? @db.Timestamp(6)
 
   @@id([erp_codigo, erp_nombre])
   @@index([activo], map: "idx_articulos_activo")
@@ -104,15 +102,11 @@ model ComprobanteCabecera {
   erp_actualizado DateTime? @db.Timestamp(6)
   erp_sincronizado Boolean? @default(false)
   erp_fecha_sync DateTime? @db.Timestamp(6)
-
-  // Origin tracking for multi-source sync
-  origin_source     String?   @db.Text      // Which sync client wrote this record
-  origin_sync_id    String?   @db.Text      // Which sync run wrote this record
-  origin_synced_at  DateTime? @db.Timestamp(6)  // When this source wrote this record
+  origin_source String? @db.Text
+  origin_sync_id String? @db.Text
+  origin_synced_at DateTime? @db.Timestamp(6)
 
   @@id([operacion, formulario, numero])
-  @@index([origin_source], map: "idx_comprobantes_cabecera_origin_source")
-  @@index([origin_synced_at], map: "idx_comprobantes_cabecera_origin_synced_at")
   @@map("comprobantes_cabecera")
 }
 
@@ -143,15 +137,11 @@ model ComprobanteDetalle {
   erp_actualizado DateTime? @db.Timestamp(6)
   erp_sincronizado Boolean? @default(false)
   erp_fecha_sync DateTime? @db.Timestamp(6)
-
-  // Origin tracking for multi-source sync
-  origin_source     String?   @db.Text      // Which sync client wrote this record
-  origin_sync_id    String?   @db.Text      // Which sync run wrote this record
-  origin_synced_at  DateTime? @db.Timestamp(6)  // When this source wrote this record
+  origin_source String? @db.Text
+  origin_sync_id String? @db.Text
+  origin_synced_at DateTime? @db.Timestamp(6)
 
   @@id([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero])
-  @@index([origin_source], map: "idx_comprobantes_detalle_origin_source")
-  @@index([origin_synced_at], map: "idx_comprobantes_detalle_origin_synced_at")
   @@map("comprobantes_detalle")
 }
 
@@ -181,15 +171,11 @@ model ComprobantePagos {
   erp_actualizado DateTime? @db.Timestamp(6)
   erp_sincronizado Boolean? @default(false)
   erp_fecha_sync DateTime? @db.Timestamp(6)
-
-  // Origin tracking for multi-source sync
-  origin_source     String?   @db.Text      // Which sync client wrote this record
-  origin_sync_id    String?   @db.Text      // Which sync run wrote this record
-  origin_synced_at  DateTime? @db.Timestamp(6)  // When this source wrote this record
+  origin_source String? @db.Text
+  origin_sync_id String? @db.Text
+  origin_synced_at DateTime? @db.Timestamp(6)
 
   @@id([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero])
-  @@index([origin_source], map: "idx_comprobantes_pagos_origin_source")
-  @@index([origin_synced_at], map: "idx_comprobantes_pagos_origin_synced_at")
   @@map("comprobantes_pagos")
 }
 

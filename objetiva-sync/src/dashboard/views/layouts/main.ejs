@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full" data-theme="fantasy">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title + ' - ' + locals.appName : locals.appName %></title>
+
+  <!-- Tailwind CSS with DaisyUI -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // No se puede configurar daisyui como plugin cuando se usa desde CDN
+    // El tema se configura en el atributo data-theme del elemento html
+    tailwind.config = {
+      theme: {
+        extend: {}
+      }
+    }
+  </script>
+
+  <!-- HTMX -->
+  <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/custom.css">
+
+  <style>
+    /* Configuración de Tailwind */
+    @layer base {
+      body {
+        @apply bg-base-200;
+      }
+    }
+
+    /* Mejorar tabs con hover y transiciones */
+    .tabs-lifted .tab {
+      transition: all 0.2s ease-in-out;
+    }
+
+    .tabs-lifted .tab:not(.tab-active):hover {
+      background-color: hsl(var(--b3));
+      transform: translateY(-2px);
+    }
+
+    .tabs-lifted .tab-active {
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="h-full bg-base-200">
+  <div class="min-h-full">
+    <% if (locals.user) { %>
+      <%- include('../partials/nav.ejs') %>
+    <% } %>
+
+    <!-- Alerts -->
+    <% if (locals.flashMessages && locals.flashMessages.length > 0) { %>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        <% locals.flashMessages.forEach(function(msg) { %>
+          <%- include('../partials/alert.ejs', { type: msg.type, message: msg.message }) %>
+        <% }) %>
+      </div>
+    <% } %>
+
+    <!-- Main Content -->
+    <main>
+      <%- body %>
+    </main>
+  </div>
+
+  <!-- Initialize Lucide Icons -->
+  <script>
+    lucide.createIcons();
+
+    // HTMX config
+    htmx.config.globalViewTransitions = true;
+
+    // Auto-close alerts after 5 seconds
+    document.addEventListener('DOMContentLoaded', function() {
+      const alerts = document.querySelectorAll('[data-auto-close]');
+      alerts.forEach(function(alert) {
+        setTimeout(function() {
+          alert.style.opacity = '0';
+          setTimeout(function() {
+            alert.remove();
+          }, 300);
+        }, 5000);
+      });
+    });
+  </script>
+
+  <!-- Custom JS -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

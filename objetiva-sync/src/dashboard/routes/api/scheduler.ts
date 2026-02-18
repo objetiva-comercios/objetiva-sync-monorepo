@@ -4,45 +4,75 @@
 
 import type { FastifyInstance } from 'fastify';
 import { requireNoPasswordChange } from '../../middleware/auth.js';
-import { ConfigRepo } from '../../../store/repositories/index.js';
 import { getScheduler, restartScheduler, stopScheduler } from '../../../sync/scheduler-instance.js';
-import { CONFIG_KEYS } from '../../../config/constants.js';
+import { getScheduledQueries } from '../../../store/repositories/queries-repo.js';
 import { logger } from '../../../utils/logger.js';
+
+/**
+ * Formatea intervalo en segundos a texto legible
+ */
+function formatInterval(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+  const hours = Math.round(seconds / 3600);
+  return `${hours} hora${hours > 1 ? 's' : ''}`;
+}
+
+/**
+ * Formatea fecha para mostrar
+ */
+function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return '<span class="text-base-content/40">-</span>';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 /**
  * Genera HTML para el estado del scheduler
  */
-function generateStatusHTML(enabled: boolean, interval: number, jobs: any[], error?: string): string {
-  const formatDate = (date: string | null) => {
-    if (!date) return '<span class="text-gray-400">Nunca</span>';
-    return new Date(date).toLocaleString('es-AR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+function generateStatusHTML(
+  isRunning: boolean,
+  scheduledQueries: Array<{ id: number; name: string; entityType: string; syncInterval: number; isScheduled: boolean }>,
+  runningJobs: Array<{
+    jobId: string;
+    queryId?: number;
+    queryName?: string;
+    entityType: string;
+    intervalSeconds: number;
+    enabled: boolean;
+    lastRun?: Date;
+    nextRun?: Date;
+  }>,
+  error?: string
+): string {
+  // Filter to show only query-based jobs (not system jobs like retries/cleanup)
+  const queryJobs = runningJobs.filter(job => job.queryId);
+  const systemJobs = runningJobs.filter(job => !job.queryId);
 
-  const getEntityName = (entityType: string) => {
-    switch (entityType) {
-      case 'articulo': return 'Artículos';
-      case 'comprobante': return 'Comprobantes';
-      case 'pago': return 'Pagos';
-      case 'retries': return 'Reintentos';
-      case 'cleanup': return 'Limpieza';
-      default: return entityType;
-    }
-  };
+  const hasScheduledQueries = scheduledQueries.length > 0;
 
-  const jobsTableHTML = enabled && jobs.length > 0 ? `
+  // Status badge
+  const statusBadge = isRunning
+    ? '<span class="badge badge-success gap-2"><span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>Ejecutando</span>'
+    : '<span class="badge badge-ghost gap-2"><span class="w-2 h-2 bg-gray-400 rounded-full"></span>Detenido</span>';
+
+  // Query jobs table
+  const queryJobsHTML = queryJobs.length > 0 ? `
     <div class="mt-6">
-      <h4 class="text-sm font-medium mb-3">Jobs Programados</h4>
+      <h4 class="text-sm font-medium mb-3 flex items-center gap-2">
+        <i data-lucide="database" class="w-4 h-4"></i>
+        Jobs de Consultas (${queryJobs.length})
+      </h4>
       <div class="overflow-x-auto">
-        <table class="table table-zebra w-full">
+        <table class="table table-sm w-full">
           <thead>
-            <tr>
-              <th>TIPO</th>
+            <tr class="bg-base-200">
+              <th>CONSULTA</th>
               <th>INTERVALO</th>
               <th>ÚLTIMA EJECUCIÓN</th>
               <th>PRÓXIMA EJECUCIÓN</th>
@@ -50,16 +80,16 @@ function generateStatusHTML(enabled: boolean, interval: number, jobs: any[], err
             </tr>
           </thead>
           <tbody>
-            ${jobs.map(job => `
+            ${queryJobs.map(job => `
               <tr>
-                <td class="font-medium">${getEntityName(job.entityType)}</td>
-                <td>${job.intervalMinutes} min</td>
-                <td>${formatDate(job.lastRun)}</td>
-                <td>${formatDate(job.nextRun)}</td>
+                <td class="font-medium">${job.queryName || `Query #${job.queryId}`}</td>
+                <td>${formatInterval(job.intervalSeconds)}</td>
+                <td class="text-sm">${formatDate(job.lastRun)}</td>
+                <td class="text-sm">${formatDate(job.nextRun)}</td>
                 <td>
                   ${job.enabled
-                    ? '<span class="badge badge-success">Activo</span>'
-                    : '<span class="badge badge-ghost">Inactivo</span>'}
+                    ? '<span class="badge badge-success badge-sm">Activo</span>'
+                    : '<span class="badge badge-ghost badge-sm">Inactivo</span>'}
                 </td>
               </tr>
             `).join('')}
@@ -67,13 +97,79 @@ function generateStatusHTML(enabled: boolean, interval: number, jobs: any[], err
         </table>
       </div>
     </div>
-  ` : !enabled ? `
-    <div class="alert alert-warning mt-4">
-      <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-      <div>
-        <h3 class="font-bold">Scheduler Desactivado</h3>
-        <p class="text-sm">El scheduler automático está desactivado. Configure un intervalo mayor a 0 para activar la sincronización automática.</p>
+  ` : '';
+
+  // System jobs table (retries, cleanup)
+  const systemJobsHTML = systemJobs.length > 0 ? `
+    <div class="mt-6">
+      <h4 class="text-sm font-medium mb-3 flex items-center gap-2">
+        <i data-lucide="settings" class="w-4 h-4"></i>
+        Jobs de Sistema (${systemJobs.length})
+      </h4>
+      <div class="overflow-x-auto">
+        <table class="table table-sm w-full">
+          <thead>
+            <tr class="bg-base-200">
+              <th>TIPO</th>
+              <th>INTERVALO</th>
+              <th>ÚLTIMA EJECUCIÓN</th>
+              <th>PRÓXIMA EJECUCIÓN</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${systemJobs.map(job => {
+              const typeName = job.entityType === 'retries' ? '🔄 Reintentos' :
+                              job.entityType === 'cleanup' ? '🧹 Limpieza de Logs' :
+                              job.entityType;
+              return `
+                <tr>
+                  <td class="font-medium">${typeName}</td>
+                  <td>${formatInterval(job.intervalSeconds)}</td>
+                  <td class="text-sm">${formatDate(job.lastRun)}</td>
+                  <td class="text-sm">${formatDate(job.nextRun)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
       </div>
+    </div>
+  ` : '';
+
+  // Warning if no scheduled queries
+  const noQueriesWarning = !hasScheduledQueries ? `
+    <div class="alert alert-warning mt-4">
+      <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+      <div>
+        <h3 class="font-bold">Sin Consultas Programadas</h3>
+        <p class="text-sm">No hay consultas configuradas para ejecución automática. Ve a <a href="/config/queries" class="link">Consultas</a> y activa "Programar ejecución" en las consultas que deseas automatizar.</p>
+      </div>
+    </div>
+  ` : '';
+
+  // Scheduled queries list (from DB, for reference)
+  const scheduledQueriesHTML = hasScheduledQueries ? `
+    <div class="mt-6">
+      <h4 class="text-sm font-medium mb-3 flex items-center gap-2">
+        <i data-lucide="list-checks" class="w-4 h-4"></i>
+        Consultas Programadas en BD (${scheduledQueries.length})
+      </h4>
+      <div class="flex flex-wrap gap-2">
+        ${scheduledQueries.map(q => `
+          <div class="badge badge-outline gap-2">
+            <span class="font-medium">${q.name}</span>
+            <span class="text-xs opacity-60">${formatInterval(q.syncInterval)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  // Error display
+  const errorHTML = error ? `
+    <div class="alert alert-error mt-4">
+      <i data-lucide="x-circle" class="w-5 h-5"></i>
+      <span>${error}</span>
     </div>
   ` : '';
 
@@ -81,23 +177,31 @@ function generateStatusHTML(enabled: boolean, interval: number, jobs: any[], err
     <div class="card bg-base-100 shadow-xl">
       <div class="card-body">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="card-title">Estado del Scheduler</h3>
-          ${enabled
-            ? '<span class="badge badge-success gap-2"><svg class="w-2 h-2" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>Activo</span>'
-            : '<span class="badge badge-ghost gap-2"><svg class="w-2 h-2" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>Inactivo</span>'}
+          <h3 class="card-title">
+            <i data-lucide="calendar-clock" class="w-5 h-5"></i>
+            Estado del Scheduler
+          </h3>
+          ${statusBadge}
         </div>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <div class="text-sm opacity-60">Intervalo de Sincronización</div>
-            <div class="mt-1 text-sm font-medium">${interval > 0 ? `Cada ${interval} minutos` : 'Desactivado'}</div>
+
+        <div class="stats stats-vertical lg:stats-horizontal shadow bg-base-200">
+          <div class="stat">
+            <div class="stat-title">Consultas Programadas</div>
+            <div class="stat-value text-primary">${scheduledQueries.length}</div>
+            <div class="stat-desc">En base de datos</div>
           </div>
-          <div>
-            <div class="text-sm opacity-60">Jobs Activos</div>
-            <div class="mt-1 text-sm font-medium">${jobs.length}</div>
+          <div class="stat">
+            <div class="stat-title">Jobs Activos</div>
+            <div class="stat-value text-secondary">${runningJobs.length}</div>
+            <div class="stat-desc">En memoria</div>
           </div>
         </div>
-        ${error ? `<div class="alert alert-error mt-4"><svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span>${error}</span></div>` : ''}
-        ${jobsTableHTML}
+
+        ${errorHTML}
+        ${noQueriesWarning}
+        ${queryJobsHTML}
+        ${systemJobsHTML}
+        ${scheduledQueriesHTML}
       </div>
     </div>
   `;
@@ -116,78 +220,51 @@ export async function registerSchedulerApiRoutes(app: FastifyInstance) {
     async (_request, reply) => {
       try {
         const scheduler = getScheduler();
-        const syncIntervalConfig = await ConfigRepo.getConfig(CONFIG_KEYS.SYNC_INTERVAL_MINUTES);
-        const interval = syncIntervalConfig?.value ? parseInt(syncIntervalConfig.value, 10) : 0;
 
-        let jobs: any[] = [];
-        let enabled = false;
+        // Get scheduled queries from database
+        const scheduledQueries = await getScheduledQueries();
+        const queriesData = scheduledQueries.map(q => ({
+          id: q.id,
+          name: q.name,
+          entityType: q.entityType,
+          syncInterval: q.syncInterval ?? 1800,
+          isScheduled: q.isScheduled ?? false,
+        }));
 
-        if (scheduler && interval > 0) {
-          enabled = true;
-          jobs = scheduler.getJobs().map((job) => ({
+        // Get running jobs from scheduler
+        let runningJobs: Array<{
+          jobId: string;
+          queryId?: number;
+          queryName?: string;
+          entityType: string;
+          intervalSeconds: number;
+          enabled: boolean;
+          lastRun?: Date;
+          nextRun?: Date;
+        }> = [];
+
+        const isRunning = scheduler?.getStatus().isRunning ?? false;
+
+        if (scheduler) {
+          runningJobs = scheduler.getJobs().map(job => ({
             jobId: job.id,
-            entityType: job.entityType,
-            intervalMinutes: Math.round(job.intervalSeconds / 60),
+            queryId: job.queryId,
+            queryName: job.queryName,
+            entityType: job.entityType as string,
+            intervalSeconds: job.intervalSeconds,
             enabled: job.enabled,
             lastRun: job.lastRun,
             nextRun: job.nextRun,
           }));
         }
 
-        // Generar HTML del status
-        const html = generateStatusHTML(enabled, interval, jobs);
+        // Generate HTML
+        const html = generateStatusHTML(isRunning, queriesData, runningJobs);
         return reply.type('text/html').send(html);
       } catch (error) {
         logger.error({ error }, '[API] Error al obtener estado del scheduler');
-        const html = generateStatusHTML(false, 0, [], 'Error al obtener estado del scheduler');
+        const html = generateStatusHTML(false, [], [], 'Error al obtener estado del scheduler');
         return reply.type('text/html').send(html);
-      }
-    }
-  );
-
-  /**
-   * PUT /api/scheduler/interval - Actualizar intervalo de sincronización
-   */
-  app.put(
-    '/api/scheduler/interval',
-    { preHandler: requireNoPasswordChange },
-    async (request, reply) => {
-      try {
-        const body = request.body as { interval: number };
-        const interval = body.interval;
-
-        if (interval === undefined || interval === null) {
-          return reply.status(400).send({
-            success: false,
-            error: 'Intervalo requerido',
-          });
-        }
-
-        if (interval < 0 || interval > 1440) {
-          return reply.status(400).send({
-            success: false,
-            error: 'Intervalo debe estar entre 0 y 1440 minutos',
-          });
-        }
-
-        // Guardar en configuración
-        await ConfigRepo.setConfig(CONFIG_KEYS.SYNC_INTERVAL_MINUTES, String(interval));
-
-        // Reiniciar scheduler con nueva configuración
-        await restartScheduler();
-
-        logger.info({ interval }, '[API] Intervalo de sincronización actualizado');
-
-        return reply.send({
-          success: true,
-          message: `Intervalo actualizado a ${interval} minutos`,
-        });
-      } catch (error) {
-        logger.error({ error }, '[API] Error al actualizar intervalo');
-        return reply.status(500).send({
-          success: false,
-          error: 'Error al actualizar intervalo',
-        });
       }
     }
   );
@@ -227,9 +304,6 @@ export async function registerSchedulerApiRoutes(app: FastifyInstance) {
     async (_request, reply) => {
       try {
         stopScheduler();
-
-        // Actualizar config a 0 (desactivado)
-        await ConfigRepo.setConfig(CONFIG_KEYS.SYNC_INTERVAL_MINUTES, '0');
 
         logger.info('[API] Scheduler detenido');
 

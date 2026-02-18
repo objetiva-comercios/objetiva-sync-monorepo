@@ -1,0 +1,312 @@
+<div class="py-6">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Page Header -->
+    <div class="md:flex md:items-center md:justify-between mb-6">
+      <div class="flex-1 min-w-0">
+        <h1 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+          Cola de Reintentos
+        </h1>
+        <p class="mt-1 text-sm text-gray-500">
+          Gestión de elementos fallidos pendientes de reintento
+        </p>
+      </div>
+      <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
+        <button
+          type="button"
+          onclick="retryAll()"
+          class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          <i data-lucide="repeat" class="w-4 h-4 mr-2"></i>
+          Reintentar Todos
+        </button>
+        <button
+          type="button"
+          onclick="refreshQueue()"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          <i data-lucide="refresh-cw" class="w-4 h-4 mr-2"></i>
+          Actualizar
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+      <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i data-lucide="clock" class="h-8 w-8 text-yellow-600"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate">
+                  Pendientes
+                </dt>
+                <dd class="text-lg font-semibold text-yellow-600" id="stat-pending">0</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i data-lucide="check-circle" class="h-8 w-8 text-green-600"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate">
+                  Resueltos
+                </dt>
+                <dd class="text-lg font-semibold text-green-600" id="stat-success">0</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i data-lucide="x-circle" class="h-8 w-8 text-red-600"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate">
+                  Fallidos
+                </dt>
+                <dd class="text-lg font-semibold text-red-600" id="stat-failed">0</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i data-lucide="list" class="h-8 w-8 text-blue-600"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate">
+                  Total
+                </dt>
+                <dd class="text-lg font-semibold text-blue-600" id="stat-total">0</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white shadow sm:rounded-lg mb-6">
+      <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Filtros</h3>
+        <form id="filters-form" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label for="filter-entity" class="block text-sm font-medium text-gray-700">Tipo de Entidad</label>
+            <select
+              id="filter-entity"
+              name="entityType"
+              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            >
+              <option value="">Todas</option>
+              <option value="articulo">Artículos</option>
+              <option value="comprobante">Comprobantes</option>
+              <option value="pago">Pagos</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="filter-status" class="block text-sm font-medium text-gray-700">Estado</label>
+            <select
+              id="filter-status"
+              name="status"
+              class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            >
+              <option value="">Todos</option>
+              <option value="pending">Pendiente</option>
+              <option value="success">Resuelto</option>
+              <option value="failed">Fallido</option>
+            </select>
+          </div>
+
+          <div class="flex items-end">
+            <button
+              type="button"
+              onclick="applyFilters()"
+              class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <i data-lucide="filter" class="mr-2 h-4 w-4"></i>
+              Aplicar Filtros
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Queue Table -->
+    <div class="bg-white shadow sm:rounded-lg">
+      <div class="px-4 py-5 sm:p-6">
+        <div id="queue-container"
+          hx-get="/api/retry-queue/list"
+          hx-trigger="load"
+          hx-swap="innerHTML"
+        >
+          <!-- Loading state -->
+          <div class="text-center py-12">
+            <i data-lucide="loader" class="h-12 w-12 mx-auto animate-spin text-blue-600"></i>
+            <p class="mt-2 text-sm text-gray-500">Cargando cola de reintentos...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Load stats on page load
+  loadStats();
+
+  async function loadStats() {
+    try {
+      const response = await fetch('/api/retry-queue/stats');
+      const result = await response.json();
+
+      if (result.success) {
+        const stats = result.data;
+        document.getElementById('stat-pending').textContent = stats.pending || 0;
+        document.getElementById('stat-success').textContent = stats.success || 0;
+        document.getElementById('stat-failed').textContent = stats.failed || 0;
+        document.getElementById('stat-total').textContent = stats.total || 0;
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  }
+
+  function applyFilters() {
+    const form = document.getElementById('filters-form');
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+
+    // Add non-empty filters
+    for (const [key, value] of formData.entries()) {
+      if (value) {
+        params.append(key, value);
+      }
+    }
+
+    // Load queue with filters
+    htmx.ajax('GET', '/api/retry-queue/list?' + params.toString(), {
+      target: '#queue-container',
+      swap: 'innerHTML'
+    });
+  }
+
+  function refreshQueue() {
+    applyFilters();
+    loadStats();
+  }
+
+  async function retryAll() {
+    if (!confirm('¿Está seguro de que desea reintentar todos los elementos pendientes?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/retry-queue/retry-all', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification('Reintentos iniciados correctamente', 'success');
+        refreshQueue();
+      } else {
+        showNotification(result.error || 'Error al iniciar reintentos', 'error');
+      }
+    } catch (error) {
+      console.error('Error retrying all:', error);
+      showNotification('Error al iniciar reintentos', 'error');
+    }
+  }
+
+  async function retryItem(id) {
+    try {
+      const response = await fetch(`/api/retry-queue/${id}/retry`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification('Reintento iniciado', 'success');
+        refreshQueue();
+      } else {
+        showNotification(result.error || 'Error al reintentar', 'error');
+      }
+    } catch (error) {
+      console.error('Error retrying item:', error);
+      showNotification('Error al reintentar', 'error');
+    }
+  }
+
+  async function deleteItem(id) {
+    if (!confirm('¿Está seguro de que desea eliminar este elemento de la cola?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/retry-queue/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification('Elemento eliminado', 'success');
+        refreshQueue();
+      } else {
+        showNotification(result.error || 'Error al eliminar', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      showNotification('Error al eliminar', 'error');
+    }
+  }
+
+  // Auto-refresh stats every 30 seconds
+  setInterval(loadStats, 30000);
+
+  // Refresh lucide icons after HTMX swaps
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  });
+
+  // Make functions globally available
+  window.applyFilters = applyFilters;
+  window.refreshQueue = refreshQueue;
+  window.retryAll = retryAll;
+  window.retryItem = retryItem;
+  window.deleteItem = deleteItem;
+</script>

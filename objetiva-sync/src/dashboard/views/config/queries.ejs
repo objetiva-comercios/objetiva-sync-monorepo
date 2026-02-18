@@ -1,0 +1,1710 @@
+<div class="py-6 bg-base-200 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Config Tabs -->
+    <%- include('../partials/config-tabs.ejs') %>
+
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+      <div class="flex-1 min-w-0">
+        <h1 class="text-3xl font-bold mb-2">
+          Gestión de Consultas SQL
+        </h1>
+        <p class="text-base-content/60">
+          Configurar consultas SQL para sincronización de datos
+        </p>
+      </div>
+      <div class="mt-4 sm:mt-0 sm:ml-4">
+        <button
+          type="button"
+          onclick="showQueryForm()"
+          class="btn btn-primary gap-2"
+        >
+          <i data-lucide="plus" class="h-4 w-4"></i>
+          Nueva Consulta
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <!-- Queries List -->
+      <div class="lg:col-span-1">
+        <div class="card bg-base-100 shadow-xl">
+          <div class="card-body p-0">
+            <div class="px-6 py-4 border-b border-base-300">
+              <h3 class="card-title text-lg">
+                <i data-lucide="list" class="w-5 h-5"></i>
+                Consultas Configuradas
+              </h3>
+            </div>
+            <div
+              id="queries-list"
+              hx-get="/api/queries/list"
+              hx-trigger="load, queryUpdated from:body"
+              hx-swap="innerHTML"
+              class="divide-y divide-base-300 max-h-[calc(100vh-300px)] overflow-y-auto"
+            >
+              <!-- Loading state -->
+              <div class="px-4 py-8 text-center">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+                <p class="mt-2 text-base-content/60">Cargando consultas...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Query Editor -->
+      <div class="lg:col-span-2">
+        <div id="query-editor-container" class="card bg-base-100 shadow-xl hidden">
+          <form
+            id="query-form"
+            onsubmit="return handleQueryFormSubmit(event)"
+          >
+            <input type="hidden" id="query-id" name="queryId" value="">
+
+            <div class="card-body">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="card-title">
+                  <span id="editor-title">Nueva Consulta</span>
+                  <span id="editor-query-id" class="badge badge-ghost badge-sm"></span>
+                </h3>
+                <button
+                  type="button"
+                  onclick="hideQueryForm()"
+                  class="btn btn-ghost btn-sm btn-circle"
+                >
+                  <i data-lucide="x" class="h-5 w-5"></i>
+                </button>
+              </div>
+
+              <div class="space-y-6">
+                <!-- Basic Info -->
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div class="form-control col-span-2 sm:col-span-1">
+                    <label class="label">
+                      <span class="label-text font-medium">Nombre de la consulta</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      id="query-name"
+                      required
+                      class="input input-bordered w-full"
+                      placeholder="Ej: Artículos Actualizados"
+                    />
+                  </div>
+
+                  <div class="form-control col-span-2 sm:col-span-1">
+                    <label class="label">
+                      <span class="label-text font-medium">Tipo de Entidad</span>
+                    </label>
+                    <select
+                      name="entityType"
+                      id="query-entity-type"
+                      required
+                      class="select select-bordered w-full"
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="articulo">📦 Artículos</option>
+                      <option value="comprobante_cabecera">📄 Comprobantes - Cabecera</option>
+                      <option value="comprobante_detalle">📋 Comprobantes - Detalle</option>
+                      <option value="comprobante_pago">💳 Comprobantes - Pagos</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Connection Selector -->
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text font-medium">Origen de Datos (Conexión)</span>
+                  </label>
+                  <select
+                    name="connectionId"
+                    id="query-connection-id"
+                    class="select select-bordered w-full"
+                  >
+                    <option value="">Usar conexión activa</option>
+                    <!-- Options loaded dynamically -->
+                  </select>
+                  <label class="label">
+                    <span class="label-text-alt text-base-content/60">
+                      <i data-lucide="database" class="w-3 h-3 inline"></i>
+                      Selecciona la base de datos de origen para esta consulta
+                    </span>
+                  </label>
+                </div>
+
+              <!-- SQL Query -->
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text font-medium">Consulta SQL</span>
+                </label>
+                <textarea
+                  name="sqlQuery"
+                  id="query-sql"
+                  rows="10"
+                  required
+                  class="textarea textarea-bordered font-mono text-sm h-64"
+                  placeholder="SELECT * FROM articulos WHERE..."
+                ></textarea>
+                <label class="label">
+                  <span class="label-text-alt text-info">
+                    <i data-lucide="info" class="w-3 h-3 inline"></i>
+                    Usa aliases snake_case para los campos
+                  </span>
+                </label>
+              </div>
+
+              <!-- Incremental Sync Config -->
+              <div class="bg-base-200 rounded-lg p-4">
+                <div class="flex items-center gap-2 mb-4">
+                  <i data-lucide="clock" class="w-5 h-5 text-primary"></i>
+                  <span class="text-lg font-medium">Configuración Incremental</span>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text font-medium">Tipo de Incremento</span>
+                    </label>
+                    <select
+                      name="incrementalType"
+                      id="query-incremental-type"
+                      onchange="toggleIncrementalField()"
+                      class="select select-bordered w-full"
+                    >
+                      <option value="">Sin incremento (Full sync)</option>
+                      <option value="datetime">📅 Fecha/Hora</option>
+                    </select>
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text font-medium">Campo Incremental</span>
+                    </label>
+                    <select
+                      name="incrementalField"
+                      id="query-incremental-field"
+                      onmousedown="loadIncrementalFieldOptions(event)"
+                      onchange="updateIncrementalExample()"
+                      class="select select-bordered w-full"
+                    >
+                      <option value="">Desplegar para cargar campos de fecha...</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Instrucción dinámica para @lastSync -->
+                <div id="incremental-hint" class="hidden mt-4 alert alert-info text-sm">
+                  <i data-lucide="info" class="w-4 h-4"></i>
+                  <div class="flex-1">
+                    <p>Tu consulta debe incluir:</p>
+                    <div class="flex items-center gap-2 mt-1">
+                      <code id="incremental-example" class="bg-base-100 px-2 py-1 rounded font-mono flex-1">WHERE campo_fecha > @lastSync</code>
+                      <button type="button" onclick="copyIncrementalClause()" class="btn btn-xs btn-ghost gap-1" title="Copiar">
+                        <i data-lucide="copy" class="w-3 h-3"></i>
+                        <span id="copy-feedback" class="text-xs"></span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Last sync info (shown when editing) -->
+                <div id="last-sync-info" class="hidden mt-4 p-3 bg-base-100 rounded-lg border border-base-300">
+                  <div class="flex items-center gap-2 text-sm">
+                    <i data-lucide="history" class="w-4 h-4 text-info"></i>
+                    <span class="font-medium">Última sincronización:</span>
+                    <span id="last-sync-value" class="font-mono text-info">--</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Validation results container (hidden until validation runs) -->
+              <div
+                id="query-validation-results"
+                class="hidden mt-4"
+              >
+                <!-- Validation results will be loaded here -->
+              </div>
+
+              <!-- Scheduling Config -->
+              <div class="bg-base-200 rounded-lg p-4">
+                <div class="flex items-center gap-2 mb-4">
+                  <i data-lucide="calendar-clock" class="w-5 h-5 text-primary"></i>
+                  <span class="text-lg font-medium">Programación Automática</span>
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-4">
+                      <input
+                        type="checkbox"
+                        name="isScheduled"
+                        id="query-is-scheduled"
+                        class="toggle toggle-primary"
+                        onchange="toggleSyncIntervalField()"
+                      />
+                      <div>
+                        <span class="label-text font-medium">Programar ejecución</span>
+                        <p class="label-text-alt text-base-content/60">Ejecutar automáticamente según intervalo</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text font-medium">Intervalo de Sincronización</span>
+                    </label>
+                    <select
+                      name="syncInterval"
+                      id="query-sync-interval"
+                      class="select select-bordered w-full"
+                      disabled
+                    >
+                      <option value="60">Cada 1 minuto</option>
+                      <option value="300">Cada 5 minutos</option>
+                      <option value="600">Cada 10 minutos</option>
+                      <option value="900">Cada 15 minutos</option>
+                      <option value="1800" selected>Cada 30 minutos</option>
+                      <option value="3600">Cada 1 hora</option>
+                      <option value="7200">Cada 2 horas</option>
+                      <option value="14400">Cada 4 horas</option>
+                      <option value="28800">Cada 8 horas</option>
+                      <option value="43200">Cada 12 horas</option>
+                      <option value="86400">Cada 24 horas</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div id="scheduling-info" class="hidden mt-4 alert alert-info text-sm">
+                  <i data-lucide="info" class="w-4 h-4"></i>
+                  <span>El scheduler ejecutará esta consulta automáticamente. Puedes ver el estado en la sección <a href="/scheduler" class="link link-primary">Scheduler</a>.</span>
+                </div>
+              </div>
+
+              <!-- Active Status -->
+              <div class="form-control mt-4">
+                <label class="label cursor-pointer justify-start gap-4">
+                  <input
+                    type="checkbox"
+                    name="isActive"
+                    id="query-is-active"
+                    class="toggle toggle-success"
+                  />
+                  <div>
+                    <span class="label-text font-medium">Consulta activa</span>
+                    <p class="label-text-alt text-base-content/60">Usada en sincronizaciones automáticas. Solo puede haber una consulta activa por tipo de entidad.</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="card-actions justify-between p-4 bg-base-200 border-t border-base-300">
+              <button
+                type="button"
+                onclick="testAndValidateQuery()"
+                class="btn btn-success gap-2"
+              >
+                <i data-lucide="check-circle" class="h-4 w-4"></i>
+                Probar y Validar
+              </button>
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  onclick="hideQueryForm()"
+                  class="btn btn-ghost gap-2"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  class="btn btn-primary gap-2"
+                >
+                  <i data-lucide="save" class="h-4 w-4"></i>
+                  Guardar Consulta
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Empty state -->
+        <div id="query-empty-state" class="card bg-base-100 shadow-xl">
+          <div class="card-body items-center text-center py-12">
+            <div class="bg-base-200 rounded-full p-6 mb-4">
+              <i data-lucide="file-code" class="h-12 w-12 text-base-content/40"></i>
+            </div>
+            <h3 class="card-title">
+              Editor de Consultas SQL
+            </h3>
+            <p class="text-base-content/60 max-w-md">
+              Selecciona una consulta existente o crea una nueva para comenzar
+            </p>
+            <div class="card-actions mt-4">
+              <button onclick="showQueryForm()" class="btn btn-primary gap-2">
+                <i data-lucide="plus" class="h-4 w-4"></i>
+                Nueva Consulta
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Schema Reference Component -->
+        <%- include('../partials/schema-reference.ejs') %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Validación y Referencia -->
+<dialog id="validation-modal" class="modal">
+  <div class="modal-box max-w-6xl w-full">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-lg">Resultados de Validación</h3>
+      <button
+        type="button"
+        onclick="closeValidationModal()"
+        class="btn btn-sm btn-circle btn-ghost"
+      >
+        <i data-lucide="x" class="h-5 w-5"></i>
+      </button>
+    </div>
+
+    <!-- Tabs -->
+    <div role="tablist" class="tabs tabs-bordered">
+      <button
+        role="tab"
+        onclick="switchTab('results')"
+        id="tab-results"
+        class="tab tab-active"
+      >
+        <i data-lucide="check-circle" class="inline h-4 w-4 mr-2"></i>
+        Resultados
+      </button>
+      <button
+        role="tab"
+        onclick="switchTab('reference')"
+        id="tab-reference"
+        class="tab"
+      >
+        <i data-lucide="book-open" class="inline h-4 w-4 mr-2"></i>
+        Referencia de Campos
+      </button>
+    </div>
+
+    <!-- Modal Content -->
+    <div class="py-4 overflow-y-auto max-h-[60vh] min-h-[300px]">
+      <!-- Tab: Results -->
+      <div id="tab-content-results" class="tab-panel" style="display: block;">
+        <div id="modal-validation-results">
+          <!-- Validation results will be loaded here -->
+        </div>
+      </div>
+
+      <!-- Tab: Reference -->
+      <div id="tab-content-reference" class="tab-panel" style="display: none;">
+        <div id="modal-schema-reference">
+          <!-- Schema reference will be loaded here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-action">
+      <button
+        type="button"
+        onclick="closeValidationModal()"
+        class="btn"
+      >
+        Cerrar
+      </button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>cerrar</button>
+  </form>
+</dialog>
+
+<!-- SortableJS Library -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<script>
+  // Initialize SortableJS after queries list loads
+  let sortableInstance = null;
+
+  // Cache for connections data
+  let cachedConnections = [];
+
+  // Load connections for dropdown
+  async function loadConnectionsDropdown() {
+    try {
+      const response = await fetch('/api/connections/dropdown');
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        cachedConnections = result.data;
+        populateConnectionsDropdown();
+      }
+    } catch (error) {
+      console.error('Error loading connections:', error);
+    }
+  }
+
+  function populateConnectionsDropdown() {
+    const select = document.getElementById('query-connection-id');
+    if (!select) return;
+
+    // Keep only the first option (usar conexión activa)
+    select.innerHTML = '<option value="">Usar conexión activa</option>';
+
+    cachedConnections.forEach(conn => {
+      const option = document.createElement('option');
+      option.value = conn.id;
+      const adapterIcon = {
+        'sqlserver': '🔷',
+        'postgres': '🐘',
+        'mysql': '🐬',
+        'excel': '📊'
+      };
+      const icon = adapterIcon[conn.adapterType] || '📁';
+      const activeTag = conn.isActive ? ' ⭐' : '';
+      option.textContent = `${icon} ${conn.name}${activeTag}`;
+      select.appendChild(option);
+    });
+  }
+
+  // Load connections on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    loadConnectionsDropdown();
+  });
+
+  function initializeSortable() {
+    const queriesList = document.getElementById('queries-list');
+
+    if (sortableInstance) {
+      sortableInstance.destroy();
+    }
+
+    sortableInstance = Sortable.create(queriesList, {
+      handle: '.drag-handle',
+      animation: 150,
+      ghostClass: 'bg-blue-50',
+      dragClass: 'opacity-50',
+      onEnd: async function(evt) {
+        // Obtener nuevo orden de IDs
+        const items = Array.from(queriesList.children);
+        const orderedIds = items
+          .map(item => parseInt(item.getAttribute('data-query-id')))
+          .filter(id => !isNaN(id));
+
+        if (orderedIds.length === 0) return;
+
+        try {
+          const response = await fetch('/api/queries/reorder', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderedIds })
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            showNotification('Orden actualizado correctamente', 'success');
+          } else {
+            showNotification(result.error || 'Error al reordenar queries', 'error');
+            // Recargar lista en caso de error
+            htmx.trigger('body', 'queryUpdated');
+          }
+        } catch (error) {
+          console.error('Error reordering queries:', error);
+          showNotification('Error al reordenar queries', 'error');
+          // Recargar lista en caso de error
+          htmx.trigger('body', 'queryUpdated');
+        }
+      }
+    });
+  }
+
+  // Reinitialize sortable after HTMX swaps the list
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target && event.detail.target.getAttribute('id') === 'queries-list') {
+      initializeSortable();
+    }
+
+    // Refresh lucide icons
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  });
+
+
+  // Query Editor Functions
+  function showQueryForm(queryData = null) {
+    document.getElementById('query-editor-container').classList.remove('hidden');
+    document.getElementById('query-empty-state').classList.add('hidden');
+
+    // Resetear selectores de campos
+    const incrementalFieldSelect = document.getElementById('query-incremental-field');
+
+    if (queryData) {
+      // Edit mode
+      document.getElementById('editor-title').textContent = 'Editar Consulta';
+      document.getElementById('editor-query-id').textContent = `(ID: ${queryData.id})`;
+      document.getElementById('query-id').value = queryData.id || '';
+      document.getElementById('query-name').value = queryData.name || '';
+      document.getElementById('query-entity-type').value = queryData.entityType || '';
+      document.getElementById('query-sql').value = queryData.sqlQuery || '';
+      document.getElementById('query-is-active').checked = queryData.isActive || false;
+
+      // Convertir valor de DB a valor de UI para incrementalType
+      // DB almacena: 'date' | 'id' | null
+      // UI espera:   'datetime' | '' (solo Fecha/Hora o Full sync)
+      const dbToUiIncrementalType = {
+        'date': 'datetime',
+        'id': 'datetime',  // Mapear ID también a datetime (ya no se usa ID)
+        'datetime': 'datetime',
+        'number': 'datetime'
+      };
+      const uiIncrementalType = dbToUiIncrementalType[queryData.incrementalType] || '';
+      document.getElementById('query-incremental-type').value = uiIncrementalType;
+
+      // Si hay campos guardados, agregarlos como opciones temporales
+      if (queryData.incrementalField) {
+        incrementalFieldSelect.innerHTML = `
+          <option value="">Seleccionar campo de fecha...</option>
+          <option value="${queryData.incrementalField}" selected>📅 ${queryData.incrementalField}</option>
+        `;
+        incrementalFieldSelect.disabled = false;
+      } else {
+        incrementalFieldSelect.innerHTML = '<option value="">Clic para cargar campos...</option>';
+        incrementalFieldSelect.disabled = !uiIncrementalType;
+      }
+
+      // Mostrar/ocultar info de última sincronización
+      const lastSyncInfo = document.getElementById('last-sync-info');
+      const lastSyncValueEl = document.getElementById('last-sync-value');
+
+      if (queryData.lastSyncValue && lastSyncInfo && lastSyncValueEl) {
+        lastSyncValueEl.textContent = formatDateTime(queryData.lastSyncValue);
+        lastSyncInfo.classList.remove('hidden');
+      } else if (lastSyncInfo) {
+        lastSyncInfo.classList.add('hidden');
+      }
+
+      // Cargar configuración de programación
+      const isScheduledCheckbox = document.getElementById('query-is-scheduled');
+      const syncIntervalSelect = document.getElementById('query-sync-interval');
+
+      isScheduledCheckbox.checked = queryData.isScheduled || false;
+      syncIntervalSelect.value = queryData.syncInterval || 1800;
+      toggleSyncIntervalField();
+
+      // Cargar connectionId
+      const connectionSelect = document.getElementById('query-connection-id');
+      if (connectionSelect) {
+        populateConnectionsDropdown(); // Ensure options are loaded
+        connectionSelect.value = queryData.connectionId || '';
+      }
+    } else {
+      // New mode - Limpiar formulario completamente
+      document.getElementById('editor-title').textContent = 'Nueva Consulta';
+      document.getElementById('editor-query-id').textContent = '';
+      document.getElementById('query-form').reset();
+      document.getElementById('query-id').value = '';
+
+      // Resetear selectores a estado inicial
+      incrementalFieldSelect.innerHTML = '<option value="">Desplegar para cargar campos de fecha...</option>';
+      fieldsAlreadyLoaded = false;
+
+      // Ocultar info de última sincronización
+      const lastSyncInfo = document.getElementById('last-sync-info');
+      if (lastSyncInfo) {
+        lastSyncInfo.classList.add('hidden');
+      }
+
+      // Resetear configuración de programación
+      const isScheduledCheckbox = document.getElementById('query-is-scheduled');
+      const syncIntervalSelect = document.getElementById('query-sync-interval');
+
+      isScheduledCheckbox.checked = false;
+      syncIntervalSelect.value = 1800;
+      syncIntervalSelect.disabled = true;
+      document.getElementById('scheduling-info').classList.add('hidden');
+
+      // Resetear connectionId
+      const connectionSelect = document.getElementById('query-connection-id');
+      if (connectionSelect) {
+        connectionSelect.value = '';
+      }
+    }
+
+    // Ocultar panel de referencia de schema si está visible
+    const schemaReference = document.getElementById('schema-reference');
+    if (schemaReference) {
+      schemaReference.classList.add('hidden');
+    }
+  }
+
+  function hideQueryForm() {
+    document.getElementById('query-editor-container').classList.add('hidden');
+    document.getElementById('query-empty-state').classList.remove('hidden');
+    document.getElementById('query-form').reset();
+
+    // Ocultar panel de referencia de schema
+    const schemaReference = document.getElementById('schema-reference');
+    if (schemaReference) {
+      schemaReference.classList.add('hidden');
+    }
+  }
+
+  async function testQuery() {
+    const sqlQuery = document.getElementById('query-sql').value;
+    const incrementalField = document.getElementById('query-incremental-field').value;
+    const incrementalType = document.getElementById('query-incremental-type').value;
+    const connectionId = document.getElementById('query-connection-id')?.value || '';
+
+    if (!sqlQuery.trim()) {
+      showNotification('Por favor ingresa una consulta SQL', 'error');
+      return;
+    }
+
+    const resultsDiv = document.getElementById('query-test-results');
+    if (!resultsDiv) {
+      console.warn('query-test-results element not found');
+      return;
+    }
+    resultsDiv.classList.remove('hidden');
+    resultsDiv.innerHTML = '<div class="text-center py-4"><i data-lucide="loader" class="h-8 w-8 mx-auto animate-spin text-blue-600"></i><p class="mt-2 text-sm text-gray-500">Ejecutando consulta...</p></div>';
+
+    // Refresh lucide icons
+    if (window.lucide) lucide.createIcons();
+
+    // Usar fetch con timeout en lugar de htmx
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout (10s query + 5s margen)
+
+    try {
+      const response = await fetch('/api/queries/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sqlQuery: sqlQuery,
+          incrementalField: incrementalField || undefined,
+          incrementalType: incrementalType || undefined,
+          connectionId: connectionId || undefined  // Usa conexión seleccionada o activa
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const html = await response.text();
+      resultsDiv.innerHTML = html;
+
+      // Si la consulta fue exitosa, extraer columnas y poblar selectores
+      if (response.ok) {
+        // Extraer nombres de columnas del HTML generado
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const tableHeaders = tempDiv.querySelectorAll('table thead th');
+
+        // No poblar el dropdown aquí - el usuario usa el dropdown de campo incremental
+        // que carga solo campos de fecha
+      }
+
+      // Refresh lucide icons
+      if (window.lucide) lucide.createIcons();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('Error testing query:', error);
+
+      let errorMessage = 'Error al ejecutar consulta';
+      if (error.name === 'AbortError') {
+        errorMessage = 'Timeout: La consulta tardó demasiado tiempo. Verifica que la conexión esté activa.';
+      }
+
+      resultsDiv.innerHTML = `
+        <div class="bg-red-50 border border-red-200 rounded p-3">
+          <div class="flex items-start">
+            <i data-lucide="x-circle" class="h-4 w-4 text-red-600 mr-2 mt-0.5"></i>
+            <div>
+              <p class="text-sm text-red-800 font-medium">Error</p>
+              <p class="text-xs text-red-700 mt-1">${errorMessage}</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (window.lucide) lucide.createIcons();
+    }
+  }
+
+  function populateColumnSelects(columnNames) {
+    const incrementalFieldSelect = document.getElementById('query-incremental-field');
+
+    // Guardar valores actuales
+    const currentIncrementalValue = incrementalFieldSelect.value;
+
+    // Limpiar y poblar campo incremental
+    incrementalFieldSelect.innerHTML = '<option value="">Seleccionar campo...</option>';
+    columnNames.forEach(col => {
+      const option = document.createElement('option');
+      option.value = col;
+      option.textContent = col;
+      incrementalFieldSelect.appendChild(option);
+    });
+
+    // Restaurar valores si existían
+    if (currentIncrementalValue && columnNames.includes(currentIncrementalValue)) {
+      incrementalFieldSelect.value = currentIncrementalValue;
+    }
+
+    // Habilitar selectores solo si hay un tipo incremental seleccionado
+    toggleIncrementalField();
+
+    showNotification('Columnas cargadas. Ahora puedes seleccionar campos incrementales.', 'success');
+  }
+
+  function toggleIncrementalField() {
+    const incrementalType = document.getElementById('query-incremental-type').value;
+    const incrementalFieldSelect = document.getElementById('query-incremental-field');
+
+    if (!incrementalType) {
+      // Sin tipo de incremento = deshabilitar y limpiar
+      incrementalFieldSelect.disabled = true;
+      incrementalFieldSelect.value = '';
+    } else {
+      // Con tipo de incremento = habilitar para que pueda hacer clic y cargar opciones
+      incrementalFieldSelect.disabled = false;
+    }
+  }
+
+  function toggleSyncIntervalField() {
+    const isScheduled = document.getElementById('query-is-scheduled').checked;
+    const syncIntervalSelect = document.getElementById('query-sync-interval');
+    const schedulingInfo = document.getElementById('scheduling-info');
+
+    syncIntervalSelect.disabled = !isScheduled;
+
+    if (isScheduled) {
+      schedulingInfo.classList.remove('hidden');
+    } else {
+      schedulingInfo.classList.add('hidden');
+    }
+
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Flag para evitar múltiples cargas simultáneas
+  let isLoadingFields = false;
+  let fieldsAlreadyLoaded = false;
+
+  // Cargar campos de fecha al desplegar el dropdown
+  async function loadIncrementalFieldOptions(event) {
+    const incrementalFieldSelect = document.getElementById('query-incremental-field');
+    const sqlQuery = document.getElementById('query-sql').value;
+
+    // Si ya cargamos los campos y hay opciones, dejar que el dropdown se abra normalmente
+    if (fieldsAlreadyLoaded && incrementalFieldSelect.options.length > 1) {
+      return; // No prevenir, dejar abrir
+    }
+
+    // Prevenir que se abra el dropdown hasta que carguen los datos
+    if (event) {
+      event.preventDefault();
+    }
+
+    // Evitar múltiples cargas simultáneas
+    if (isLoadingFields) {
+      return;
+    }
+
+    if (!sqlQuery.trim()) {
+      showNotification('Escribe una consulta SQL primero', 'warning');
+      return;
+    }
+
+    isLoadingFields = true;
+
+    // Guardar valor actual antes de recargar
+    const currentValue = incrementalFieldSelect.value;
+
+    // Mostrar estado de carga
+    incrementalFieldSelect.innerHTML = '<option value="">🔄 Ejecutando consulta...</option>';
+
+    try {
+      // Usar el endpoint que detecta campos de fecha analizando los valores
+      const response = await fetch('/api/queries/get-date-columns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sqlQuery })
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Error al ejecutar consulta');
+      }
+
+      const dateColumns = result.dateColumns || [];
+
+      if (dateColumns.length > 0) {
+        // Poblar el dropdown solo con campos de fecha
+        incrementalFieldSelect.innerHTML = '<option value="">Seleccionar campo de fecha...</option>';
+        dateColumns.forEach(col => {
+          const option = document.createElement('option');
+          option.value = col;
+          option.textContent = `📅 ${col}`;
+          incrementalFieldSelect.appendChild(option);
+        });
+
+        // Restaurar valor si existía y sigue siendo válido
+        if (currentValue && dateColumns.includes(currentValue)) {
+          incrementalFieldSelect.value = currentValue;
+          updateIncrementalExample();
+        }
+
+        showNotification(`${dateColumns.length} campo(s) de fecha`, 'success');
+        fieldsAlreadyLoaded = true;
+      } else {
+        incrementalFieldSelect.innerHTML = '<option value="">No hay campos de fecha</option>';
+        showNotification('No se encontraron campos fecha/datetime', 'warning');
+        fieldsAlreadyLoaded = false;
+      }
+    } catch (error) {
+      console.error('Error loading date fields:', error);
+      incrementalFieldSelect.innerHTML = '<option value="">Error - clic para reintentar</option>';
+      showNotification('Error: ' + error.message, 'error');
+      fieldsAlreadyLoaded = false;
+    } finally {
+      isLoadingFields = false;
+    }
+  }
+
+  // Resetear la bandera cuando cambia la consulta SQL
+  document.getElementById('query-sql')?.addEventListener('input', () => {
+    fieldsAlreadyLoaded = false;
+  });
+
+  // Actualizar el ejemplo de @lastSync cuando se selecciona un campo
+  function updateIncrementalExample() {
+    const incrementalField = document.getElementById('query-incremental-field').value;
+    const incrementalHint = document.getElementById('incremental-hint');
+    const incrementalExample = document.getElementById('incremental-example');
+    const copyFeedback = document.getElementById('copy-feedback');
+
+    if (incrementalField && incrementalHint && incrementalExample) {
+      incrementalExample.textContent = `AND ${incrementalField} > @lastSync`;
+      incrementalHint.classList.remove('hidden');
+      if (copyFeedback) copyFeedback.textContent = '';
+      if (window.lucide) lucide.createIcons();
+    } else if (incrementalHint) {
+      incrementalHint.classList.add('hidden');
+    }
+  }
+
+  // Copiar la cláusula incremental al portapapeles
+  async function copyIncrementalClause() {
+    const incrementalExample = document.getElementById('incremental-example');
+    const copyFeedback = document.getElementById('copy-feedback');
+
+    if (!incrementalExample) return;
+
+    try {
+      await navigator.clipboard.writeText(incrementalExample.textContent);
+      if (copyFeedback) {
+        copyFeedback.textContent = '✓ copiado';
+        setTimeout(() => {
+          copyFeedback.textContent = '';
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Error copying:', err);
+      showNotification('Error al copiar', 'error');
+    }
+  }
+
+  // HTMX event handlers
+  document.body.addEventListener('htmx:configRequest', function(event) {
+    if (event.detail.elt && event.detail.elt.getAttribute('id') === 'query-form') {
+      // Habilitar temporalmente campos disabled para que se envíen
+      const incrementalFieldSelect = document.getElementById('query-incremental-field');
+
+      // Guardar estado de disabled
+      const wasIncrementalDisabled = incrementalFieldSelect.disabled;
+
+      // Habilitar temporalmente
+      incrementalFieldSelect.disabled = false;
+
+      // Restaurar después de que se configure la petición
+      setTimeout(() => {
+        incrementalFieldSelect.disabled = wasIncrementalDisabled;
+      }, 0);
+    }
+  });
+
+  // Handle form submission with fetch instead of HTMX
+  async function handleQueryFormSubmit(event) {
+    event.preventDefault();
+
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+
+    try {
+      // Mostrar estado de guardando
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Guardando...';
+
+      const form = event.target;
+      const formData = new FormData(form);
+
+      // Convert FormData to URL-encoded string (como espera el backend)
+      const body = new URLSearchParams(formData).toString();
+
+      const response = await fetch('/api/queries/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Marcar como guardado (limpiar flag de cambios)
+        formHasUnsavedChanges = false;
+        initialFormState = getFormState();
+
+        // Mostrar confirmación
+        showNotification('✅ Consulta guardada exitosamente', 'success');
+
+        // Actualizar el ID si era nueva consulta
+        if (result.id && !document.getElementById('query-id').value) {
+          document.getElementById('query-id').value = result.id;
+          document.getElementById('editor-title').textContent = 'Editar Consulta';
+          document.getElementById('editor-query-id').textContent = `(ID: ${result.id})`;
+        }
+
+        // Refrescar la lista de queries
+        htmx.trigger('body', 'queryUpdated');
+
+        // NO cerrar el editor - el usuario puede seguir editando
+      } else {
+        // Mostrar errores de validación si existen
+        if (result.validationErrors && result.validationErrors.length > 0) {
+          const errorMessages = result.validationErrors.map(e => e.message).join('\n');
+          showNotification('❌ Errores de validación:\n' + errorMessages, 'error');
+        } else {
+          showNotification('❌ ' + (result.error || 'Error al guardar la consulta'), 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      showNotification('❌ Error de conexión al guardar', 'error');
+    } finally {
+      // Restaurar botón
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalText;
+    }
+
+    return false;
+  }
+
+  // Load query for editing
+  async function loadQueryForEdit(queryId) {
+    try {
+      console.log('Loading query for edit:', queryId);
+      const response = await fetch(`/api/queries/${queryId}`);
+      console.log('Fetch response:', response);
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      const result = await response.json();
+      console.log('Parsed result:', result);
+
+      if (result.success && result.data) {
+        showQueryForm(result.data);
+      } else {
+        console.error('❌ Result not successful or no data:', result);
+        // TEMPORALMENTE COMENTADO PARA DEBUG:
+        // showNotification('Error al cargar consulta', 'error');
+      }
+    } catch (error) {
+      console.error('❌ Error loading query:', error);
+      // TEMPORALMENTE COMENTADO PARA DEBUG:
+      // showNotification('Error al cargar consulta', 'error');
+    }
+  }
+
+  // Delete query
+  async function deleteQueryById(queryId) {
+    // Verificar si hay un editor abierto (creando o editando)
+    const editorContainer = document.getElementById('query-editor-container');
+    if (!editorContainer.classList.contains('hidden')) {
+      showNotification('Cierra el editor de consultas antes de eliminar', 'error');
+      return;
+    }
+
+    if (!confirm('¿Estás seguro de que deseas eliminar esta consulta?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/queries/${queryId}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification('Consulta eliminada exitosamente', 'success');
+        // Trigger refresh of queries list
+        htmx.trigger('body', 'queryUpdated');
+      } else {
+        showNotification(result.error || 'Error al eliminar consulta', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting query:', error);
+      showNotification('Error al eliminar consulta', 'error');
+    }
+  }
+
+  // Test and validate query (NUEVA FUNCIÓN - FASE 4)
+  async function testAndValidateQuery() {
+    const sqlQuery = document.getElementById('query-sql').value;
+    const entityType = document.getElementById('query-entity-type').value;
+    const queryId = document.getElementById('query-id').value;
+    const connectionId = document.getElementById('query-connection-id')?.value || '';
+
+    if (!sqlQuery.trim()) {
+      showNotification('Por favor ingresa una consulta SQL', 'error');
+      return;
+    }
+
+    if (!entityType) {
+      showNotification('Por favor selecciona un tipo de entidad', 'error');
+      return;
+    }
+
+    // Abrir modal
+    openValidationModal();
+
+    // Cargar referencia de schema en la segunda pestaña
+    loadSchemaReferenceInModal(entityType);
+
+    const resultsDiv = document.getElementById('modal-validation-results');
+    resultsDiv.innerHTML = '<div class="text-center py-8"><span class="loading loading-spinner loading-lg text-primary"></span><p class="mt-2 text-sm">Ejecutando y validando consulta...</p></div>';
+
+    if (window.lucide) lucide.createIcons();
+
+    try {
+      const requestBody = { sqlQuery, entityType, connectionId: connectionId || undefined };
+      if (queryId) {
+        requestBody.queryId = parseInt(queryId, 10);
+      }
+
+      const response = await fetch('/api/queries/test-and-validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        resultsDiv.innerHTML = `
+          <div class="alert alert-error">
+            <i data-lucide="alert-circle" class="h-5 w-5"></i>
+            <span>${result.error || 'Error al ejecutar la query'}</span>
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+
+      // Renderizar resultados de validación
+      const { rowCount, totalCount, incrementalInfo, sampleData, validation } = result;
+
+      let html = '';
+
+      // Info de registros totales e incremental
+      const totalDisplay = totalCount > 0 ? totalCount.toLocaleString() : '?';
+      const sampleText = totalCount > 10
+        ? `Mostrando ${rowCount} de ${totalDisplay} registros`
+        : `${rowCount} registros`;
+
+      // Header con resultado general
+      if (validation.isValid) {
+        html += `
+          <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
+            <div class="flex">
+              <i data-lucide="check-circle" class="h-5 w-5 text-green-400"></i>
+              <div class="ml-3">
+                <h3 class="text-sm font-medium text-green-800">✅ Validación Exitosa!</h3>
+                <p class="mt-1 text-sm text-green-700">
+                  ${sampleText}. Todos los datos cumplen con el schema esperado.
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+            <div class="flex">
+              <i data-lucide="x-circle" class="h-5 w-5 text-red-400"></i>
+              <div class="ml-3">
+                <h3 class="text-sm font-medium text-red-800">❌ Validación Fallida</h3>
+                <p class="mt-1 text-sm text-red-700">
+                  ${sampleText}, pero los datos NO cumplen con el schema.
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Campos requeridos
+      const requiredFieldsHTML = Object.entries(validation.requiredFields || {}).map(([field, info]) => {
+        const statusColors = {
+          'OK': 'bg-green-100 text-green-800',
+          'MISSING': 'bg-red-100 text-red-800',
+          'TYPE_ERROR': 'bg-red-100 text-red-800',
+          'VALIDATION_ERROR': 'bg-red-100 text-red-800'
+        };
+        const statusIcons = {
+          'OK': 'check',
+          'MISSING': 'x',
+          'TYPE_ERROR': 'alert-triangle',
+          'VALIDATION_ERROR': 'alert-triangle'
+        };
+
+        return `
+          <div class="flex items-start p-2 border-b border-gray-200 last:border-0">
+            <i data-lucide="${statusIcons[info.status]}" class="h-4 w-4 mt-0.5 mr-2 ${info.status === 'OK' ? 'text-green-500' : 'text-red-500'}"></i>
+            <div class="flex-1">
+              <code class="text-sm font-mono">${field}</code>
+              <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusColors[info.status]}">
+                ${info.status}
+              </span>
+              ${info.error ? `<p class="mt-1 text-xs text-red-600">${info.error}</p>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      html += `
+        <div class="mt-4 bg-white border border-gray-200 rounded-md overflow-hidden">
+          <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <h4 class="text-sm font-medium text-gray-900">Campos Requeridos</h4>
+          </div>
+          <div class="divide-y divide-gray-200">
+            ${requiredFieldsHTML}
+          </div>
+        </div>
+      `;
+
+      // Campos fuera de modelo (extra fields)
+      if (sampleData && sampleData.length > 0) {
+        const columns = Object.keys(sampleData[0]);
+        const requiredFieldNames = Object.keys(validation.requiredFields || {});
+        const optionalFieldNames = Object.keys(validation.optionalFields || {});
+        const extraFields = columns.filter(col => !requiredFieldNames.includes(col) && !optionalFieldNames.includes(col));
+
+        if (extraFields.length > 0) {
+          const extraFieldsHTML = extraFields.map(field => `
+            <div class="flex items-start p-2 border-b border-gray-200 last:border-0">
+              <i data-lucide="alert-circle" class="h-4 w-4 mt-0.5 mr-2 text-yellow-500"></i>
+              <div class="flex-1">
+                <code class="text-sm font-mono">${field}</code>
+                <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                  EXTRA
+                </span>
+                <p class="mt-1 text-xs text-gray-600">Este campo no está en el modelo del schema</p>
+              </div>
+            </div>
+          `).join('');
+
+          html += `
+            <div class="mt-4 bg-white border border-yellow-200 rounded-md overflow-hidden">
+              <div class="px-4 py-3 bg-yellow-50 border-b border-yellow-200">
+                <h4 class="text-sm font-medium text-gray-900">⚠️ Campos Fuera de Modelo</h4>
+                <p class="text-xs text-gray-600 mt-1">Estos campos están en tu consulta pero no son parte del schema esperado</p>
+              </div>
+              <div class="divide-y divide-gray-200">
+                ${extraFieldsHTML}
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      // Errores de validación (si hay)
+      if (validation.validationErrors && validation.validationErrors.length > 0) {
+        const errorsHTML = validation.validationErrors.slice(0, 10).map(err => `
+          <li class="text-sm text-red-700">
+            Fila ${err.rowIndex + 1}, campo <code class="bg-red-100 px-1 rounded">${err.fieldPath.join('.')}</code>: ${err.error}
+          </li>
+        `).join('');
+
+        html += `
+          <div class="mt-4 bg-red-50 border border-red-200 rounded-md p-4">
+            <h4 class="text-sm font-semibold text-red-900 mb-2">Errores de Validación (${validation.validationErrors.length}):</h4>
+            <ul class="list-disc list-inside space-y-1">
+              ${errorsHTML}
+            </ul>
+            ${validation.validationErrors.length > 10 ? `<p class="mt-2 text-xs text-red-600">...y ${validation.validationErrors.length - 10} errores más</p>` : ''}
+          </div>
+        `;
+      }
+
+      // Recomendaciones
+      if (validation.recommendations && validation.recommendations.length > 0) {
+        const recommendationsHTML = validation.recommendations.map(rec => `
+          <li class="text-sm text-blue-700">${rec}</li>
+        `).join('');
+
+        html += `
+          <div class="mt-4 bg-blue-50 border border-blue-200 rounded-md p-4">
+            <h4 class="text-sm font-semibold text-blue-900 mb-2">💡 Recomendaciones:</h4>
+            <ul class="list-disc list-inside space-y-1">
+              ${recommendationsHTML}
+            </ul>
+          </div>
+        `;
+      }
+
+      // Datos de muestra
+      if (sampleData && sampleData.length > 0) {
+        const columns = Object.keys(sampleData[0]);
+
+        // Clasificar columnas según tipo
+        const requiredFieldNames = Object.keys(validation.requiredFields || {});
+        const optionalFieldNames = Object.keys(validation.optionalFields || {});
+
+        const getFieldType = (col) => {
+          if (requiredFieldNames.includes(col)) return 'required';
+          if (optionalFieldNames.includes(col)) return 'optional';
+          return 'extra';
+        };
+
+        const getHeaderStyle = (type) => {
+          if (type === 'required') return 'background-color: #c8e6c9;';
+          if (type === 'optional') return 'background-color: #bbdefb;';
+          return 'background-color: #e0e0e0;';
+        };
+
+        const getCellStyle = (type) => {
+          if (type === 'required') return 'background-color: #e0f2e0;';
+          if (type === 'optional') return 'background-color: #e3f2fd;';
+          return 'background-color: #f0f0f0;';
+        };
+
+        const truncateText = (text, maxLength = 35) => {
+          const str = JSON.stringify(text);
+          if (str.length <= maxLength) return str;
+          return str.substring(0, maxLength) + '...';
+        };
+
+        const rowsHTML = sampleData.slice(0, 10).map(row => `
+          <tr>
+            ${columns.map(col => {
+              const fieldType = getFieldType(col);
+              return `<td class="px-2 py-1 text-xs text-gray-900" style="${getCellStyle(fieldType)} white-space: nowrap;">${truncateText(row[col])}</td>`;
+            }).join('')}
+          </tr>
+        `).join('');
+
+        const sampleHeader = totalCount > 10
+          ? `Datos de Muestra (primeras 10 filas de ${totalCount.toLocaleString()}):`
+          : `Datos de Muestra (${sampleData.length} filas):`;
+
+        html += `
+          <div class="mt-4">
+            <h4 class="text-sm font-medium text-gray-900 mb-2">${sampleHeader}</h4>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-md text-xs">
+                <thead>
+                  <tr>
+                    ${columns.map(col => {
+                      const fieldType = getFieldType(col);
+                      return `<th class="px-2 py-1 text-left text-xs font-medium text-gray-700" style="${getHeaderStyle(fieldType)}">${col}</th>`;
+                    }).join('')}
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  ${rowsHTML}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Leyenda de colores -->
+            <div class="mt-3 flex flex-wrap gap-4 text-xs text-gray-600">
+              <div class="flex items-center gap-2">
+                <div class="w-4 h-4 rounded" style="background-color: #c8e6c9;"></div>
+                <span>✅ Campos Requeridos</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="w-4 h-4 rounded" style="background-color: #bbdefb;"></div>
+                <span>🔵 Campos Opcionales</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="w-4 h-4 rounded" style="background-color: #e0e0e0;"></div>
+                <span>⚪ Campos Fuera de Modelo</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      resultsDiv.innerHTML = html;
+      if (window.lucide) lucide.createIcons();
+
+      // No poblar el dropdown aquí - el usuario usa el dropdown de campo incremental
+      // que carga solo campos de fecha al desplegarlo
+
+    } catch (error) {
+      console.error('Error validating query:', error);
+      resultsDiv.innerHTML = `
+        <div class="bg-red-50 border-l-4 border-red-400 p-4">
+          <div class="flex">
+            <i data-lucide="alert-circle" class="h-5 w-5 text-red-400"></i>
+            <div class="ml-3">
+              <p class="text-sm text-red-700">Error al ejecutar validación: ${error.message}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      if (window.lucide) lucide.createIcons();
+    }
+  }
+
+  // Modal management functions
+  function openValidationModal() {
+    const modal = document.getElementById('validation-modal');
+    modal.showModal();
+
+    // Inicializar iconos de Lucide en el modal
+    setTimeout(() => {
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+    }, 50);
+
+    // Asegurarse de que la primera pestaña esté activa
+    switchTab('results');
+  }
+
+  function closeValidationModal() {
+    const modal = document.getElementById('validation-modal');
+    modal.close();
+  }
+
+  function switchTab(tabName) {
+    // Update tab buttons (DaisyUI tabs) - buscar dentro del modal
+    const modal = document.getElementById('validation-modal');
+    const allTabs = modal.querySelectorAll('[role="tab"]');
+    allTabs.forEach(tab => {
+      tab.classList.remove('tab-active');
+    });
+
+    const activeTab = document.getElementById(`tab-${tabName}`);
+    if (activeTab) {
+      activeTab.classList.add('tab-active');
+    }
+
+    // Update tab content - usar display en lugar de clases hidden
+    const allContent = modal.querySelectorAll('.tab-panel');
+    allContent.forEach(content => {
+      content.style.display = 'none';
+    });
+
+    const activeContent = document.getElementById(`tab-content-${tabName}`);
+    if (activeContent) {
+      activeContent.style.display = 'block';
+    }
+
+    // Refresh lucide icons
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  }
+
+  async function loadSchemaReferenceInModal(entityType) {
+    const schemaRefDiv = document.getElementById('modal-schema-reference');
+
+    if (!entityType) {
+      schemaRefDiv.innerHTML = '<p class="text-sm text-gray-500">Selecciona un tipo de entidad primero</p>';
+      return;
+    }
+
+    schemaRefDiv.innerHTML = '<div class="text-center py-8"><i data-lucide="loader" class="h-8 w-8 mx-auto animate-spin text-blue-600"></i><p class="mt-2 text-sm text-gray-500">Cargando referencia de campos...</p></div>';
+    if (window.lucide) lucide.createIcons();
+
+    try {
+      const schemaInfo = await loadSchemaInfo(entityType);
+
+      const entityLabels = {
+        'articulo': 'Artículos',
+        'comprobante_cabecera': 'Comprobantes - Cabecera',
+        'comprobante_detalle': 'Comprobantes - Detalle',
+        'comprobante_pago': 'Comprobantes - Pagos'
+      };
+
+      // Render required fields as table rows
+      const requiredFieldsHTML = schemaInfo.required.map(field => `
+        <tr class="border-b border-gray-200">
+          <td class="px-2 py-2 text-xs font-mono font-semibold text-gray-900 bg-gray-50" style="width: 200px;">${escapeHtml(field.name)}</td>
+          <td class="px-2 py-2 text-xs text-center bg-gray-50" style="width: 100px;">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              ${escapeHtml(field.type)}
+            </span>
+          </td>
+          <td class="px-2 py-2 text-xs text-gray-600 bg-gray-50" style="width: 250px;">${escapeHtml(field.description)}</td>
+          <td class="px-2 py-2 text-xs text-gray-500 bg-gray-50" style="width: 200px;">
+            <code class="bg-gray-100 px-1 rounded">${escapeHtml(field.example)}</code>
+          </td>
+        </tr>
+      `).join('');
+
+      // Render optional fields as table rows
+      const optionalFieldsHTML = schemaInfo.optional.map(field => `
+        <tr class="border-b border-gray-200">
+          <td class="px-2 py-2 text-xs font-mono font-semibold text-gray-900" style="width: 200px;">${escapeHtml(field.name)}</td>
+          <td class="px-2 py-2 text-xs text-center" style="width: 100px;">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+              ${escapeHtml(field.type)}
+            </span>
+          </td>
+          <td class="px-2 py-2 text-xs text-gray-600" style="width: 250px;">${escapeHtml(field.description)}</td>
+          <td class="px-2 py-2 text-xs text-gray-500" style="width: 200px;">
+            <code class="bg-gray-100 px-1 rounded">${escapeHtml(field.example)}</code>
+          </td>
+        </tr>
+      `).join('');
+
+      schemaRefDiv.innerHTML = `
+        <div>
+          <div class="mb-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">
+              📋 Referencia de Campos para ${entityLabels[entityType] || entityType}
+            </h3>
+          </div>
+
+          <!-- Required Fields -->
+          <div class="mb-6">
+            <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 mr-2">
+                REQUERIDO
+              </span>
+              Campos Obligatorios
+            </h4>
+            <table class="w-full border border-gray-200 rounded-md text-xs">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="px-2 py-2 text-left font-semibold text-gray-700" style="width: 200px;">Campo</th>
+                  <th class="px-2 py-2 text-center font-semibold text-gray-700" style="width: 100px;">Tipo</th>
+                  <th class="px-2 py-2 text-left font-semibold text-gray-700" style="width: 250px;">Descripción</th>
+                  <th class="px-2 py-2 text-left font-semibold text-gray-700" style="width: 200px;">Ejemplo</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${requiredFieldsHTML}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Optional Fields -->
+          <div class="border-t border-gray-200 pt-6">
+            <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 mr-2">
+                OPCIONAL
+              </span>
+              Campos Opcionales
+            </h4>
+            <div class="max-h-96 overflow-y-auto">
+              <table class="w-full border border-gray-200 rounded-md text-xs">
+                <thead class="bg-gray-100 sticky top-0">
+                  <tr>
+                    <th class="px-2 py-2 text-left font-semibold text-gray-700" style="width: 200px;">Campo</th>
+                    <th class="px-2 py-2 text-center font-semibold text-gray-700" style="width: 100px;">Tipo</th>
+                    <th class="px-2 py-2 text-left font-semibold text-gray-700" style="width: 250px;">Descripción</th>
+                    <th class="px-2 py-2 text-left font-semibold text-gray-700" style="width: 200px;">Ejemplo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${optionalFieldsHTML}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Naming Convention Info -->
+          <div class="border-t border-gray-200 pt-6 mt-6">
+            <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i data-lucide="info" class="h-5 w-5 text-blue-400"></i>
+                </div>
+                <div class="ml-3">
+                  <p class="text-sm text-blue-700">
+                    <strong>Importante:</strong> Los alias de tu query SQL deben coincidir <strong>exactamente</strong> con los nombres de campo mostrados (snake_case).
+                  </p>
+                  <p class="mt-2 text-sm text-blue-700">
+                    Ejemplo: <code class="bg-blue-100 px-1 rounded">SELECT codigo AS erp_codigo, nombre AS erp_nombre FROM articulos</code>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (window.lucide) lucide.createIcons();
+
+    } catch (error) {
+      console.error('Error loading schema reference:', error);
+      schemaRefDiv.innerHTML = `
+        <div class="bg-red-50 border-l-4 border-red-400 p-4">
+          <div class="flex">
+            <i data-lucide="alert-circle" class="h-5 w-5 text-red-400"></i>
+            <div class="ml-3">
+              <p class="text-sm text-red-700">Error al cargar referencia de schema: ${error.message}</p>
+            </div>
+          </div>
+        </div>
+      `;
+      if (window.lucide) lucide.createIcons();
+    }
+  }
+
+  // Helper para formatear fechas
+  function formatDateTime(isoString) {
+    if (!isoString) return '--';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    } catch {
+      return isoString;
+    }
+  }
+
+  // Make functions globally available
+  window.showQueryForm = showQueryForm;
+  window.hideQueryForm = hideQueryForm;
+  window.testQuery = testQuery;
+  window.testAndValidateQuery = testAndValidateQuery;
+  window.toggleIncrementalField = toggleIncrementalField;
+  window.loadIncrementalFieldOptions = loadIncrementalFieldOptions;
+  window.updateIncrementalExample = updateIncrementalExample;
+  window.copyIncrementalClause = copyIncrementalClause;
+  window.toggleSyncIntervalField = toggleSyncIntervalField;
+  window.loadQueryForEdit = loadQueryForEdit;
+  window.deleteQueryById = deleteQueryById;
+  window.openValidationModal = openValidationModal;
+  window.closeValidationModal = closeValidationModal;
+  window.switchTab = switchTab;
+
+  // ========================================
+  // Unsaved changes warning
+  // ========================================
+  let formHasUnsavedChanges = false;
+  let initialFormState = null;
+
+  function getFormState() {
+    const form = document.getElementById('query-form');
+    if (!form) return null;
+
+    return {
+      name: document.getElementById('query-name')?.value || '',
+      entityType: document.getElementById('query-entity-type')?.value || '',
+      sqlQuery: document.getElementById('query-sql')?.value || '',
+      incrementalType: document.getElementById('query-incremental-type')?.value || '',
+      incrementalField: document.getElementById('query-incremental-field')?.value || '',
+      connectionId: document.getElementById('query-connection-id')?.value || '',
+      isActive: document.getElementById('query-is-active')?.checked || false,
+      isScheduled: document.getElementById('query-is-scheduled')?.checked || false,
+      syncInterval: document.getElementById('query-sync-interval')?.value || '1800'
+    };
+  }
+
+  function checkForChanges() {
+    if (!initialFormState) return false;
+    const currentState = getFormState();
+    if (!currentState) return false;
+
+    return JSON.stringify(initialFormState) !== JSON.stringify(currentState);
+  }
+
+  // Track form changes
+  function setupFormChangeTracking() {
+    const form = document.getElementById('query-form');
+    if (!form) return;
+
+    // Store initial state when form is shown
+    initialFormState = getFormState();
+    formHasUnsavedChanges = false;
+
+    // Listen for any input changes
+    form.addEventListener('input', () => {
+      formHasUnsavedChanges = checkForChanges();
+    });
+
+    form.addEventListener('change', () => {
+      formHasUnsavedChanges = checkForChanges();
+    });
+  }
+
+  // Override showQueryForm to setup tracking
+  const originalShowQueryForm = showQueryForm;
+  showQueryForm = function(queryData) {
+    originalShowQueryForm(queryData);
+    // Wait for DOM to update, then setup tracking
+    setTimeout(setupFormChangeTracking, 100);
+  };
+  window.showQueryForm = showQueryForm;
+
+  // Override hideQueryForm to check for unsaved changes
+  const originalHideQueryForm = hideQueryForm;
+  hideQueryForm = function() {
+    if (formHasUnsavedChanges) {
+      if (!confirm('Hay cambios sin guardar. ¿Deseas salir sin guardar?')) {
+        return;
+      }
+    }
+    formHasUnsavedChanges = false;
+    initialFormState = null;
+    originalHideQueryForm();
+  };
+  window.hideQueryForm = hideQueryForm;
+
+  // Warn before leaving page
+  window.addEventListener('beforeunload', (e) => {
+    if (formHasUnsavedChanges) {
+      e.preventDefault();
+      e.returnValue = 'Hay cambios sin guardar. ¿Estás seguro de que quieres salir?';
+      return e.returnValue;
+    }
+  });
+
+  // Clear unsaved changes flag after successful save
+  const originalHandleQueryFormSubmit = handleQueryFormSubmit;
+  handleQueryFormSubmit = async function(event) {
+    const result = await originalHandleQueryFormSubmit(event);
+    // If save was successful, clear the unsaved changes flag
+    formHasUnsavedChanges = false;
+    initialFormState = null;
+    return result;
+  };
+</script>

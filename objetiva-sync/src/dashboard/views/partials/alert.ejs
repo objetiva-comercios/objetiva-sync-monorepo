@@ -1,0 +1,39 @@
+<%
+  // Alert types: success, error, warning, info
+  const alertConfig = {
+    success: {
+      alertClass: 'alert-success',
+      icon: 'check-circle'
+    },
+    error: {
+      alertClass: 'alert-error',
+      icon: 'alert-circle'
+    },
+    warning: {
+      alertClass: 'alert-warning',
+      icon: 'alert-triangle'
+    },
+    info: {
+      alertClass: 'alert-info',
+      icon: 'info'
+    }
+  };
+
+  const config = alertConfig[type] || alertConfig.info;
+%>
+
+<div
+  class="alert <%= config.alertClass %> shadow-lg mb-4"
+  data-auto-close="true"
+  role="alert"
+>
+  <i data-lucide="<%= config.icon %>" class="h-6 w-6"></i>
+  <span class="flex-1"><%= message %></span>
+  <button
+    type="button"
+    onclick="this.closest('[data-auto-close]').remove()"
+    class="btn btn-ghost btn-sm btn-circle"
+  >
+    <i data-lucide="x" class="h-5 w-5"></i>
+  </button>
+</div>

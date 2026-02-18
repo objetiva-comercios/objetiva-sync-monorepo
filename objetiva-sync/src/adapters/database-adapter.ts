@@ -8,6 +8,44 @@ import type { TestResult } from '../types/common.js';
 import type { IQueryResult } from './types.js';
 
 /**
+ * Normaliza la configuración de conexión según el tipo de adaptador.
+ *
+ * El UI guarda los campos con nombres genéricos (server, username),
+ * pero cada adaptador espera nombres específicos:
+ * - Postgres: host, user
+ * - SQL Server: server, user
+ *
+ * @param adapterType Tipo de adaptador
+ * @param config Configuración cruda del UI
+ * @returns Configuración normalizada para el adaptador
+ */
+export function normalizeAdapterConfig(
+  adapterType: string,
+  config: Record<string, unknown>
+): Record<string, unknown> {
+  if (adapterType === 'postgres') {
+    const postgresConfig: Record<string, unknown> = {
+      host: config.server || config.host,
+      port: config.port || 5432,
+      database: config.database,
+      user: config.user || config.username,
+      password: config.password,
+      connectionTimeout: config.connectionTimeout,
+    };
+    if (config.ssl) {
+      postgresConfig.ssl = {
+        enabled: true,
+        rejectUnauthorized: config.sslRejectUnauthorized !== false,
+      };
+    }
+    return postgresConfig;
+  }
+
+  // Para otros adaptadores, devolver config sin cambios
+  return { ...config };
+}
+
+/**
  * Timeout por defecto para pruebas de conexión (10 segundos)
  */
 const DEFAULT_TEST_TIMEOUT = 10000;
@@ -47,25 +85,8 @@ export async function testDatabaseConnection(
   try {
     logger.info(`Probando conexión de tipo: ${adapterType}`);
 
-    // Map config fields for postgres (UI uses 'server', adapter expects 'host')
-    let adapterConfig: Record<string, unknown> = { ...config };
-    if (adapterType === 'postgres') {
-      const postgresConfig: Record<string, unknown> = {
-        host: config.server || config.host,
-        port: config.port || 5432,
-        database: config.database,
-        user: config.user || config.username,
-        password: config.password,
-        connectionTimeout: config.connectionTimeout,
-      };
-      if (config.ssl) {
-        postgresConfig.ssl = {
-          enabled: true,
-          rejectUnauthorized: config.sslRejectUnauthorized !== false,
-        };
-      }
-      adapterConfig = postgresConfig;
-    }
+    // Normalizar config según tipo de adaptador
+    const adapterConfig = normalizeAdapterConfig(adapterType, config);
 
     // Extraer timeout de la configuración (si existe)
     const connectionTimeout =
@@ -180,10 +201,13 @@ export async function executeQueryOnConnection(
   try {
     logger.info(`Ejecutando query en ${adapterType}`);
 
+    // Normalizar config según tipo de adaptador
+    const adapterConfig = normalizeAdapterConfig(adapterType, config);
+
     // Extraer timeout de la configuración (si existe)
     const connectionTimeout =
-      typeof config.connectionTimeout === 'number' && config.connectionTimeout > 0
-        ? config.connectionTimeout
+      typeof adapterConfig.connectionTimeout === 'number' && adapterConfig.connectionTimeout > 0
+        ? adapterConfig.connectionTimeout
         : DEFAULT_TEST_TIMEOUT;
 
     const timeoutSeconds = Math.round(connectionTimeout / 1000);
@@ -195,7 +219,7 @@ export async function executeQueryOnConnection(
 
     // Connect with timeout
     await withTimeout(
-      adapter.connect(config),
+      adapter.connect(adapterConfig),
       connectionTimeout,
       `Timeout: La conexión tardó demasiado tiempo (${timeoutSeconds}s)`
     );

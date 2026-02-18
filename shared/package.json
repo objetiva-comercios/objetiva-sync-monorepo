@@ -1,0 +1,16 @@
+{
+  "name": "@objetiva/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    "./schemas": "./schemas/index.js",
+    "./schemas/*": "./schemas/*.js",
+    "./types": "./types/index.js"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

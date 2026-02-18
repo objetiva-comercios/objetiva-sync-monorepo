@@ -19,7 +19,7 @@ import { config } from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
-import { writeFileSync, existsSync, mkdirSync, accessSync, constants } from 'node:fs';
+import { writeFileSync, existsSync, mkdirSync, accessSync, unlinkSync, constants } from 'node:fs';
 import { regenerateSchemas } from '../src/codegen/index.js';
 
 // Get current directory from import.meta.url
@@ -45,6 +45,69 @@ if (entityIndex !== -1 && !entity) {
 
 const GATEWAY_CWD = resolve(__dirname, '..');
 const DLL_PATH = resolve(GATEWAY_CWD, '..', 'node_modules', '.prisma', 'client', 'query_engine-windows.dll.node');
+
+// Required environment variables
+const REQUIRED_ENV_VARS = ['GATEWAY_URL', 'SYNC_USERNAME', 'SYNC_PASSWORD'] as const;
+
+/**
+ * Check all prerequisites before running schema regeneration
+ */
+async function checkPrerequisites(): Promise<void> {
+  console.log('Checking prerequisites...\n');
+
+  // 1. Check required environment variables
+  const missingVars: string[] = [];
+  for (const varName of REQUIRED_ENV_VARS) {
+    if (!process.env[varName]) {
+      missingVars.push(varName);
+    }
+  }
+
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:');
+    for (const varName of missingVars) {
+      console.error(`   • ${varName}`);
+    }
+    console.error('\n   Set these in .env or as environment variables.');
+    process.exit(1);
+  }
+  console.log('  ✓ Environment variables configured');
+
+  // 2. Check gateway is running
+  const gatewayUrl = process.env.GATEWAY_URL!;
+  try {
+    const healthResponse = await fetch(`${gatewayUrl}/health`, {
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!healthResponse.ok) {
+      throw new Error(`Health check returned ${healthResponse.status}`);
+    }
+
+    const health = await healthResponse.json() as { status: string; database?: string };
+    console.log(`  ✓ Gateway running at ${gatewayUrl}`);
+
+    // 3. Check PostgreSQL connection (from health response)
+    if (health.database === 'disconnected') {
+      console.error('\n❌ Gateway cannot connect to PostgreSQL database.');
+      console.error('   Check DATABASE_URL in gateway .env and ensure PostgreSQL is running.');
+      process.exit(1);
+    }
+    console.log('  ✓ PostgreSQL connected');
+
+  } catch (error: any) {
+    if (error.name === 'TimeoutError' || error.cause?.code === 'ECONNREFUSED') {
+      console.error(`\n❌ Gateway is not running at ${gatewayUrl}`);
+      console.error('   Start it with: cd objetiva-sync-gateway && npm run dev');
+      console.error('\n   The gateway must be running to fetch schema metadata from PostgreSQL.');
+    } else {
+      console.error(`\n❌ Cannot connect to gateway: ${error.message}`);
+    }
+    process.exit(1);
+  }
+
+  console.log('');
+}
 
 /**
  * Stop gateway if running, return true if it was running
@@ -83,6 +146,23 @@ function isDllUnlocked(): boolean {
 }
 
 /**
+ * Delete the Prisma DLL to force a clean regeneration
+ * This is more reliable than checking if it's writable, as Windows
+ * can hold file handles even after processes terminate
+ */
+function deleteDllIfExists(): boolean {
+  if (!existsSync(DLL_PATH)) return true;
+  try {
+    unlinkSync(DLL_PATH);
+    console.log('  Deleted existing Prisma DLL');
+    return true;
+  } catch (error: any) {
+    console.log(`  Could not delete DLL: ${error.code || error.message}`);
+    return false;
+  }
+}
+
+/**
  * Busy-wait sleep
  */
 function sleep(ms: number): void {
@@ -91,11 +171,12 @@ function sleep(ms: number): void {
 }
 
 /**
- * Wait for DLL to be unlocked, killing any remaining gateway processes
+ * Wait for DLL to be unlocked/deleted, killing any remaining processes
  */
 function waitForDllUnlock(maxRetries = 5, intervalMs = 2000): void {
   for (let i = 0; i < maxRetries; i++) {
-    if (isDllUnlocked()) return;
+    // First try to delete - this is more reliable than checking writable
+    if (deleteDllIfExists()) return;
 
     console.log(`  DLL still locked, retrying (${i + 1}/${maxRetries})...`);
 
@@ -113,7 +194,8 @@ function waitForDllUnlock(maxRetries = 5, intervalMs = 2000): void {
     sleep(intervalMs);
   }
 
-  if (!isDllUnlocked()) {
+  // Final attempt to delete
+  if (!deleteDllIfExists() && !isDllUnlocked()) {
     throw new Error(
       'E006: Prisma query engine DLL is locked by another process. ' +
       'Close any running gateway instances and try again.'
@@ -123,8 +205,13 @@ function waitForDllUnlock(maxRetries = 5, intervalMs = 2000): void {
 
 /**
  * Run prisma generate with retry on EPERM
+ * Deletes DLL before first attempt to avoid Windows file handle issues
  */
 function runPrismaGenerate(): void {
+  // Delete DLL before first attempt - this prevents EPERM in most cases
+  // Windows can hold file handles even after process termination
+  deleteDllIfExists();
+
   const maxAttempts = 3;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -156,6 +243,9 @@ async function main() {
   if (entity) {
     console.log(`Filter: ${entity} only\n`);
   }
+
+  // Check prerequisites before proceeding
+  await checkPrerequisites();
 
   try {
     // ── Phase 1: Fetch + compute (gateway must be alive) ──

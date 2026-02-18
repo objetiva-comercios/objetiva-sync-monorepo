@@ -1,22 +1,26 @@
 /**
  * Query Validator
- * Valida que los resultados de una query SQL coincidan con el schema esperado de la entidad
- * Reemplaza el antiguo sistema de field_mappings + transformer
+ * Valida que los resultados de una query SQL coincidan con el schema esperado de la entidad.
+ *
+ * FUENTE DE VERDAD: PostgreSQL via gateway schema API (schemaCache).
+ * Los campos requeridos/opcionales se derivan dinámicamente del schema de la base de datos,
+ * NO de listas hardcodeadas. Esto garantiza que cualquier cambio en PostgreSQL
+ * (ej: ALTER TABLE, renombrar columnas) se refleje automáticamente en la validación.
  */
 
 import { EntityType } from '../types/common.js';
-import {
-  articuloPayloadSchema,
-} from '../types/articulos.js';
-import {
-  comprobanteCabeceraPayloadSchema,
-} from '../types/comprobantes-cabecera.js';
-import {
-  comprobanteDetallePayloadSchema,
-} from '../types/comprobantes-detalle.js';
-import {
-  comprobantePagoPayloadSchema,
-} from '../types/comprobantes-pagos.js';
+import { schemaCache, type SchemaResponse } from '../services/schema-cache.js';
+import { logger } from '../utils/logger.js';
+
+/**
+ * Mapeo de EntityType a nombre de tabla en PostgreSQL/gateway
+ */
+const ENTITY_TABLE_MAP: Record<EntityType, string> = {
+  [EntityType.ARTICULO]: 'articulos',
+  [EntityType.COMPROBANTE_CABECERA]: 'comprobantes_cabecera',
+  [EntityType.COMPROBANTE_DETALLE]: 'comprobantes_detalle',
+  [EntityType.COMPROBANTE_PAGO]: 'comprobantes_pagos',
+};
 
 /**
  * Estado de validación de un campo
@@ -61,84 +65,202 @@ export interface ValidationResult {
 }
 
 /**
- * Schemas y metadata por tipo de entidad
+ * Normaliza un tipo de PostgreSQL a tipo JavaScript esperado
  */
-const ENTITY_SCHEMAS = {
-  [EntityType.ARTICULO]: {
-    schema: articuloPayloadSchema,
-    requiredFields: ['erp_codigo', 'erp_nombre'],
-    optionalFields: [
-      'sku', 'codigo', 'codigo_barras', 'erp_id', 'codigo_equivalencia',
-      'nombre', 'nombre_corto', 'descripcion', 'descripcion_web',
-      'rubro', 'subrubro', 'objeto', 'marca', 'modelo', 'adjetivo',
-      'talle', 'color', 'material', 'presentacion', 'medida',
-      'prop_aux_1', 'prop_aux_2', 'prop_aux_3', 'prop_aux_4', 'prop_aux_5',
-      'precio', 'costo', 'unidades',
-      'imagenes_producto', 'imagenes_etiqueta', 'etiquetas_ocr',
-      'json_articulo', 'erp_extra', 'activo', 'observaciones'
-    ]
-  },
-  [EntityType.COMPROBANTE_CABECERA]: {
-    schema: comprobanteCabeceraPayloadSchema,
-    requiredFields: [
-      'erp_operacion', 'erp_formulario', 'erp_numero',
-      'operacion', 'formulario', 'numero',
-      'fecha', 'cantidad_items',
-      'total_bruto', 'total_descuentos', 'total_neto', 'total_iva', 'total_venta'
-    ],
-    optionalFields: [
-      'tercero_tipo', 'tercero_nombre', 'tercero_documento', 'tercero_direccion', 'tercero_datos',
-      'total_intereses_financieros', 'total_cobrado',
-      'erp_id', 'erp_datos', 'observaciones'
-    ]
-  },
-  [EntityType.COMPROBANTE_DETALLE]: {
-    schema: comprobanteDetallePayloadSchema,
-    requiredFields: [
-      'erp_operacion', 'erp_formulario', 'erp_numero',
-      'comprobante_operacion', 'comprobante_formulario', 'comprobante_numero',
-      'linea_numero', 'unidades', 'precio_unitario',
-      'importe_bruto', 'importe_neto', 'alicuota_iva', 'importe_iva', 'importe_total'
-    ],
-    optionalFields: [
-      'codigo_articulo', 'nombre_articulo',
-      'porc_descuento', 'importe_descuento',
-      'erp_datos', 'observaciones'
-    ]
-  },
-  [EntityType.COMPROBANTE_PAGO]: {
-    schema: comprobantePagoPayloadSchema,
-    requiredFields: ['erp_operacion', 'erp_formulario', 'erp_numero', 'comprobante_operacion', 'comprobante_formulario', 'comprobante_numero', 'linea_numero', 'medio', 'monto'],
-    optionalFields: [
-      'moneda', 'fecha_pago', 'referencia', 'erp_datos'
-    ]
+function normalizePostgresType(dataType: string): string {
+  const lowerType = dataType.toLowerCase();
+
+  // String types
+  if (lowerType.includes('char') || lowerType.includes('text')) {
+    return 'string';
   }
-} as const;
+
+  // Numeric types
+  if (
+    lowerType.includes('int') ||
+    lowerType.includes('serial') ||
+    lowerType.includes('decimal') ||
+    lowerType.includes('numeric') ||
+    lowerType.includes('real') ||
+    lowerType.includes('double') ||
+    lowerType === 'smallint' ||
+    lowerType === 'bigint' ||
+    lowerType === 'money'
+  ) {
+    return 'number';
+  }
+
+  // Boolean
+  if (lowerType === 'boolean' || lowerType === 'bool') {
+    return 'boolean';
+  }
+
+  // Date/time types (represented as ISO strings in JavaScript)
+  if (
+    lowerType.includes('timestamp') ||
+    lowerType.includes('date') ||
+    lowerType === 'time'
+  ) {
+    return 'string (ISO 8601)';
+  }
+
+  // JSON types
+  if (lowerType === 'json' || lowerType === 'jsonb') {
+    return 'object';
+  }
+
+  // Array types
+  if (lowerType === 'array' || lowerType.includes('[]')) {
+    return 'array';
+  }
+
+  // Default to string (most flexible)
+  return 'string';
+}
 
 /**
- * Valida los resultados de una query contra el schema de la entidad
+ * Detecta el tipo JavaScript de un valor
  */
-export function validateQueryResult(
+function detectJsType(value: unknown): string {
+  if (value === null || value === undefined) {
+    return 'null';
+  }
+
+  if (Array.isArray(value)) {
+    return 'array';
+  }
+
+  return typeof value;
+}
+
+/**
+ * Comprueba si un tipo JavaScript es compatible con un tipo PostgreSQL
+ * Usa reglas lenientes ya que los datos pueden estar stringificados o coercionados
+ */
+function isTypeCompatible(jsType: string, pgType: string): boolean {
+  // Null is compatible with everything (nullable fields)
+  if (jsType === 'null') {
+    return true;
+  }
+
+  // Normalize pgType for comparison (remove " (ISO 8601)" suffix)
+  const normalizedPgType = pgType.replace(' (ISO 8601)', '');
+
+  // Exact match
+  if (jsType === normalizedPgType) {
+    return true;
+  }
+
+  // String is compatible with number (could be stringified)
+  if (jsType === 'string' && normalizedPgType === 'number') {
+    return true;
+  }
+
+  // Number is compatible with string (auto-coercion)
+  if (jsType === 'number' && normalizedPgType === 'string') {
+    return true;
+  }
+
+  // Object is compatible with jsonb
+  if (jsType === 'object' && normalizedPgType === 'object') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Deriva los campos requeridos y opcionales del schema del gateway.
+ *
+ * - Requeridos: NOT NULL y sin valor por defecto
+ * - Opcionales: nullable o con valor por defecto
+ *
+ * Campos internos autogenerados (id, timestamps de sync) se excluyen de requeridos.
+ */
+function deriveFieldLists(schema: SchemaResponse): {
+  requiredFields: string[];
+  optionalFields: string[];
+} {
+  // Campos internos autogenerados que no deben ser requeridos en la query del usuario
+  const INTERNAL_FIELDS = new Set([
+    'id',
+    'created_at', 'updated_at', 'deleted_at',
+    'erp_sincronizado', 'erp_fecha_sync',
+  ]);
+
+  const required: string[] = [];
+  const optional: string[] = [];
+
+  for (const col of schema.columns) {
+    // Skip internal/auto-generated fields
+    if (INTERNAL_FIELDS.has(col.column_name)) {
+      optional.push(col.column_name);
+      continue;
+    }
+
+    // Field is required if: NOT NULL and no default value
+    if (!col.is_nullable && col.default_value === null) {
+      required.push(col.column_name);
+    } else {
+      optional.push(col.column_name);
+    }
+  }
+
+  return { requiredFields: required, optionalFields: optional };
+}
+
+/**
+ * Valida los resultados de una query contra el schema LIVE de PostgreSQL (via gateway).
+ *
+ * FUENTE DE VERDAD: El schema se obtiene del gateway, que lo lee directamente
+ * de PostgreSQL. Cualquier cambio en la base de datos (ALTER TABLE, renombrar columnas, etc.)
+ * se refleja automáticamente después de ejecutar `regenerate-schemas` y reiniciar.
+ */
+export async function validateQueryResult(
   rows: Record<string, unknown>[],
   entityType: EntityType
-): ValidationResult {
-  const entityConfig = ENTITY_SCHEMAS[entityType];
+): Promise<ValidationResult> {
+  const tableName = ENTITY_TABLE_MAP[entityType];
 
-  if (!entityConfig) {
+  if (!tableName) {
     throw new Error(`Tipo de entidad no soportado: ${entityType}`);
   }
 
-  const { schema, requiredFields, optionalFields } = entityConfig;
+  // Fetch schema from gateway (PostgreSQL source of truth)
+  const schema = await schemaCache.getSchema(tableName);
+
+  if (!schema) {
+    logger.warn({ entityType, tableName }, 'Schema no disponible del gateway para validación');
+    return {
+      isValid: false,
+      rowCount: rows.length,
+      sampleData: rows.slice(0, 10),
+      requiredFields: {},
+      optionalFields: {},
+      validationErrors: [{
+        rowIndex: -1,
+        fieldPath: [],
+        error: 'No se pudo obtener el schema del gateway. Verificar que el servicio gateway esté ejecutándose.',
+      }],
+      recommendations: [
+        'Schema no disponible del gateway. Verificar que el servicio gateway esté ejecutándose.',
+        'El gateway debe estar corriendo para que la validación funcione correctamente.',
+      ],
+    };
+  }
+
+  // Derive required/optional fields dynamically from live schema
+  const { requiredFields, optionalFields } = deriveFieldLists(schema);
 
   // Inicializar resultado
   const result: ValidationResult = {
     isValid: true,
     rowCount: rows.length,
-    sampleData: rows.slice(0, 10), // Primeros 10 registros
+    sampleData: rows.slice(0, 10),
     requiredFields: {},
     optionalFields: {},
     validationErrors: [],
-    recommendations: []
+    recommendations: [],
   };
 
   // Si no hay filas, no podemos validar campos
@@ -150,7 +272,7 @@ export function validateQueryResult(
     for (const field of requiredFields) {
       result.requiredFields[field] = {
         status: 'MISSING',
-        error: 'No hay datos para validar'
+        error: 'No hay datos para validar',
       };
     }
 
@@ -165,13 +287,13 @@ export function validateQueryResult(
     if (!(fieldName in firstRow)) {
       result.requiredFields[fieldName] = {
         status: 'MISSING',
-        error: `Campo requerido '${fieldName}' no encontrado en la query`
+        error: `Campo requerido '${fieldName}' no encontrado en la query`,
       };
       result.isValid = false;
     } else {
       result.requiredFields[fieldName] = {
         status: 'OK',
-        value: firstRow[fieldName]
+        value: firstRow[fieldName],
       };
     }
   }
@@ -181,82 +303,82 @@ export function validateQueryResult(
     if (fieldName in firstRow) {
       result.optionalFields[fieldName] = {
         status: 'OK',
-        value: firstRow[fieldName]
+        value: firstRow[fieldName],
       };
     }
   }
 
-  // Validar todas las filas contra el schema Zod
-  for (let i = 0; i < rows.length; i++) {
+  // Validar tipos de datos usando el schema del gateway
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const row = rows[i]!;
-    const validation = schema.safeParse(row);
 
-    if (!validation.success) {
-      result.isValid = false;
+    for (const [fieldName, value] of Object.entries(row)) {
+      // Find the column in the schema
+      const column = schema.columns.find(c => c.column_name === fieldName);
 
-      // Extraer errores de Zod
-      for (const issue of validation.error.issues) {
-        const fieldPath = issue.path.map(p => String(p));
-        const fieldName = fieldPath[0] || 'unknown';
+      if (!column) {
+        // Field not in schema - only flag as validation error on first row
+        if (i === 0) {
+          result.validationErrors.push({
+            rowIndex: i,
+            fieldPath: [fieldName],
+            error: `Campo '${fieldName}' no existe en el schema de '${tableName}'`,
+            value,
+          });
+        }
+        continue;
+      }
 
-        // Agregar error de validación
+      // Skip null values
+      if (value === null || value === undefined) {
+        continue;
+      }
+
+      const jsType = detectJsType(value);
+      const expectedType = normalizePostgresType(column.data_type);
+
+      if (!isTypeCompatible(jsType, expectedType)) {
+        result.isValid = false;
+
         result.validationErrors.push({
           rowIndex: i,
-          fieldPath,
-          error: issue.message,
-          value: row[fieldName]
+          fieldPath: [fieldName],
+          error: `Tipo incorrecto para '${fieldName}': esperado ${expectedType}, recibido ${jsType}`,
+          value,
         });
 
         // Actualizar estado del campo si es la primera fila
         if (i === 0) {
-          if ((requiredFields as readonly string[]).includes(fieldName)) {
+          if (requiredFields.includes(fieldName)) {
             result.requiredFields[fieldName] = {
-              status: issue.code === 'invalid_type' ? 'TYPE_ERROR' : 'VALIDATION_ERROR',
-              value: row[fieldName],
-              error: issue.message,
-              expectedType: 'expected' in issue ? String(issue.expected) : undefined,
-              actualType: 'received' in issue ? String(issue.received) : undefined
+              status: 'TYPE_ERROR',
+              value,
+              error: `Tipo esperado: ${expectedType}, recibido: ${jsType}`,
+              expectedType,
+              actualType: jsType,
             };
-          } else if ((optionalFields as readonly string[]).includes(fieldName)) {
+          } else if (optionalFields.includes(fieldName)) {
             result.optionalFields[fieldName] = {
-              status: issue.code === 'invalid_type' ? 'TYPE_ERROR' : 'VALIDATION_ERROR',
-              value: row[fieldName],
-              error: issue.message,
-              expectedType: 'expected' in issue ? String(issue.expected) : undefined,
-              actualType: 'received' in issue ? String(issue.received) : undefined
+              status: 'TYPE_ERROR',
+              value,
+              error: `Tipo esperado: ${expectedType}, recibido: ${jsType}`,
+              expectedType,
+              actualType: jsType,
             };
           }
         }
       }
-
-      // Solo validar las primeras 10 filas para no saturar
-      if (i >= 10) {
-        if (rows.length > 10) {
-          result.recommendations.push(
-            `Se encontraron errores en las primeras 10 filas. Hay ${rows.length - 10} filas adicionales que no fueron validadas en detalle.`
-          );
-        }
-        break;
-      }
     }
+  }
+
+  // Truncate validation errors report
+  if (rows.length > 10) {
+    result.recommendations.push(
+      `Se validaron las primeras 10 filas de ${rows.length} totales.`
+    );
   }
 
   // Generar recomendaciones
-  const missingOptional = optionalFields.filter(f => !(f in firstRow));
-  if (missingOptional.length > 0) {
-    const importantOptional = missingOptional.filter(f =>
-      ['porc_descuento', 'importe_descuento', 'codigo_articulo', 'nombre_articulo',
-       'tercero_nombre', 'tercero_documento', 'tercero_tipo'].includes(f)
-    );
-
-    if (importantOptional.length > 0) {
-      result.recommendations.push(
-        `Campos opcionales recomendados no encontrados: ${importantOptional.join(', ')}`
-      );
-    }
-  }
-
-  // Si todos los campos requeridos están presentes y no hay errores de validación
   if (result.isValid && result.validationErrors.length === 0) {
     result.recommendations.push('✅ Query válida! Todos los campos requeridos presentes y los datos pasan validación.');
   }
@@ -265,129 +387,55 @@ export function validateQueryResult(
 }
 
 /**
- * Obtiene el tipo esperado de un campo según el schema
+ * Obtiene el tipo esperado de un campo desde el schema del gateway
  */
-export function getFieldType(_entityType: EntityType, fieldName: string): string {
-  // Tipos conocidos por campo
-  const fieldTypes: Record<string, string> = {
-    // Strings
-    'erp_codigo': 'string',
-    'erp_nombre': 'string',
-    'erp_operacion': 'string',
-    'erp_formulario': 'string',
-    'erp_numero': 'string',
-    'operacion': 'string',
-    'formulario': 'string',
-    'numero': 'string',
-    'comprobante_operacion': 'string',
-    'comprobante_formulario': 'string',
-    'comprobante_numero': 'string',
-    'tipo': 'string',
-    'comprobante': 'string',
-    'fecha': 'string (ISO 8601)',
-    'nombre': 'string',
-    'codigo': 'string',
-    'medio': 'string',
+export async function getFieldType(entityType: EntityType, fieldName: string): Promise<string> {
+  const tableName = ENTITY_TABLE_MAP[entityType];
+  if (!tableName) return 'unknown';
 
-    // Numbers
-    'total_venta': 'number',
-    'total_intereses_financieros': 'number',
-    'total_cobrado': 'number',
-    'subtotal': 'number',
-    'monto': 'number',
-    'unidades': 'number',
-    'precio': 'number',
-    'costo': 'number',
-    'precio_unitario': 'number',
-    'linea_numero': 'number',
-    'importe_bruto': 'number',
-    'importe_neto': 'number',
-    'importe_iva': 'number',
-    'importe_total': 'number',
-    'importe_descuento': 'number',
-    'porc_descuento': 'number',
-    'alicuota_iva': 'number',
-    'total_bruto': 'number',
-    'total_neto': 'number',
-    'total_iva': 'number',
+  const schema = await schemaCache.getSchema(tableName);
+  if (!schema) return 'unknown';
 
-    // Booleans
-    'activo': 'boolean',
+  const column = schema.columns.find(c => c.column_name === fieldName);
+  if (!column) return 'unknown';
 
-    // Arrays
-    'imagenes_producto': 'string[]',
-    'imagenes_etiqueta': 'string[]',
-    'etiquetas_ocr': 'string[]',
-  };
-
-  return fieldTypes[fieldName] || 'unknown';
+  return normalizePostgresType(column.data_type);
 }
 
 /**
- * Obtiene un ejemplo de valor para un campo
+ * Obtiene un ejemplo de valor para un campo basado en su tipo PostgreSQL
  */
-export function getFieldExample(_entityType: EntityType, fieldName: string): string {
-  const examples: Record<string, string> = {
-    // Strings
-    'erp_codigo': '"ART001"',
-    'erp_nombre': '"Producto de ejemplo"',
-    'erp_operacion': '"VENTA"',
-    'erp_formulario': '"FACTURA A"',
-    'erp_numero': '"00001-00000123"',
-    'operacion': '"VTA"',
-    'formulario': '"FA"',
-    'numero': '"00001234"',
-    'comprobante_operacion': '"VTA"',
-    'comprobante_formulario': '"FA"',
-    'comprobante_numero': '"00001234"',
-    'fecha': '"2024-01-09T13:30:00.000Z"',
-    'nombre': '"Artículo ejemplo"',
-    'codigo': '"ART001"',
-    'medio': '"EFECTIVO"',
-    'codigo_articulo': '"ART001"',
-    'nombre_articulo': '"Producto X"',
-    'tercero_nombre': '"Juan Pérez"',
-    'tercero_documento': '"20-12345678-9"',
+export function getFieldExample(fieldName: string, pgType?: string): string {
+  const type = pgType ? pgType.toLowerCase() : '';
 
-    // Numbers
-    'total_venta': '1089000.00',
-    'total_intereses_financieros': '50000.00',
-    'total_cobrado': '1139000.00',
-    'subtotal': '826.45',
-    'monto': '1000.00',
-    'unidades': '5',
-    'precio': '100.50',
-    'costo': '75.00',
-    'precio_unitario': '100.50',
-    'linea_numero': '1',
-    'total_impuestos': '174.05',
-    'cantidad_items': '5',
-    'importe_bruto': '500.00',
-    'importe_descuento': '50.00',
-    'importe_neto': '450.00',
-    'alicuota_iva': '21',
-    'importe_iva': '94.50',
-    'importe_total': '544.50',
-    'porc_descuento': '10',
-    'total_bruto': '10000.00',
-    'total_descuentos': '1000.00',
-    'total_neto': '9000.00',
-    'total_iva': '1890.00',
+  // Type-based examples
+  if (type.includes('char') || type.includes('text')) {
+    return `"valor_${fieldName}"`;
+  }
+  if (type.includes('int') || type.includes('serial')) {
+    return '1';
+  }
+  if (type.includes('numeric') || type.includes('decimal') || type.includes('real') || type.includes('double') || type === 'money') {
+    return '100.50';
+  }
+  if (type === 'boolean' || type === 'bool') {
+    return 'true';
+  }
+  if (type.includes('timestamp') || type.includes('date')) {
+    return '"2024-01-09T13:30:00.000Z"';
+  }
+  if (type === 'json' || type === 'jsonb') {
+    return '{"key": "value"}';
+  }
+  if (type.includes('[]') || type === 'array') {
+    return '["value1", "value2"]';
+  }
 
-    // Booleans
-    'activo': 'true',
-
-    // Arrays
-    'imagenes_producto': '["https://example.com/img1.jpg"]',
-    'imagenes_etiqueta': '["https://example.com/label1.jpg"]',
-    'etiquetas_ocr': '["texto extraído"]',
-  };
-
-  return examples[fieldName] || '...';
+  return '"..."';
 }
 
 /**
- * Metadata de un campo extraída dinámicamente desde el schema Zod
+ * Metadata de un campo extraída dinámicamente desde el schema del gateway
  */
 export interface FieldMetadata {
   description: string;
@@ -397,73 +445,48 @@ export interface FieldMetadata {
 }
 
 /**
- * Obtiene metadata de un campo dinámicamente desde el schema Zod usando .describe()
- * Formato esperado: "Descripción del campo | Ejemplo: valor_ejemplo"
+ * Obtiene metadata de un campo dinámicamente desde el schema del gateway
  */
-export function getFieldMetadata(entityType: EntityType, fieldName: string): FieldMetadata {
-  const entityConfig = ENTITY_SCHEMAS[entityType];
-
-  if (!entityConfig) {
+export async function getFieldMetadata(entityType: EntityType, fieldName: string): Promise<FieldMetadata> {
+  const tableName = ENTITY_TABLE_MAP[entityType];
+  if (!tableName) {
     return {
       description: `Campo ${fieldName}`,
       example: '',
       type: 'unknown',
-      required: false
+      required: false,
     };
   }
 
-  const { schema, requiredFields } = entityConfig;
-  const isRequired = (requiredFields as readonly string[]).includes(fieldName);
-
-  try {
-    // Acceder al schema del campo específico
-    const fieldSchema = (schema as any).shape?.[fieldName];
-
-    if (!fieldSchema) {
-      // Si no existe en el schema, usar función legacy
-      return {
-        description: `Campo ${fieldName}`,
-        example: getFieldExample(entityType, fieldName),
-        type: getFieldType(entityType, fieldName),
-        required: isRequired
-      };
-    }
-
-    // Extraer descripción del campo
-    let description = fieldSchema.description || '';
-    let example = '';
-
-    // Parsear formato "Descripción | Ejemplo: valor"
-    if (description.includes(' | Ejemplo: ')) {
-      const parts = description.split(' | Ejemplo: ');
-      description = parts[0] || '';
-      example = parts[1] || '';
-    }
-
-    // Inferir tipo desde el schema Zod
-    const zodType = fieldSchema._def?.typeName || 'ZodUnknown';
-    let type = 'unknown';
-
-    if (zodType.includes('String')) type = 'string';
-    else if (zodType.includes('Number')) type = 'number';
-    else if (zodType.includes('Boolean')) type = 'boolean';
-    else if (zodType.includes('Date')) type = 'string (ISO 8601)';
-    else if (zodType.includes('Array')) type = 'array';
-    else if (zodType.includes('Object') || zodType.includes('Record')) type = 'object';
-
-    return {
-      description,
-      example,
-      type,
-      required: isRequired
-    };
-  } catch (error) {
-    // Fallback a función legacy si hay error
+  const schema = await schemaCache.getSchema(tableName);
+  if (!schema) {
     return {
       description: `Campo ${fieldName}`,
-      example: getFieldExample(entityType, fieldName),
-      type: getFieldType(entityType, fieldName),
-      required: isRequired
+      example: '',
+      type: 'unknown',
+      required: false,
     };
   }
+
+  const column = schema.columns.find(c => c.column_name === fieldName);
+  if (!column) {
+    return {
+      description: `Campo ${fieldName} (no encontrado en schema)`,
+      example: '',
+      type: 'unknown',
+      required: false,
+    };
+  }
+
+  const isRequired = !column.is_nullable && column.default_value === null;
+  const type = normalizePostgresType(column.data_type);
+  const description = column.column_comment || `Campo ${fieldName} (${column.data_type})`;
+  const example = getFieldExample(fieldName, column.data_type);
+
+  return {
+    description,
+    example,
+    type,
+    required: isRequired,
+  };
 }

@@ -7,12 +7,19 @@
 import { Scheduler, createRetryProcessorJob, createDailyCleanupJob } from './scheduler.js';
 import { SyncEngine } from './sync-engine.js';
 import { createAdapter } from '../adapters/index.js';
+import { normalizeAdapterConfig } from '../adapters/database-adapter.js';
+import { APIClient } from '../api-client/index.js';
 import { getActiveConnectionConfig } from '../store/repositories/connection-config-repo.js';
+import { getConfig } from '../store/repositories/config-repo.js';
+import { decrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
 import { initSyncQueue } from './sync-queue-instance.js';
+import { SYNC_CONFIG } from '../config/constants.js';
+import type { IDataSourceAdapter } from '../adapters/types.js';
 
 let schedulerInstance: Scheduler | null = null;
 let syncEngineInstance: SyncEngine | null = null;
+let adapterInstance: IDataSourceAdapter | null = null;
 
 /**
  * Inicializa el scheduler global con arquitectura query-based
@@ -31,21 +38,54 @@ export async function initScheduler(): Promise<void> {
 
     // 2. Crear adaptador con la configuración activa
     const adapter = createAdapter(connection.adapterType);
+    const adapterConfig = normalizeAdapterConfig(connection.adapterType, connection.config);
 
-    // 3. Crear SyncEngine (apiClient is optional for scheduler-only initialization)
-    syncEngineInstance = new SyncEngine({ dataSourceAdapter: adapter });
+    // 3. IMPORTANTE: Conectar el adaptador a la base de datos
+    await adapter.connect(adapterConfig);
+    adapterInstance = adapter;
+    logger.info('[Scheduler] ✅ Adaptador conectado a base de datos');
 
-    // 4. Inicializar SyncQueue con el SyncEngine
+    // 4. Obtener configuración de API remota
+    const [apiUrl, apiUsername, apiPassword] = await Promise.all([
+      getConfig('REMOTE_API_URL'),
+      getConfig('REMOTE_API_USERNAME'),
+      getConfig('REMOTE_API_PASSWORD'),
+    ]);
+
+    if (!apiUrl || !apiUsername || !apiPassword) {
+      logger.warn('[Scheduler] API remota no configurada. Scheduler iniciado sin API client.');
+    }
+
+    // 5. Crear API client si está configurado
+    let apiClient: APIClient | undefined;
+    if (apiUrl && apiUsername && apiPassword) {
+      const password = decrypt(apiPassword.value);
+      apiClient = new APIClient({
+        baseUrl: apiUrl.value,
+        username: apiUsername.value,
+        password: password,
+      });
+      logger.info('[Scheduler] ✅ API client creado');
+    }
+
+    // 6. Crear SyncEngine con adaptador conectado y API client
+    syncEngineInstance = new SyncEngine({
+      dataSourceAdapter: adapter,
+      apiClient: apiClient,
+      delayBetweenBatches: SYNC_CONFIG.DELAY_BETWEEN_BATCHES_MS,
+    });
+
+    // 7. Inicializar SyncQueue con el SyncEngine
     initSyncQueue(syncEngineInstance);
     logger.info('[Scheduler] ✅ SyncQueue inicializado');
 
-    // 5. Crear Scheduler
+    // 8. Crear Scheduler
     schedulerInstance = new Scheduler(syncEngineInstance);
 
-    // 6. Cargar jobs desde queries programadas (isScheduled = true)
+    // 9. Cargar jobs desde queries programadas (isScheduled = true)
     await schedulerInstance.initializeFromQueries();
 
-    // 7. Agregar jobs de sistema
+    // 10. Agregar jobs de sistema
     logger.info('[Scheduler] Agregando jobs de sistema...');
 
     // Job de procesamiento de reintentos (cada 15 minutos = 900 segundos)
@@ -58,12 +98,21 @@ export async function initScheduler(): Promise<void> {
     schedulerInstance.addJob(cleanupJob);
     logger.info('[Scheduler] Job de limpieza agregado (cada 24 horas)');
 
-    // 8. Iniciar scheduler
+    // 11. Iniciar scheduler
     schedulerInstance.start();
 
     logger.info('[Scheduler] ✅ Scheduler iniciado con éxito');
   } catch (error) {
     logger.error({ error }, '[Scheduler] ❌ Error al inicializar scheduler');
+    // Si hay error, asegurar que el adaptador se desconecta
+    if (adapterInstance) {
+      try {
+        await adapterInstance.disconnect();
+        adapterInstance = null;
+      } catch (disconnectError) {
+        logger.error({ error: disconnectError }, '[Scheduler] Error al desconectar adaptador');
+      }
+    }
   }
 }
 
@@ -82,13 +131,27 @@ export function getSyncEngine(): SyncEngine | null {
 }
 
 /**
- * Detiene el scheduler
+ * Detiene el scheduler y desconecta el adaptador
  */
-export function stopScheduler(): void {
+export async function stopScheduler(): Promise<void> {
   if (schedulerInstance) {
     schedulerInstance.stop();
     logger.info('[Scheduler] ✅ Scheduler detenido');
   }
+
+  // Desconectar adaptador
+  if (adapterInstance) {
+    try {
+      await adapterInstance.disconnect();
+      adapterInstance = null;
+      logger.info('[Scheduler] ✅ Adaptador desconectado');
+    } catch (error) {
+      logger.error({ error }, '[Scheduler] Error al desconectar adaptador');
+    }
+  }
+
+  schedulerInstance = null;
+  syncEngineInstance = null;
 }
 
 /**

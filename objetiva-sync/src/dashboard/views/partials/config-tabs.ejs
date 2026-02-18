@@ -1,0 +1,38 @@
+<%
+  // Determinar qué tab está activo basado en la ruta actual
+  const currentPath = locals.currentPath || '';
+  const isConnectionActive = currentPath.includes('/config/connection') || currentPath === '/config';
+  const isQueriesActive = currentPath.includes('/config/queries');
+  const isApiActive = currentPath.includes('/config/api');
+%>
+
+<div class="flex justify-start mb-6">
+  <div role="tablist" class="tabs tabs-lifted">
+    <a
+      href="/config/connection"
+      role="tab"
+      class="tab <%= isConnectionActive ? 'tab-active' : '' %> gap-2"
+    >
+      <i data-lucide="link" class="w-4 h-4"></i>
+      Conexión
+    </a>
+
+    <a
+      href="/config/queries"
+      role="tab"
+      class="tab <%= isQueriesActive ? 'tab-active' : '' %> gap-2"
+    >
+      <i data-lucide="database" class="w-4 h-4"></i>
+      Consultas SQL
+    </a>
+
+    <a
+      href="/config/api"
+      role="tab"
+      class="tab <%= isApiActive ? 'tab-active' : '' %> gap-2"
+    >
+      <i data-lucide="cloud" class="w-4 h-4"></i>
+      API Remota
+    </a>
+  </div>
+</div>

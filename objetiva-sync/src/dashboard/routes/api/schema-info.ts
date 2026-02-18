@@ -1,35 +1,19 @@
 /**
  * API endpoint para obtener información de schemas dinámicamente
- * Primary: Fetches complete PostgreSQL column metadata from the gateway
- * Fallback: Uses local Zod payload schemas when gateway is unreachable
+ *
+ * IMPORTANTE: Los schemas se cargan desde los archivos compartidos en shared/schemas/.
+ * Estos archivos son generados por `npm run regenerate-schemas` en objetiva-sync-gateway.
+ *
+ * Esto garantiza que cualquier cambio en la estructura de PostgreSQL
+ * se refleja después de ejecutar el comando de regeneración.
+ *
+ * NOTA: Ya no se requiere que el gateway esté corriendo - los schemas se leen de archivos locales.
  */
 
 import type { FastifyInstance } from 'fastify';
 import { requireNoPasswordChange } from '../../middleware/auth.js';
 import { EntityType } from '../../../types/common.js';
-import {
-  articuloPayloadSchema,
-} from '../../../types/articulos.js';
-import {
-  comprobanteCabeceraPayloadSchema,
-} from '../../../types/comprobantes-cabecera.js';
-import {
-  comprobanteDetallePayloadSchema,
-} from '../../../types/comprobantes-detalle.js';
-import {
-  comprobantePagoPayloadSchema,
-} from '../../../types/comprobantes-pagos.js';
-import { z } from 'zod';
-import type { SchemaResponse as GatewaySchemaResponse } from '../../../types/schema.js';
-import { schemaCache } from '../../../services/schema-cache.js';
-
-// Mapa de schemas por entity type (fallback)
-const ENTITY_SCHEMAS = {
-  [EntityType.ARTICULO]: articuloPayloadSchema,
-  [EntityType.COMPROBANTE_CABECERA]: comprobanteCabeceraPayloadSchema,
-  [EntityType.COMPROBANTE_DETALLE]: comprobanteDetallePayloadSchema,
-  [EntityType.COMPROBANTE_PAGO]: comprobantePagoPayloadSchema,
-} as const;
+import { schemaCache, type SchemaResponse as GatewaySchemaResponse } from '../../../services/schema-cache.js';
 
 /**
  * Mapping from EntityType enum values to gateway table names
@@ -119,28 +103,6 @@ function transformGatewaySchema(entityType: string, gatewaySchema: GatewaySchema
   };
 }
 
-/**
- * Obtiene el tipo TypeScript de un schema Zod
- */
-function getZodType(zodSchema: z.ZodTypeAny): string {
-  if (zodSchema instanceof z.ZodString) return 'string';
-  if (zodSchema instanceof z.ZodNumber) return 'number';
-  if (zodSchema instanceof z.ZodBoolean) return 'boolean';
-  if (zodSchema instanceof z.ZodDate) return 'Date';
-  if (zodSchema instanceof z.ZodArray) {
-    const elementType = getZodType((zodSchema as any)._def.type);
-    return `${elementType}[]`;
-  }
-  if (zodSchema instanceof z.ZodObject) return 'object';
-  if (zodSchema instanceof z.ZodRecord) return 'Record<string, unknown>';
-  if (zodSchema instanceof z.ZodOptional) {
-    return getZodType((zodSchema as any)._def.innerType);
-  }
-  if (zodSchema instanceof z.ZodDefault) {
-    return getZodType((zodSchema as any)._def.innerType);
-  }
-  return 'unknown';
-}
 
 /**
  * Obtiene un ejemplo de valor para un tipo de campo
@@ -300,76 +262,16 @@ function getFieldDescription(fieldName: string): string {
   return descriptions[fieldName] || `Campo ${fieldName}`;
 }
 
-/**
- * Extrae información de un schema Zod (fallback cuando gateway no disponible)
- */
-function extractSchemaInfo(entityType: EntityType): SchemaInfo {
-  let schema: z.ZodTypeAny = ENTITY_SCHEMAS[entityType];
-
-  if (!schema) {
-    throw new Error(`Schema no encontrado para entidad: ${entityType}`);
-  }
-
-  // Si el schema tiene .refine() aplicado, es un ZodEffects
-  // Necesitamos extraer el schema interno
-  let currentSchema: any = schema;
-
-  // Desenvolver ZodEffects (puede estar anidado múltiples veces)
-  while (currentSchema._def && currentSchema._def.typeName === 'ZodEffects') {
-    currentSchema = currentSchema._def.schema;
-  }
-
-  // Usar el schema desenvuelto
-  schema = currentSchema;
-
-  // Verificar que sea un ZodObject
-  if (!(schema instanceof z.ZodObject)) {
-    throw new Error(`Schema no es un ZodObject para entidad: ${entityType}. TypeName: ${(schema as any)._def?.typeName}`);
-  }
-
-  const shape = schema.shape;
-  const required: FieldInfo[] = [];
-  const optional: FieldInfo[] = [];
-
-  for (const [fieldName, fieldSchema] of Object.entries(shape)) {
-    const zodField = fieldSchema as z.ZodTypeAny;
-
-    // Determinar si es opcional
-    const isOptional = zodField instanceof z.ZodOptional || zodField instanceof z.ZodDefault;
-
-    // Obtener el tipo
-    const type = getZodType(zodField);
-
-    // Crear FieldInfo
-    const fieldInfo: FieldInfo = {
-      name: fieldName,
-      type,
-      required: !isOptional,
-      example: getFieldExample(fieldName, type),
-      description: getFieldDescription(fieldName),
-    };
-
-    if (isOptional) {
-      optional.push(fieldInfo);
-    } else {
-      required.push(fieldInfo);
-    }
-  }
-
-  return {
-    entityType,
-    required,
-    optional,
-  };
-}
 
 /**
  * Registra las rutas de API de schema info
  */
 export async function registerSchemaInfoRoutes(app: FastifyInstance) {
   /**
-   * GET /api/schema-info/:entityType - Obtener información de schema
-   * Primary: gateway PostgreSQL metadata. Fallback: local Zod schemas.
+   * GET /api/schema-info/:entityType - Obtener información de schema desde PostgreSQL
+   *
+   * IMPORTANTE: NO hay fallback a schemas locales. El gateway DEBE estar corriendo.
+   * Esto garantiza que los datos siempre reflejan el estado actual de PostgreSQL.
    */
   app.get(
     '/api/schema-info/:entityType',
@@ -386,27 +288,37 @@ export async function registerSchemaInfoRoutes(app: FastifyInstance) {
       }
 
       try {
-        // Primary path: fetch from gateway via schema cache
-        const tableName = ENTITY_TO_TABLE[entityType];
-        if (tableName) {
-          const gatewaySchema = await schemaCache.getSchema(tableName);
+        // IMPORTANTE: Invalidar cache para obtener schemas frescos del gateway
+        // (reflejando cambios recientes en PostgreSQL)
+        schemaCache.invalidate();
 
-          if (gatewaySchema) {
-            const schemaInfo = transformGatewaySchema(entityType, gatewaySchema);
-            return reply.send({
-              success: true,
-              data: schemaInfo,
-              source: 'gateway',
-            });
-          }
+        // Fetch from gateway (que lee directamente de PostgreSQL)
+        const tableName = ENTITY_TO_TABLE[entityType];
+        if (!tableName) {
+          return reply.status(400).send({
+            success: false,
+            error: `No hay mapeo de tabla para entidad: ${entityType}`,
+          });
         }
 
-        // Fallback path: use local Zod schemas
-        const schemaInfo = extractSchemaInfo(entityType as EntityType);
-        return reply.send({
-          success: true,
-          data: schemaInfo,
-          source: 'local',
+        const gatewaySchema = await schemaCache.getSchema(tableName);
+
+        if (gatewaySchema) {
+          const schemaInfo = transformGatewaySchema(entityType, gatewaySchema);
+          return reply.send({
+            success: true,
+            data: schemaInfo,
+            source: 'gateway',
+          });
+        }
+
+        // Gateway no disponible - devolver error claro
+        console.error(`[schema-info] Gateway no disponible para '${entityType}'. El gateway DEBE estar corriendo.`);
+        return reply.status(503).send({
+          success: false,
+          error: 'Gateway no disponible. El servicio gateway debe estar corriendo para obtener la estructura de campos.',
+          code: 'GATEWAY_UNAVAILABLE',
+          hint: 'Ejecute "npm run dev" en el directorio objetiva-sync-gateway para iniciar el gateway.',
         });
       } catch (error) {
         // Log detallado del error para debugging
@@ -423,56 +335,52 @@ export async function registerSchemaInfoRoutes(app: FastifyInstance) {
   );
 
   /**
-   * GET /api/schema-info/all - Obtener información de todos los schemas
-   * Primary: gateway PostgreSQL metadata. Fallback: local Zod schemas.
+   * GET /api/schema-info/all - Obtener información de todos los schemas desde PostgreSQL
+   *
+   * IMPORTANTE: NO hay fallback a schemas locales. El gateway DEBE estar corriendo.
    */
   app.get(
     '/api/schema-info/all',
     { preHandler: requireNoPasswordChange },
     async (_request, reply) => {
       try {
+        // IMPORTANTE: Invalidar cache para obtener schemas frescos del gateway
+        // (reflejando cambios recientes en PostgreSQL)
+        schemaCache.invalidate();
+
         const allSchemas: Record<string, SchemaInfo> = {};
-        let source: 'gateway' | 'local' = 'local';
 
-        // Try gateway first
-        try {
-          const gatewaySchemas = await schemaCache.getAllSchemas();
+        // Fetch from gateway (que lee directamente de PostgreSQL)
+        const gatewaySchemas = await schemaCache.getAllSchemas();
 
-          if (gatewaySchemas && gatewaySchemas.length > 0) {
-            source = 'gateway';
+        if (gatewaySchemas && gatewaySchemas.length > 0) {
+          for (const gs of gatewaySchemas) {
+            // Find the entityType that maps to this table name
+            const entityType = Object.entries(ENTITY_TO_TABLE)
+              .find(([_, table]) => table === gs.entity)?.[0];
 
-            for (const gs of gatewaySchemas) {
-              // Find the entityType that maps to this table name
-              const entityType = Object.entries(ENTITY_TO_TABLE)
-                .find(([_, table]) => table === gs.entity)?.[0];
-
-              if (entityType) {
-                allSchemas[entityType] = transformGatewaySchema(entityType, gs);
-              }
-            }
-
-            // If we got schemas from gateway, return them
-            if (Object.keys(allSchemas).length > 0) {
-              return reply.send({
-                success: true,
-                data: allSchemas,
-                source,
-              });
+            if (entityType) {
+              allSchemas[entityType] = transformGatewaySchema(entityType, gs);
             }
           }
-        } catch {
-          // Gateway failed, fall through to Zod fallback
+
+          // If we got schemas from gateway, return them
+          if (Object.keys(allSchemas).length > 0) {
+            return reply.send({
+              success: true,
+              data: allSchemas,
+              source: 'gateway',
+            });
+          }
         }
 
-        // Fallback: use local Zod schemas
-        for (const entityType of Object.values(EntityType)) {
-          allSchemas[entityType] = extractSchemaInfo(entityType);
-        }
-
-        return reply.send({
-          success: true,
-          data: allSchemas,
-          source: 'local',
+        // Gateway no disponible - devolver error claro
+        console.error('[schema-info] Gateway no disponible. El gateway DEBE estar corriendo.');
+        return reply.status(503).send({
+          success: false,
+          error: 'Gateway no disponible. El servicio gateway debe estar corriendo para obtener la estructura de campos.',
+          code: 'GATEWAY_UNAVAILABLE',
+          hint: 'Ejecute "npm run dev" en el directorio objetiva-sync-gateway para iniciar el gateway.',
         });
       } catch (error) {
         return reply.status(500).send({

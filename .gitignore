@@ -1,0 +1,6 @@
+/node_modules/
+NUL
+*.db
+*.db-journal
+.env
+.env.local

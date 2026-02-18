@@ -247,11 +247,17 @@ export function mapToPrismaType(col: ColumnMetadata, tableName: string): PrismaF
 
 /**
  * Generate a Prisma field line from column metadata
+ *
+ * @param col - Column metadata
+ * @param tableName - Table name
+ * @param existingMaps - Map of column name to Prisma field name
+ * @param singleFieldPK - If this field is the only primary key field, add @id
  */
 function generatePrismaField(
   col: ColumnMetadata,
   tableName: string,
-  existingMaps: Map<string, string>
+  existingMaps: Map<string, string>,
+  singleFieldPK: string | null = null
 ): string {
   const { prismaType, dbAnnotation } = mapToPrismaType(col, tableName);
 
@@ -268,9 +274,13 @@ function generatePrismaField(
     fieldLine += '?';
   }
 
-  // Add @id and @default(autoincrement()) for id column
+  // Add @id for autoincrement id column
   if (col.column_name === 'id' && col.default_value?.includes('nextval')) {
     fieldLine += ' @id @default(autoincrement())';
+  }
+  // Add @id for single-field natural primary key
+  else if (singleFieldPK && col.column_name === singleFieldPK) {
+    fieldLine += ' @id';
   }
   // Add @default for other columns with defaults
   else if (col.default_value) {
@@ -321,11 +331,19 @@ function generateModelBlock(schema: SchemaResponse, existing: ExistingSchemaInfo
   const existingRelations = existing.relations.get(tableName) || [];
   const existingIndexes = existing.indexes.get(tableName) || [];
 
+  // Find PRIMARY KEY constraint
+  const pkConstraint = schema.constraints.find(c => c.constraint_type === 'PRIMARY KEY');
+  const pkColumns = pkConstraint?.columns || [];
+
+  // Determine if single-field PK (add @id to field) or composite PK (add @@id at model level)
+  const singleFieldPK = pkColumns.length === 1 ? pkColumns[0] : null;
+  const isCompositePK = pkColumns.length > 1;
+
   let modelText = `model ${modelName} {\n`;
 
   // Generate scalar fields
   for (const col of schema.columns) {
-    modelText += generatePrismaField(col, tableName, existingMaps) + '\n';
+    modelText += generatePrismaField(col, tableName, existingMaps, singleFieldPK) + '\n';
   }
 
   // Add relation fields from existing schema
@@ -340,6 +358,17 @@ function generateModelBlock(schema: SchemaResponse, existing: ExistingSchemaInfo
       }
       modelText += relLine + '\n';
     }
+  }
+
+  // Add @@id for composite primary key
+  if (isCompositePK) {
+    // Build column-to-prisma-name mapping
+    const colToPrismaName = new Map<string, string>();
+    for (const col of schema.columns) {
+      colToPrismaName.set(col.column_name, existingMaps.get(col.column_name) || col.column_name);
+    }
+    const pkFields = pkColumns.map(c => colToPrismaName.get(c) || c).join(', ');
+    modelText += `\n  @@id([${pkFields}])\n`;
   }
 
   // Add @@unique constraints from metadata (map column names to Prisma field names)

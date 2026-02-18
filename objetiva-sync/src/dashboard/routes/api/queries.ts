@@ -15,11 +15,64 @@ import {
   toggleQueryScheduled,
   getQueriesOrdered,
 } from '../../../store/repositories/queries-repo.js';
-import { getActiveConnectionConfig } from '../../../store/repositories/connection-config-repo.js';
+import {
+  getActiveConnectionConfig,
+  getConnectionById,
+  getConnectionConfig,
+  getAllConnections,
+} from '../../../store/repositories/connection-config-repo.js';
 import { executeQueryOnConnection } from '../../../adapters/database-adapter.js';
 import { logger } from '../../../utils/logger.js';
 import type { EntityType } from '../../../types/common.js';
 import { validateQueryAgainstSchema } from '../../../sync/schema-validator.js';
+
+/**
+ * Convert EntityType to PostgreSQL table name (plural form)
+ *
+ * Required because EntityType values are singular (e.g., 'articulo')
+ * but PostgreSQL table names are plural (e.g., 'articulos').
+ */
+function entityTypeToTableName(entityType: string): string {
+  const mapping: Record<string, string> = {
+    'articulo': 'articulos',
+    'comprobante_cabecera': 'comprobantes_cabecera',
+    'comprobante_detalle': 'comprobantes_detalle',
+    'comprobante_pago': 'comprobantes_pagos',
+  };
+  return mapping[entityType] || entityType;
+}
+
+/**
+ * Apply LIMIT to a SELECT query based on adapter type.
+ *
+ * - SQL Server: SELECT TOP N ...
+ * - PostgreSQL/MySQL: SELECT ... LIMIT N
+ *
+ * @param sqlQuery Original query
+ * @param adapterType Database adapter type
+ * @param limit Number of rows to limit
+ * @returns Query with appropriate LIMIT syntax
+ */
+function applyQueryLimit(sqlQuery: string, adapterType: string, limit: number = 10): string {
+  const trimmedQuery = sqlQuery.trim();
+
+  // Only apply to SELECT statements
+  if (!trimmedQuery.toUpperCase().startsWith('SELECT')) {
+    return trimmedQuery;
+  }
+
+  if (adapterType === 'sqlserver') {
+    // SQL Server: SELECT TOP N ...
+    return trimmedQuery.replace(/SELECT/i, `SELECT TOP ${limit}`);
+  } else {
+    // PostgreSQL, MySQL: ... LIMIT N
+    // Check if LIMIT already exists
+    if (/LIMIT\s+\d+/i.test(trimmedQuery)) {
+      return trimmedQuery;
+    }
+    return `${trimmedQuery} LIMIT ${limit}`;
+  }
+}
 
 /**
  * Schema de validación para guardar query
@@ -37,8 +90,9 @@ const saveQuerySchema = {
       },
       sqlQuery: { type: 'string', minLength: 1 },
       incrementalField: { type: 'string' },
-      incrementalType: { type: 'string', enum: ['datetime', 'number', 'string', ''] },
+      incrementalType: { type: 'string', enum: ['datetime', ''] },  // Simplificado: solo Fecha/Hora o Full sync
       joinField: { type: 'string' },
+      connectionId: { type: 'string' }, // ID de conexión específica (vacío = conexión activa)
       isActive: { type: 'string' }, // Checkbox comes as "on" or undefined
     },
   },
@@ -54,7 +108,8 @@ const testQuerySchema = {
     properties: {
       sqlQuery: { type: 'string', minLength: 1 },
       incrementalField: { type: 'string' },
-      incrementalType: { type: 'string', enum: ['datetime', 'number', 'string', ''] },
+      incrementalType: { type: 'string', enum: ['datetime', ''] },  // Simplificado
+      connectionId: { type: 'string' },  // ID de conexión específica (vacío = conexión activa)
     },
   },
 };
@@ -72,6 +127,10 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
     async (_request: FastifyRequest, reply: FastifyReply) => {
       try {
         const queries = await getQueriesOrdered(); // Usar getQueriesOrdered en lugar de getAllQueries
+
+        // Get all connections to show connection names in the list
+        const connections = await getAllConnections();
+        const connectionMap = new Map(connections.map(c => [c.id, c]));
 
         if (queries.length === 0) {
           return reply.type('text/html').send(`
@@ -94,6 +153,12 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
                 return `${Math.floor(seconds / 3600)}h`;
               };
 
+              // Get connection info for this query
+              const connection = query.connectionId ? connectionMap.get(query.connectionId) : null;
+              const connectionBadge = connection
+                ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800" title="Conexión específica: ${escapeHtml(connection.name)}">🔗 ${escapeHtml(connection.name)}</span>`
+                : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600" title="Usa la conexión marcada como activa (⭐)">🔗 Conexión global</span>';
+
               return `
           <div class="px-4 py-4 hover:bg-gray-50 border-b border-gray-200" data-query-id="${query.id}">
             <div class="flex items-start gap-3">
@@ -113,14 +178,15 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
                   </span>
                   ${
                     query.isActive
-                      ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Activa</span>'
-                      : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Inactiva</span>'
+                      ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" title="La query se sincronizará">Habilitada</span>'
+                      : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800" title="La query no se sincronizará">Deshabilitada</span>'
                   }
                   ${
                     query.isScheduled
                       ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Programada</span>'
                       : ''
                   }
+                  ${connectionBadge}
                 </div>
                 <p class="mt-1 text-xs text-gray-500">
                   ${escapeHtml(query.entityType)}
@@ -145,19 +211,8 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
                 }
               </div>
 
-              <!-- Scheduling Controls -->
+              <!-- Actions -->
               <div class="flex-shrink-0 flex items-center gap-2">
-                <!-- Checkbox para programar -->
-                <label class="flex items-center cursor-pointer" onclick="event.stopPropagation()" title="Programar sincronización automática">
-                  <input
-                    type="checkbox"
-                    class="schedule-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    data-query-id="${query.id}"
-                    ${query.isScheduled ? 'checked' : ''}
-                    onchange="toggleQueryScheduled(${query.id}, this.checked)"
-                  >
-                  <span class="ml-1 text-xs text-gray-600">Auto</span>
-                </label>
 
                 <!-- Delete button -->
                 <button
@@ -220,9 +275,16 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
           });
         }
 
+        // Obtener el lastSyncValue del estado de sincronización
+        const { getLastSyncValue } = await import('../../../store/repositories/sync-state-repo.js');
+        const lastSyncValue = await getLastSyncValue(id);
+
         return reply.send({
           success: true,
-          data: query,
+          data: {
+            ...query,
+            lastSyncValue,  // Agregar el último valor de sincronización
+          },
         });
       } catch (error) {
         logger.error({ error }, 'Error al obtener query');
@@ -246,7 +308,10 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
       incrementalField?: string;
       incrementalType?: 'datetime' | 'number' | 'string' | '';
       joinField?: string;
+      connectionId?: string;
       isActive?: string;
+      isScheduled?: string;
+      syncInterval?: string;
     };
   }>(
     '/api/queries/save',
@@ -264,31 +329,79 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
           incrementalField,
           incrementalType,
           joinField,
+          connectionId,
           isActive,
+          isScheduled,
+          syncInterval,
         } = request.body;
 
-        // Convertir checkbox a boolean
+        // Convertir checkboxes a boolean
         const isActiveBoolean = isActive === 'on';
+        const isScheduledBoolean = isScheduled === 'on';
+
+        // Convertir syncInterval a number (default 1800 = 30 min)
+        const syncIntervalNumber = syncInterval ? parseInt(syncInterval, 10) : 1800;
 
         // Normalizar incrementalType (empty string to undefined)
+        // UI usa 'datetime', DB almacena 'date'
         const normalizedIncrementalType =
-          incrementalType && incrementalType.length > 0 ? incrementalType : undefined;
-        // Validate query before saving
-        const activeConnection = await getActiveConnectionConfig();
+          incrementalType === 'datetime' ? 'date' : undefined;
 
-        if (activeConnection) {
+        // Parse connectionId (empty string = null = use active connection)
+        const parsedConnectionId = connectionId && connectionId.trim() !== ''
+          ? parseInt(connectionId, 10)
+          : null;
+
+        // Validate connectionId if provided
+        if (parsedConnectionId !== null) {
+          if (isNaN(parsedConnectionId)) {
+            return reply.status(400).send({
+              success: false,
+              error: 'ID de conexión inválido',
+            });
+          }
+          const conn = await getConnectionById(parsedConnectionId);
+          if (!conn) {
+            return reply.status(400).send({
+              success: false,
+              error: `Conexión con ID ${parsedConnectionId} no encontrada`,
+            });
+          }
+        }
+
+        // IMPORTANTE: Invalidar cache de schemas antes de validar para obtener
+        // los schemas más recientes del gateway (reflejando cambios en PostgreSQL)
+        const { schemaCache } = await import('../../../services/schema-cache.js');
+        schemaCache.invalidate(); // Limpiar TODO el cache para forzar refresh desde gateway
+
+        // Get the connection to use for validation
+        // If connectionId specified, use that; otherwise use active connection
+        let validationConnection: { adapterType: string; config: Record<string, unknown> } | null = null;
+
+        if (parsedConnectionId !== null) {
+          const conn = await getConnectionById(parsedConnectionId);
+          if (conn) {
+            const config = await getConnectionConfig(parsedConnectionId);
+            validationConnection = { adapterType: conn.adapterType, config };
+          }
+        } else {
+          const activeConn = await getActiveConnectionConfig();
+          if (activeConn) {
+            validationConnection = { adapterType: activeConn.adapterType, config: activeConn.config };
+          }
+        }
+
+        if (validationConnection) {
           // Execute a limited test query to get sample data
-          // NOTE: Uses SQL Server TOP syntax. For other databases, use LIMIT clause.
-          // This is a known limitation - validation assumes SQL Server dialect.
-          const testQuery = sqlQuery.trim().toUpperCase().startsWith('SELECT')
-            ? sqlQuery.replace(/SELECT/i, 'SELECT TOP 10')
-            : sqlQuery;
+          // Reemplazar @lastSync con una fecha dummy para que no falle la validación
+          const safeSqlQuery = sqlQuery.replace(/@lastSync/gi, "'1900-01-01'");
+          const testQuery = applyQueryLimit(safeSqlQuery, validationConnection.adapterType, 10);
 
           let testRows: Record<string, unknown>[] = [];
           try {
             const result = await executeQueryOnConnection(
-              activeConnection.adapterType,
-              activeConnection.config,
+              validationConnection.adapterType,
+              validationConnection.config,
               testQuery
             );
             testRows = result.rows as Record<string, unknown>[];
@@ -302,7 +415,7 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
           }
 
           // Validate against schema
-          const validation = await validateQueryAgainstSchema(testRows, entityType);
+          const validation = await validateQueryAgainstSchema(testRows, entityTypeToTableName(entityType));
 
           if (!validation.isValid) {
             // Log validation failure
@@ -342,27 +455,33 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
 
           await updateQuery(resultQueryId, {
             name,
-            entityType,  // ← AGREGAR ESTA LÍNEA
+            entityType,
             sqlQuery,
             incrementalField: incrementalField || null,
-            incrementalType: normalizedIncrementalType === 'datetime' ? 'date' : normalizedIncrementalType === 'number' ? 'id' : null,
+            incrementalType: normalizedIncrementalType || null,  // Ya convertido: 'date' o null
             joinField: joinField || null,
+            connectionId: parsedConnectionId,
             isActive: isActiveBoolean,
+            isScheduled: isScheduledBoolean,
+            syncInterval: syncIntervalNumber,
           });
 
-          logger.info(`Query actualizada: ${name} (ID: ${resultQueryId})`);
+          logger.info(`Query actualizada: ${name} (ID: ${resultQueryId}, connectionId: ${parsedConnectionId ?? 'default'})`);
         } else {
           resultQueryId = await createQuery({
             entityType,
             name,
             sqlQuery,
             incrementalField: incrementalField || undefined,
-            incrementalType: normalizedIncrementalType === 'datetime' ? 'date' : normalizedIncrementalType === 'number' ? 'id' : undefined,
+            incrementalType: normalizedIncrementalType || undefined,  // Ya convertido: 'date' o undefined
             joinField: joinField || undefined,
+            connectionId: parsedConnectionId,
             isActive: isActiveBoolean,
+            isScheduled: isScheduledBoolean,
+            syncInterval: syncIntervalNumber,
           });
 
-          logger.info(`Query creada: ${name} (ID: ${resultQueryId})`);
+          logger.info(`Query creada: ${name} (ID: ${resultQueryId}, connectionId: ${parsedConnectionId ?? 'default'})`);
         }
 
         return reply.send({
@@ -420,12 +539,16 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
 
   /**
    * POST /api/queries/test - Probar query (ejecutar en ERP)
+   *
+   * Si se especifica connectionId, usa esa conexión.
+   * Si no, usa la conexión activa global.
    */
   app.post<{
     Body: {
       sqlQuery: string;
       incrementalField?: string;
       incrementalType?: 'datetime' | 'number' | 'string' | '';
+      connectionId?: string;
     };
   }>(
     '/api/queries/test',
@@ -435,20 +558,68 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
       reply
     ) => {
       try {
-        const { sqlQuery } = request.body;
+        const { sqlQuery, connectionId } = request.body;
 
-        logger.info('Test de query solicitado');
+        // Parse connectionId (empty string = null = use active connection)
+        const parsedConnectionId = connectionId && connectionId.trim() !== ''
+          ? parseInt(connectionId, 10)
+          : null;
 
-        // Obtener conexión activa
-        const activeConnection = await getActiveConnectionConfig();
+        logger.info({ connectionId: parsedConnectionId ?? 'active' }, 'Test de query solicitado');
 
-        if (!activeConnection) {
+        // Get connection to use: specific or active
+        let connection: { adapterType: string; config: Record<string, unknown>; name: string } | null = null;
+
+        if (parsedConnectionId !== null) {
+          // Use specific connection
+          if (isNaN(parsedConnectionId)) {
+            return reply.type('text/html').send(`
+              <div class="bg-red-50 border border-red-200 rounded p-3">
+                <div class="flex items-center">
+                  <i data-lucide="alert-circle" class="h-4 w-4 text-red-600 mr-2"></i>
+                  <p class="text-sm text-red-800">ID de conexión inválido</p>
+                </div>
+              </div>
+            `);
+          }
+
+          const conn = await getConnectionById(parsedConnectionId);
+          if (!conn) {
+            return reply.type('text/html').send(`
+              <div class="bg-red-50 border border-red-200 rounded p-3">
+                <div class="flex items-center">
+                  <i data-lucide="alert-circle" class="h-4 w-4 text-red-600 mr-2"></i>
+                  <p class="text-sm text-red-800">Conexión con ID ${parsedConnectionId} no encontrada</p>
+                </div>
+              </div>
+            `);
+          }
+
+          const config = await getConnectionConfig(parsedConnectionId);
+          connection = {
+            adapterType: conn.adapterType,
+            config,
+            name: conn.name,
+          };
+        } else {
+          // Use active connection
+          const activeConn = await getActiveConnectionConfig();
+          if (activeConn) {
+            connection = {
+              adapterType: activeConn.adapterType,
+              config: activeConn.config,
+              name: activeConn.name,
+            };
+          }
+        }
+
+        if (!connection) {
           const html = `
             <div class="bg-yellow-50 border border-yellow-200 rounded p-3">
               <div class="flex items-center">
                 <i data-lucide="alert-circle" class="h-4 w-4 text-yellow-600 mr-2"></i>
                 <p class="text-sm text-yellow-800">
-                  No hay una conexión activa configurada. Por favor, activa una conexión primero.
+                  No hay una conexión ${parsedConnectionId ? 'especificada' : 'activa'} configurada. Por favor, ${parsedConnectionId ? 'verifica la conexión' : 'activa una conexión primero'}.
                 </p>
               </div>
             </div>
@@ -456,11 +627,15 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
           return reply.type('text/html').send(html);
         }
 
+        // Reemplazar @lastSync con una fecha muy antigua para pruebas
+        // Esto permite probar consultas con @lastSync sin error
+        const testSqlQuery = sqlQuery.replace(/@lastSync/gi, "'1900-01-01'");
+
         // Ejecutar query
         const result = await executeQueryOnConnection(
-          activeConnection.adapterType,
-          activeConnection.config,
-          sqlQuery
+          connection.adapterType,
+          connection.config,
+          testSqlQuery
         );
 
         // Generar HTML con resultados
@@ -470,6 +645,7 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
               <div class="flex items-center text-sm">
                 <i data-lucide="check-circle" class="h-4 w-4 text-green-600 mr-2"></i>
                 <span class="font-medium text-gray-700">Consulta ejecutada exitosamente</span>
+                <span class="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">${escapeHtml(connection.name)}</span>
               </div>
               <span class="text-xs text-gray-500">${result.rowCount} ${result.rowCount === 1 ? 'fila' : 'filas'}</span>
             </div>
@@ -553,20 +729,131 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
   );
 
   /**
+   * POST /api/queries/get-date-columns - Obtener columnas de tipo fecha de una query
+   * Detecta campos de fecha analizando los valores devueltos por la consulta
+   */
+  app.post<{
+    Body: {
+      sqlQuery: string;
+    };
+  }>(
+    '/api/queries/get-date-columns',
+    { preHandler: requireNoPasswordChange },
+    async (request, reply) => {
+      try {
+        const { sqlQuery } = request.body;
+
+        if (!sqlQuery?.trim()) {
+          return reply.status(400).send({
+            success: false,
+            error: 'sqlQuery es requerido'
+          });
+        }
+
+        // Obtener conexión activa
+        const activeConnection = await getActiveConnectionConfig();
+
+        if (!activeConnection) {
+          return reply.status(400).send({
+            success: false,
+            error: 'No hay una conexión activa configurada'
+          });
+        }
+
+        // Ejecutar query con TOP 5 para obtener datos de muestra
+        // Reemplazar @lastSync con una fecha dummy para que no falle
+        const testQuery = sqlQuery
+          .replace(/SELECT/i, 'SELECT TOP 5')
+          .replace(/@lastSync/gi, "'1900-01-01'");
+
+        const result = await executeQueryOnConnection(
+          activeConnection.adapterType,
+          activeConnection.config,
+          testQuery
+        );
+
+        // Detectar columnas de fecha analizando los valores
+        const dateColumns: string[] = [];
+        const rows = result.rows as Record<string, unknown>[];
+
+        if (rows.length > 0) {
+          const firstRow = rows[0];
+
+          if (firstRow) {
+            for (const [colName, value] of Object.entries(firstRow)) {
+              // Detectar si es un campo de fecha
+              if (isDateValue(value)) {
+                dateColumns.push(colName);
+              }
+            }
+          }
+        }
+
+        logger.info({ dateColumns, rowCount: rows.length }, '[API] Columnas de fecha detectadas');
+
+        return reply.send({
+          success: true,
+          dateColumns
+        });
+      } catch (error) {
+        logger.error({ error }, '[API] Error al obtener columnas de fecha');
+        return reply.status(500).send({
+          success: false,
+          error: error instanceof Error ? error.message : 'Error al ejecutar consulta'
+        });
+      }
+    }
+  );
+
+  /**
+   * Detecta si un valor es de tipo fecha/datetime
+   */
+  function isDateValue(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+
+    // Si es un objeto Date
+    if (value instanceof Date) {
+      return true;
+    }
+
+    // Si es un string que parece fecha ISO (2024-05-18T06:52:58.717)
+    if (typeof value === 'string') {
+      // Patrón ISO: YYYY-MM-DDTHH:MM:SS
+      const isoPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+      // Patrón fecha simple: YYYY-MM-DD
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+      if (isoPattern.test(value) || datePattern.test(value)) {
+        // Verificar que sea una fecha válida
+        const parsed = new Date(value);
+        return !isNaN(parsed.getTime());
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * POST /api/queries/test-and-validate - Probar query y validar contra schema
+   *
+   * Si se especifica connectionId, usa esa conexión.
+   * Si no, usa la conexión activa global.
    */
   app.post<{
     Body: {
       sqlQuery: string;
       entityType: EntityType;
       queryId?: number;
+      connectionId?: string;
     };
   }>(
     '/api/queries/test-and-validate',
     { preHandler: requireNoPasswordChange },
     async (request, reply) => {
       try {
-        const { sqlQuery, entityType, queryId } = request.body;
+        const { sqlQuery, entityType, queryId, connectionId } = request.body;
 
         if (!sqlQuery || !entityType) {
           return reply.status(400).send({
@@ -575,42 +862,124 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
           });
         }
 
-        logger.info({ entityType, queryId }, '[API] Test and validate query solicitado');
+        // Parse connectionId (empty string = null = use active connection)
+        const parsedConnectionId = connectionId && connectionId.trim() !== ''
+          ? parseInt(connectionId, 10)
+          : null;
 
-        // Obtener conexión activa
-        const activeConnection = await getActiveConnectionConfig();
+        logger.info({ entityType, queryId, connectionId: parsedConnectionId ?? 'active' }, '[API] Test and validate query solicitado');
 
-        if (!activeConnection) {
+        // Get connection to use: specific or active
+        let connection: { adapterType: string; config: Record<string, unknown>; name: string } | null = null;
+
+        if (parsedConnectionId !== null) {
+          // Use specific connection
+          if (isNaN(parsedConnectionId)) {
+            return reply.status(400).send({
+              success: false,
+              error: 'ID de conexión inválido'
+            });
+          }
+
+          const conn = await getConnectionById(parsedConnectionId);
+          if (!conn) {
+            return reply.status(400).send({
+              success: false,
+              error: `Conexión con ID ${parsedConnectionId} no encontrada`
+            });
+          }
+
+          const config = await getConnectionConfig(parsedConnectionId);
+          connection = {
+            adapterType: conn.adapterType,
+            config,
+            name: conn.name,
+          };
+        } else {
+          // Use active connection
+          const activeConn = await getActiveConnectionConfig();
+          if (activeConn) {
+            connection = {
+              adapterType: activeConn.adapterType,
+              config: activeConn.config,
+              name: activeConn.name,
+            };
+          }
+        }
+
+        if (!connection) {
           return reply.status(400).send({
             success: false,
-            error: 'No hay una conexión activa configurada. Por favor, activa una conexión primero.'
+            error: `No hay una conexión ${parsedConnectionId ? 'especificada' : 'activa'} configurada. Por favor, ${parsedConnectionId ? 'verifica la conexión' : 'activa una conexión primero'}.`
           });
         }
 
-        // Ejecutar query (limitar a 10 filas para test)
-        const testQuery = sqlQuery.trim().toUpperCase().startsWith('SELECT')
-          ? sqlQuery.replace(/SELECT/i, 'SELECT TOP 10')
-          : sqlQuery;
+        // Información de sincronización incremental
+        let lastSyncValue: string | null = null;
+        let incrementalInfo: { field: string; lastSync: string } | null = null;
+
+        // Si hay queryId, obtener info de sincronización
+        if (queryId) {
+          const { getLastSyncValue } = await import('../../../store/repositories/sync-state-repo.js');
+          lastSyncValue = await getLastSyncValue(queryId);
+
+          const query = await getQuery(queryId);
+          if (query?.incrementalField && lastSyncValue) {
+            incrementalInfo = {
+              field: query.incrementalField,
+              lastSync: lastSyncValue,
+            };
+          }
+        }
+
+        // Reemplazar @lastSync con una fecha muy antigua para pruebas
+        const safeSqlQuery = sqlQuery.replace(/@lastSync/gi, "'1900-01-01'");
+
+        // Ejecutar query de conteo total primero (sin filtro incremental)
+        let totalCount = 0;
+        try {
+          const countQuery = `SELECT COUNT(*) as total FROM (${safeSqlQuery}) AS subquery`;
+          const countResult = await executeQueryOnConnection(
+            connection.adapterType,
+            connection.config,
+            countQuery
+          );
+          totalCount = (countResult.rows[0] as { total: number })?.total ?? 0;
+        } catch {
+          // Si falla el conteo, continuar sin él
+          logger.warn('[API] No se pudo obtener conteo total');
+        }
+
+        // Ejecutar query con limite para muestra (syntax depends on adapter type)
+        const testQuery = applyQueryLimit(safeSqlQuery, connection.adapterType, 10);
 
         const queryResult = await executeQueryOnConnection(
-          activeConnection.adapterType,
-          activeConnection.config,
+          connection.adapterType,
+          connection.config,
           testQuery
         );
 
-        // Importar y usar el validator
+        // IMPORTANTE: Invalidar cache de schemas antes de validar para obtener
+        // los schemas más recientes del gateway (reflejando cambios en PostgreSQL)
+        const { schemaCache } = await import('../../../services/schema-cache.js');
+        schemaCache.invalidate(); // Limpiar TODO el cache para forzar refresh desde gateway
+
+        // Importar y usar el validator (ahora obtendrá schemas frescos del gateway)
         const { validateQueryResult } = await import('../../../sync/query-validator.js');
-        const zodValidation = validateQueryResult(queryResult.rows as Record<string, unknown>[], entityType);
+        const zodValidation = await validateQueryResult(queryResult.rows as Record<string, unknown>[], entityType);
         // NEW: Live schema validation
         const schemaValidation = await validateQueryAgainstSchema(
           queryResult.rows as Record<string, unknown>[],
-          entityType
+          entityTypeToTableName(entityType)
         );
 
         // Retornar resultado
         return reply.send({
           success: true,
           rowCount: queryResult.rowCount,
+          totalCount,  // Total de registros (sin LIMIT)
+          connectionName: connection.name,  // Conexión utilizada
+          incrementalInfo,  // Info de sync incremental si está configurado
           sampleData: zodValidation.sampleData,
           validation: {
             isValid: zodValidation.isValid && schemaValidation.isValid,
@@ -750,6 +1119,39 @@ export async function registerQueriesApiRoutes(app: FastifyInstance) {
         return reply.status(500).send({
           success: false,
           error: 'Error al actualizar configuración de scheduling',
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/connections/dropdown - Lista de conexiones para selector en forms
+   * Retorna solo id, name y adapterType para popular dropdowns
+   */
+  app.get(
+    '/api/connections/dropdown',
+    { preHandler: requireNoPasswordChange },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const connections = await getAllConnections();
+
+        // Return simplified list for dropdown
+        const dropdownData = connections.map((conn) => ({
+          id: conn.id,
+          name: conn.name,
+          adapterType: conn.adapterType,
+          isActive: conn.isActive,
+        }));
+
+        return reply.send({
+          success: true,
+          data: dropdownData,
+        });
+      } catch (error) {
+        logger.error({ error }, 'Error al obtener conexiones para dropdown');
+        return reply.status(500).send({
+          success: false,
+          error: 'Error al obtener conexiones',
         });
       }
     }

@@ -53,6 +53,9 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - ✓ PM2 deployment scripts for both modules — v1.1-rc
 - ✓ .env.example files with complete variable documentation — v1.1-rc
 - ✓ 79 integration tests covering error recovery and pipeline validation — v1.1-rc
+- ✓ Multi-source query support: each query can specify its own database connection — v1.1-rc2
+- ✓ Adapter pool for managing multiple concurrent database connections — v1.1-rc2
+- ✓ Connection selector in query configuration UI — v1.1-rc2
 
 ### Active
 

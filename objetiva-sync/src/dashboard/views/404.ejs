@@ -1,0 +1,48 @@
+<div class="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
+  <div class="max-w-md w-full text-center">
+    <!-- Icon -->
+    <div class="flex justify-center">
+      <div class="bg-gray-100 rounded-full p-6">
+        <i data-lucide="search-x" class="w-20 h-20 text-gray-400"></i>
+      </div>
+    </div>
+
+    <!-- Error Code -->
+    <h1 class="mt-6 text-6xl font-extrabold text-gray-900">404</h1>
+
+    <!-- Error Message -->
+    <h2 class="mt-4 text-2xl font-bold text-gray-900">
+      Página no encontrada
+    </h2>
+    <p class="mt-2 text-base text-gray-600">
+      La página que buscas no existe o ha sido movida.
+    </p>
+
+    <!-- URL Info -->
+    <% if (locals.url) { %>
+      <div class="mt-4 bg-gray-50 rounded-lg p-4">
+        <p class="text-sm text-gray-500 font-mono break-all">
+          <%= url %>
+        </p>
+      </div>
+    <% } %>
+
+    <!-- Actions -->
+    <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+      <a
+        href="/dashboard"
+        class="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+      >
+        <i data-lucide="home" class="w-4 h-4 mr-2"></i>
+        Ir al Dashboard
+      </a>
+      <button
+        onclick="window.history.back()"
+        class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+      >
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+        Volver atrás
+      </button>
+    </div>
+  </div>
+</div>

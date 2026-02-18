@@ -15,8 +15,9 @@ export interface ClassifiedError {
  * with specific error codes, Spanish messages, and root cause descriptions
  */
 export function classifyError(error: unknown): ClassifiedError {
-  const errorMessage = error instanceof Error ? error.message : String(error);
+  // Collect the full error message chain including .cause
   const errorName = error instanceof Error ? error.name : '';
+  const errorMessage = getFullErrorMessage(error);
 
   // 1. User cancellation (AbortError without timeout)
   if (errorName === 'AbortError' && !errorMessage.toLowerCase().includes('timeout')) {
@@ -127,4 +128,21 @@ export function classifyError(error: unknown): ClassifiedError {
     isRetryable: false,
     rootCause: 'Error no clasificado. Revisa los logs para más detalles.',
   };
+}
+
+/**
+ * Extracts the full error message including the .cause chain.
+ * undici wraps the real error (ECONNREFUSED, ECONNRESET, etc.) in
+ * TypeError("fetch failed") with the actual error in .cause
+ */
+function getFullErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+
+  const parts: string[] = [error.message];
+  let current: unknown = (error as any).cause;
+  while (current instanceof Error) {
+    parts.push(current.message);
+    current = (current as any).cause;
+  }
+  return parts.join(' | ');
 }

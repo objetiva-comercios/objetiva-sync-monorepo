@@ -1,0 +1,824 @@
+<style>
+  /* Ocultar flechas en input type="number" */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+</style>
+
+<div class="py-6 bg-base-200 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Config Tabs -->
+    <%- include('../partials/config-tabs.ejs') %>
+
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+      <div class="flex-1 min-w-0">
+        <h1 class="text-3xl font-bold mb-2">
+          Configuración de Conexión
+        </h1>
+        <p class="text-base-content/60">
+          Gestionar conexiones al ERP (SQL Server, PostgreSQL, MySQL, Excel)
+        </p>
+      </div>
+      <div class="mt-4 sm:mt-0 sm:ml-4">
+        <button
+          type="button"
+          onclick="showNewConnectionModal()"
+          class="btn btn-primary gap-2"
+        >
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          Nueva Conexión
+        </button>
+      </div>
+    </div>
+
+    <!-- Current Active Connection -->
+    <div class="mb-6" id="active-connection-container">
+      <!-- Loaded via HTMX -->
+    </div>
+
+    <!-- Connections List -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h3 class="card-title mb-4">Conexiones Disponibles</h3>
+        <div id="connections-container"
+          hx-get="/api/connections/list"
+          hx-trigger="load"
+          hx-swap="innerHTML"
+        >
+          <!-- Loading state -->
+          <div class="text-center py-12">
+            <span class="loading loading-spinner loading-lg text-primary"></span>
+            <p class="mt-2 text-sm">Cargando conexiones...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New/Edit Connection Modal -->
+<div id="connection-modal" class="hidden fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+      <form id="connection-form" onsubmit="saveConnection(event)">
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
+              <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                Nueva Conexión
+              </h3>
+              <div class="mt-4 space-y-4">
+                <!-- Connection Name -->
+                <div>
+                  <label for="conn-name" class="block text-sm font-medium text-gray-700">Nombre de la Conexión</label>
+                  <input
+                    type="text"
+                    id="conn-name"
+                    name="name"
+                    required
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="Ej: Producción SQL Server"
+                  >
+                </div>
+
+                <!-- Adapter Type -->
+                <div>
+                  <label for="conn-adapter" class="block text-sm font-medium text-gray-700">Tipo de Conexión</label>
+                  <select
+                    id="conn-adapter"
+                    name="adapterType"
+                    required
+                    onchange="handleAdapterChange()"
+                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    <option value="">Seleccione...</option>
+                    <option value="sqlserver">SQL Server</option>
+                    <option value="postgres">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                    <option value="excel">Excel (Archivos locales)</option>
+                  </select>
+                </div>
+
+                <!-- SQL Server / PostgreSQL / MySQL Fields -->
+                <div id="sql-fields" class="hidden space-y-4">
+                  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label for="conn-host" class="block text-sm font-medium text-gray-700">Servidor/Host</label>
+                      <input
+                        type="text"
+                        id="conn-host"
+                        name="host"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="localhost"
+                      >
+                    </div>
+                    <div>
+                      <label for="conn-port" class="block text-sm font-medium text-gray-700">Puerto</label>
+                      <input
+                        type="number"
+                        id="conn-port"
+                        name="port"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="1433"
+                      >
+                    </div>
+                  </div>
+
+                  <div>
+                    <label for="conn-database" class="block text-sm font-medium text-gray-700">Base de Datos</label>
+                    <input
+                      type="text"
+                      id="conn-database"
+                      name="database"
+                      class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="nombre_bd"
+                    >
+                  </div>
+
+                  <!-- SQL Server Specific -->
+                  <div id="sqlserver-specific" class="hidden space-y-4">
+                    <!-- Windows Authentication -->
+                    <div class="border-t border-gray-200 pt-4">
+                      <div class="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="conn-windows-auth"
+                          name="windowsAuth"
+                          onchange="toggleWindowsAuth()"
+                          class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        >
+                        <label for="conn-windows-auth" class="ml-2 block text-sm font-medium text-gray-700">
+                          Usar Autenticación de Windows (Trusted Connection)
+                        </label>
+                      </div>
+                      <p class="mt-1 text-xs text-gray-500 ml-6">
+                        Recomendado para SQL Server Express con instancias locales
+                      </p>
+                    </div>
+
+                    <!-- Driver info (only shown when Windows Auth is enabled) -->
+                    <div id="driver-info" class="hidden">
+                      <input type="hidden" id="conn-driver" name="driver" value="msnodesqlv8">
+                      <div class="bg-blue-50 border-l-4 border-blue-400 p-3">
+                        <div class="flex">
+                          <div class="flex-shrink-0">
+                            <i data-lucide="info" class="h-5 w-5 text-blue-400"></i>
+                          </div>
+                          <div class="ml-3">
+                            <p class="text-sm text-blue-700">
+                              Se usará el driver <strong>msnodesqlv8</strong> para autenticación de Windows.
+                              Este driver es compatible con instancias con nombre (ej: DESKTOP\SQLEXPRESS).
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center space-x-6">
+                      <div class="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="conn-encrypt"
+                          name="encrypt"
+                          class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        >
+                        <label for="conn-encrypt" class="ml-2 block text-sm text-gray-700">
+                          Conexión Encriptada
+                        </label>
+                      </div>
+                      <div class="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="conn-trust"
+                          name="trustServerCertificate"
+                          checked
+                          class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        >
+                        <label for="conn-trust" class="ml-2 block text-sm text-gray-700">
+                          Confiar en Certificado del Servidor
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- PostgreSQL Specific -->
+                  <div id="postgres-specific" class="hidden space-y-4">
+                    <div class="border-t border-gray-200 pt-4">
+                      <div class="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="conn-ssl-enabled"
+                          name="sslEnabled"
+                          onchange="toggleSslOptions()"
+                          class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        >
+                        <label for="conn-ssl-enabled" class="ml-2 block text-sm font-medium text-gray-700">
+                          Usar conexion SSL
+                        </label>
+                      </div>
+                      <p class="mt-1 text-xs text-gray-500 ml-6">
+                        Requerido para la mayoria de bases PostgreSQL en la nube (Supabase, RDS, etc.)
+                      </p>
+                    </div>
+
+                    <div id="ssl-options" class="hidden ml-6 space-y-2">
+                      <div class="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="conn-ssl-reject-unauthorized"
+                          name="sslRejectUnauthorized"
+                          checked
+                          class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        >
+                        <label for="conn-ssl-reject-unauthorized" class="ml-2 block text-sm text-gray-700">
+                          Verificar certificado del servidor
+                        </label>
+                      </div>
+                      <p class="mt-1 text-xs text-gray-500">
+                        Desmarcar solo si usa certificados auto-firmados (no recomendado para produccion)
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- SQL Authentication (username/password) -->
+                  <div id="sql-auth-fields" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label for="conn-username" class="block text-sm font-medium text-gray-700">Usuario</label>
+                      <input
+                        type="text"
+                        id="conn-username"
+                        name="username"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="usuario"
+                      >
+                    </div>
+                    <div>
+                      <label for="conn-password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+                      <input
+                        type="password"
+                        id="conn-password"
+                        name="password"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="••••••••"
+                      >
+                    </div>
+                  </div>
+
+                  <div>
+                    <label for="conn-timeout" class="block text-sm font-medium text-gray-700">Timeout de Conexión (ms)</label>
+                    <input
+                      type="number"
+                      id="conn-timeout"
+                      name="connectionTimeout"
+                      value="10000"
+                      class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    >
+                  </div>
+                </div>
+
+                <!-- Excel Fields -->
+                <div id="excel-fields" class="hidden space-y-4">
+                  <div>
+                    <label for="conn-path" class="block text-sm font-medium text-gray-700">Ruta de Archivos Excel</label>
+                    <input
+                      type="text"
+                      id="conn-path"
+                      name="path"
+                      class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="C:\datos\excel"
+                    >
+                    <p class="mt-1 text-xs text-gray-500">Ruta donde se encuentran los archivos Excel a procesar</p>
+                  </div>
+                </div>
+
+                <input type="hidden" id="conn-id" name="id">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Test result area -->
+        <div id="test-result-modal" class="hidden px-4 py-3"></div>
+
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button
+            type="submit"
+            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            onclick="testConnectionInModal()"
+            class="w-full inline-flex justify-center rounded-md border border-blue-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            <i data-lucide="activity" class="w-4 h-4 mr-2"></i>
+            Probar Conexión
+          </button>
+          <button
+            type="button"
+            onclick="hideConnectionModal()"
+            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Load active connection on page load
+  loadActiveConnection();
+
+  function loadActiveConnection() {
+    htmx.ajax('GET', '/api/connections/active', {
+      target: '#active-connection-container',
+      swap: 'innerHTML'
+    });
+  }
+
+  function loadConnections() {
+    htmx.ajax('GET', '/api/connections/list', {
+      target: '#connections-container',
+      swap: 'innerHTML'
+    });
+  }
+
+  function showNewConnectionModal() {
+    document.getElementById('modal-title').textContent = 'Nueva Conexión';
+    document.getElementById('connection-form').reset();
+    document.getElementById('conn-id').value = '';
+    // Establecer valores por defecto después del reset
+    document.getElementById('conn-timeout').value = '10000';
+    document.getElementById('connection-modal').classList.remove('hidden');
+    handleAdapterChange();
+  }
+
+  function hideConnectionModal() {
+    document.getElementById('connection-modal').classList.add('hidden');
+  }
+
+  function toggleWindowsAuth() {
+    const windowsAuthCheckbox = document.getElementById('conn-windows-auth');
+    const isWindowsAuth = windowsAuthCheckbox?.checked || false;
+    const sqlAuthFields = document.getElementById('sql-auth-fields');
+    const driverInfo = document.getElementById('driver-info');
+
+    if (isWindowsAuth) {
+      // Ocultar campos de usuario/contraseña
+      sqlAuthFields?.classList.add('hidden');
+      // Mostrar información del driver
+      driverInfo?.classList.remove('hidden');
+      // Limpiar valores
+      document.getElementById('conn-username').value = '';
+      document.getElementById('conn-password').value = '';
+      // Remover required
+      document.getElementById('conn-username').removeAttribute('required');
+      document.getElementById('conn-password').removeAttribute('required');
+      // Establecer driver a msnodesqlv8
+      document.getElementById('conn-driver').value = 'msnodesqlv8';
+    } else {
+      // Mostrar campos de usuario/contraseña
+      sqlAuthFields?.classList.remove('hidden');
+      // Ocultar información del driver
+      driverInfo?.classList.add('hidden');
+      // Agregar required
+      document.getElementById('conn-username').setAttribute('required', 'required');
+      document.getElementById('conn-password').setAttribute('required', 'required');
+      // Resetear driver
+      document.getElementById('conn-driver').value = '';
+    }
+  }
+
+  function handleAdapterChange() {
+    const adapter = document.getElementById('conn-adapter').value;
+    const sqlFields = document.getElementById('sql-fields');
+    const excelFields = document.getElementById('excel-fields');
+    const sqlserverSpecific = document.getElementById('sqlserver-specific');
+
+    // Hide all specific fields first
+    sqlFields.classList.add('hidden');
+    excelFields.classList.add('hidden');
+    sqlserverSpecific.classList.add('hidden');
+
+    if (adapter === 'sqlserver' || adapter === 'postgres' || adapter === 'mysql') {
+      sqlFields.classList.remove('hidden');
+
+      // Set default ports
+      const portField = document.getElementById('conn-port');
+      if (adapter === 'sqlserver') {
+        portField.value = '1433';
+        portField.placeholder = '1433';
+        sqlserverSpecific.classList.remove('hidden');
+      } else if (adapter === 'postgres') {
+        portField.value = '5432';
+        portField.placeholder = '5432';
+      } else if (adapter === 'mysql') {
+        portField.value = '3306';
+        portField.placeholder = '3306';
+      }
+    } else if (adapter === 'excel') {
+      excelFields.classList.remove('hidden');
+    }
+  }
+
+  async function testConnectionInModal() {
+    const form = document.getElementById('connection-form');
+    const formData = new FormData(form);
+    const testResultDiv = document.getElementById('test-result-modal');
+
+    // Show loading state
+    testResultDiv.classList.remove('hidden');
+    testResultDiv.innerHTML = `
+      <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <i data-lucide="loader" class="h-5 w-5 text-blue-400 animate-spin"></i>
+          </div>
+          <div class="ml-3">
+            <p class="text-sm text-blue-700">Probando conexión...</p>
+          </div>
+        </div>
+      </div>
+    `;
+    lucide.createIcons();
+
+    // Build config object
+    const config = {};
+    const adapterType = formData.get('adapterType');
+    const connectionId = formData.get('id'); // Obtener ID si está editando
+
+    if (adapterType === 'sqlserver' || adapterType === 'postgres' || adapterType === 'mysql') {
+      config.server = formData.get('host');
+      const port = formData.get('port');
+      if (port) {
+        config.port = parseInt(port);
+      }
+      config.database = formData.get('database');
+
+      const useWindowsAuth = formData.get('windowsAuth') === 'on';
+
+      if (!useWindowsAuth) {
+        config.user = formData.get('username');
+        config.password = formData.get('password');
+      }
+
+      config.connectionTimeout = parseInt(formData.get('connectionTimeout')) || 10000;
+
+      if (adapterType === 'sqlserver') {
+        const driver = formData.get('driver');
+        if (driver && driver !== 'tedious') {
+          config.driver = driver;
+        }
+
+        config.options = {
+          encrypt: formData.get('encrypt') === 'on',
+          trustServerCertificate: formData.get('trustServerCertificate') === 'on',
+          trustedConnection: useWindowsAuth
+        };
+      }
+    } else if (adapterType === 'excel') {
+      config.path = formData.get('path');
+    }
+
+    // Configurar timeout para el fetch (timeout configurado + 5s de margen)
+    const fetchTimeout = (config.connectionTimeout || 10000) + 5000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), fetchTimeout);
+
+    try {
+      const requestBody = {
+        adapterType: adapterType,
+        config: config
+      };
+
+      // Si hay ID, incluirlo para actualizar el estado de prueba
+      if (connectionId) {
+        requestBody.connectionId = parseInt(connectionId);
+      }
+
+      const response = await fetch('/api/connections/test-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const result = await response.json();
+
+      if (result.success) {
+        testResultDiv.innerHTML = `
+          <div class="bg-green-50 border-l-4 border-green-400 p-4">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <i data-lucide="check-circle" class="h-5 w-5 text-green-400"></i>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-green-700">
+                  <strong>¡Conexión exitosa!</strong><br>
+                  ${result.message || 'La conexión se estableció correctamente.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        // Convertir error a string si es un objeto
+        let errorMessage = result.error || 'No se pudo establecer la conexión.';
+        if (typeof errorMessage === 'object') {
+          errorMessage = errorMessage.message || JSON.stringify(errorMessage);
+        }
+
+        testResultDiv.innerHTML = `
+          <div class="bg-red-50 border-l-4 border-red-400 p-4">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <i data-lucide="x-circle" class="h-5 w-5 text-red-400"></i>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-red-700">
+                  <strong>Error de conexión:</strong><br>
+                  ${errorMessage}
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      lucide.createIcons();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('Error testing connection:', error);
+
+      // Detectar si fue timeout
+      let errorMessage = 'Error al probar la conexión.';
+      if (error.name === 'AbortError') {
+        errorMessage = 'Timeout: La conexión tardó demasiado tiempo. Verifica que el servidor sea accesible.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      testResultDiv.innerHTML = `
+        <div class="bg-red-50 border-l-4 border-red-400 p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <i data-lucide="x-circle" class="h-5 w-5 text-red-400"></i>
+            </div>
+            <div class="ml-3">
+              <p class="text-sm text-red-700">
+                <strong>Error:</strong><br>
+                ${errorMessage}
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+  }
+
+  async function saveConnection(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const data = {};
+    const config = {};
+
+    // Extract form data
+    const id = formData.get('id');
+    data.name = formData.get('name');
+    data.adapterType = formData.get('adapterType');
+
+    // Build config object based on adapter type
+    if (data.adapterType === 'sqlserver' || data.adapterType === 'postgres' || data.adapterType === 'mysql') {
+      config.server = formData.get('host'); // Changed from 'host' to 'server' for mssql compatibility
+      const port = formData.get('port');
+      if (port) {
+        config.port = parseInt(port);
+      }
+      config.database = formData.get('database');
+
+      const useWindowsAuth = formData.get('windowsAuth') === 'on';
+
+      // Solo agregar username/password si NO usa Windows Auth
+      if (!useWindowsAuth) {
+        config.username = formData.get('username');
+        config.password = formData.get('password');
+      }
+
+      config.connectionTimeout = parseInt(formData.get('connectionTimeout'));
+
+      if (data.adapterType === 'sqlserver') {
+        // Driver selection
+        const driver = formData.get('driver');
+        if (driver && driver !== 'tedious') {
+          config.driver = driver;
+        }
+
+        // Options
+        config.options = {
+          encrypt: formData.get('encrypt') === 'on',
+          trustServerCertificate: formData.get('trustServerCertificate') === 'on',
+          trustedConnection: useWindowsAuth
+        };
+      }
+    } else if (data.adapterType === 'excel') {
+      config.path = formData.get('path');
+    }
+
+    data.config = config;
+
+    try {
+      const url = id ? `/api/connections/${id}` : '/api/connections';
+      const method = id ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification(id ? 'Conexión actualizada' : 'Conexión creada', 'success');
+        hideConnectionModal();
+        loadConnections();
+        loadActiveConnection();
+      } else {
+        showNotification(result.error || 'Error al guardar conexión', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving connection:', error);
+      showNotification('Error al guardar conexión', 'error');
+    }
+  }
+
+  async function editConnection(id) {
+    try {
+      const response = await fetch(`/api/connections/${id}`);
+      const result = await response.json();
+
+      if (result.success) {
+        const conn = result.data;
+        document.getElementById('modal-title').textContent = 'Editar Conexión';
+        document.getElementById('conn-id').value = conn.id;
+        document.getElementById('conn-name').value = conn.name;
+        document.getElementById('conn-adapter').value = conn.adapterType;
+        handleAdapterChange();
+
+        // Populate config fields
+        if (conn.config) {
+          if (conn.adapterType === 'sqlserver' || conn.adapterType === 'postgres' || conn.adapterType === 'mysql') {
+            // Use 'server' field (mssql compatibility) or fallback to 'host'
+            document.getElementById('conn-host').value = conn.config.server || conn.config.host || '';
+            document.getElementById('conn-port').value = conn.config.port || '';
+            document.getElementById('conn-database').value = conn.config.database || '';
+            document.getElementById('conn-username').value = conn.config.username || '';
+            document.getElementById('conn-timeout').value = conn.config.connectionTimeout || 10000;
+
+            if (conn.adapterType === 'sqlserver') {
+              // Check Windows Authentication
+              const useTrustedConnection = conn.config.options?.trustedConnection || false;
+              document.getElementById('conn-windows-auth').checked = useTrustedConnection;
+
+              // Load driver if specified
+              if (conn.config.driver) {
+                document.getElementById('conn-driver').value = conn.config.driver;
+              }
+
+              // Load other options
+              document.getElementById('conn-encrypt').checked = conn.config.options?.encrypt || false;
+              document.getElementById('conn-trust').checked = conn.config.options?.trustServerCertificate !== false;
+
+              // Toggle UI based on Windows Auth
+              toggleWindowsAuth();
+            }
+          } else if (conn.adapterType === 'excel') {
+            document.getElementById('conn-path').value = conn.config.path || '';
+          }
+        }
+
+        document.getElementById('connection-modal').classList.remove('hidden');
+      }
+    } catch (error) {
+      console.error('Error loading connection:', error);
+      showNotification('Error al cargar conexión', 'error');
+    }
+  }
+
+  async function deleteConnection(id) {
+    if (!confirm('¿Está seguro de que desea eliminar esta conexión?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/connections/${id}`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification('Conexión eliminada', 'success');
+        loadConnections();
+        loadActiveConnection();
+      } else {
+        showNotification(result.error || 'Error al eliminar conexión', 'error');
+      }
+    } catch (error) {
+      console.error('Error deleting connection:', error);
+      showNotification('Error al eliminar conexión', 'error');
+    }
+  }
+
+  async function testConnection(id) {
+    // Configurar timeout para el fetch (35 segundos)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
+
+    try {
+      showNotification('Probando conexión...', 'info');
+
+      const response = await fetch(`/api/connections/${id}/test`, {
+        method: 'POST',
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification(result.message || 'Conexión exitosa', 'success');
+        loadConnections();
+      } else {
+        showNotification(result.error || 'Error en la conexión', 'error');
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('Error testing connection:', error);
+
+      // Detectar si fue timeout
+      if (error.name === 'AbortError') {
+        showNotification('Timeout: La conexión tardó demasiado tiempo. Verifica que el servidor sea accesible.', 'error');
+      } else {
+        showNotification(error.message || 'Error al probar conexión', 'error');
+      }
+    }
+  }
+
+  async function setActiveConnection(id) {
+    try {
+      const response = await fetch(`/api/connections/${id}/activate`, {
+        method: 'POST'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showNotification('Conexión activada', 'success');
+        loadConnections();
+        loadActiveConnection();
+      } else {
+        showNotification(result.error || 'Error al activar conexión', 'error');
+      }
+    } catch (error) {
+      console.error('Error activating connection:', error);
+      showNotification('Error al activar conexión', 'error');
+    }
+  }
+
+  // Refresh lucide icons after HTMX swaps
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  });
+
+  // Make functions globally available
+  window.showNewConnectionModal = showNewConnectionModal;
+  window.hideConnectionModal = hideConnectionModal;
+  window.handleAdapterChange = handleAdapterChange;
+  window.saveConnection = saveConnection;
+  window.editConnection = editConnection;
+  window.deleteConnection = deleteConnection;
+  window.testConnection = testConnection;
+  window.setActiveConnection = setActiveConnection;
+</script>

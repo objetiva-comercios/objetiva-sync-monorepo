@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1766457115673,
+      "tag": "0000_glorious_jane_foster",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1767363916244,
+      "tag": "0001_lyrical_guardian",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1736451000000,
+      "tag": "0002_remove_field_mappings",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1770898443495,
+      "tag": "0003_certain_silver_fox",
+      "breakpoints": true
+    }
+  ]
+}
