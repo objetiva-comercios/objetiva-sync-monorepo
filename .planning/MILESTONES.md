@@ -1,5 +1,35 @@
 # Project Milestones: Objetiva Sync
 
+## v1.1-rc2 Multi-Source & Hardening (Shipped: 2026-02-18)
+
+**Delivered:** Multi-source sync with PostgreSQL adapter, origin tracking, simplified auth, and production observability.
+
+**Phases completed:** 13-16 (14 plans total)
+
+**Key accomplishments:**
+
+- PostgreSQL adapter enabling multi-source data extraction alongside SQL Server
+- Origin tracking with last-write-wins conflict resolution for multi-source sync
+- Token refresh endpoint (/auth/refresh) and specific auth error codes for long-running syncs
+- Auth diagnostics endpoint (/api/auth/diagnostics) and password change API
+- Prometheus metrics export (/metrics) with sync-specific histograms and counters
+- Health check endpoints (/health) with component-level probes for Kubernetes readiness
+
+**Stats:**
+
+- 75 files created/modified
+- 42,947 lines of TypeScript
+- 4 phases, 14 plans
+- 3 days from start to ship (2026-02-11 → 2026-02-13)
+
+**Git range:** `feat(13-01)` → `docs(16): complete`
+
+**Note:** Phase 17 (Dashboard Modernization with shadcn/React) was implemented but rolled back. HTMX dashboard remains at /dashboard.
+
+**What's next:** Human acceptance testing for multi-source sync, then v1.1 stable release.
+
+---
+
 ## v1.1-rc Release Candidate (Shipped: 2026-02-05)
 
 **Delivered:** Production-ready sync system with fixed timeout bug, incremental sync, and end-to-end robustness validation.

@@ -57,6 +57,25 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - ✓ Adapter pool for managing multiple concurrent database connections — v1.1-rc2
 - ✓ Connection selector in query configuration UI — v1.1-rc2
 
+<!-- v1.1-rc2 Multi-Source & Hardening additions -->
+
+- ✓ PostgreSQL adapter implementing IDataSourceAdapter for data extraction — v1.1-rc2
+- ✓ Adapter registry supporting multiple registered adapters (SQL Server + PostgreSQL) — v1.1-rc2
+- ✓ Origin tracking columns (origin_source, origin_sync_id, origin_synced_at) in all entity tables — v1.1-rc2
+- ✓ X-Origin-Source header extraction and storage in ingestion service — v1.1-rc2
+- ✓ Last-write-wins conflict resolution based on origin_synced_at — v1.1-rc2
+- ✓ Per-source sync state tracking (sourceId in sync_state) — v1.1-rc2
+- ✓ Conflict logging when two sources modify same record within overlap window — v1.1-rc2
+- ✓ Token refresh endpoint (/auth/refresh) for long-running syncs — v1.1-rc2
+- ✓ Auth diagnostics endpoint (/api/auth/diagnostics) for troubleshooting — v1.1-rc2
+- ✓ Clear, specific error messages for auth failures (TOKEN_EXPIRED, TOKEN_INVALID, TOKEN_MISSING) — v1.1-rc2
+- ✓ Password change endpoint with bcrypt verification — v1.1-rc2
+- ✓ Client-side token refresh in AuthManager — v1.1-rc2
+- ✓ Correlation ID infrastructure (X-Correlation-ID header propagation) — v1.1-rc2
+- ✓ Prometheus metrics export (/metrics) with gateway_ prefix — v1.1-rc2
+- ✓ Sync-specific metrics (duration histogram, record counter per entity) — v1.1-rc2
+- ✓ Health check endpoint (/health) with component probes — v1.1-rc2
+
 ### Active
 
 <!-- Human acceptance testing for v1.1 stable -->
@@ -117,6 +136,14 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 | Bulk createMany for ingestion | Replaces N+1 queries, fixes timeout on large batches | ✓ Good (v1.1-rc) |
 | Clock skew protection for incremental | 5-minute overlap prevents missed records from ERP/gateway clock differences | ✓ Good (v1.1-rc) |
 | PM2 fork mode for gateway | Cluster mode breaks SSE streaming, fork mode required | ✓ Good (v1.1-rc) |
+| pg library Pool for PostgreSQL | Industry standard with proven reliability, matches SQL Server pool pattern | ✓ Good (v1.1-rc2) |
+| @param to $1 parameter conversion | Transparent SQL dialect translation in adapter layer | ✓ Good (v1.1-rc2) |
+| Origin columns nullable | Existing records without origin tracking remain valid (backwards compatible) | ✓ Good (v1.1-rc2) |
+| Last-write-wins conflict resolution | Best-effort conflict detection without blocking ingestion | ✓ Good (v1.1-rc2) |
+| Token refresh before expiration | Long-running syncs renew tokens via AuthManager without re-login | ✓ Good (v1.1-rc2) |
+| Prometheus custom registry | Isolated metrics for testing without conflicts | ✓ Good (v1.1-rc2) |
+| 3-second health probe timeout | Kubernetes expects 5s max, 3s probe + 2s margin | ✓ Good (v1.1-rc2) |
+| Rollback Phase 17 shadcn dashboard | Implementation issues, HTMX dashboard functional | ⚠️ Revisit (v1.1-rc2) |
 
 ## Completed Milestones
 
@@ -124,19 +151,19 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 |-----------|------|-----------|---------|
 | v1.0 | Schema-driven synchronization control | 2026-02-03 | `.planning/milestones/v1.0-ROADMAP.md` |
 | v1.1-rc | Release candidate with sync reliability | 2026-02-05 | `.planning/milestones/v1.1-rc-ROADMAP.md` |
+| v1.1-rc2 | Multi-source sync & hardening | 2026-02-18 | `.planning/milestones/v1.1-rc2-ROADMAP.md` |
 
-## Current Milestone: v1.1-rc2 — Multi-Source & Hardening
+## Current Milestone: v1.1 Stable
 
-**Goal:** Enable multi-origin sync (PostgreSQL as data source) and harden the system with modern UI, simplified auth, and observability.
+**Goal:** Human acceptance testing and stable release of v1.1 features.
 
-**Target features:**
-- PostgreSQL adapter for data extraction (alongside SQL Server)
-- Free-form multi-source entity enrichment (any origin can upsert)
-- Dashboard modernization: HTMX → shadcn/ui (staged migration)
-- Simplified gateway auth workflow (easier setup, token rotation, diagnostics)
-- Observability improvements (metrics, structured logging)
+**Pending verification:**
+- 100K+ record sync completes without timeout (SYNC-01)
+- Batch sizes 200/500 work without degradation (SYNC-04)
+- Multi-source sync with PostgreSQL data source
+- Origin tracking with real multi-origin data
 
-**Priority order:** Multi-source → Dashboard → Auth → Observability
+**Note:** Dashboard modernization (Phase 17) was rolled back. HTMX dashboard remains at /dashboard.
 
 ---
-*Last updated: 2026-02-11 after v1.1-rc2 milestone start*
+*Last updated: 2026-02-18 after v1.1-rc2 milestone complete*
