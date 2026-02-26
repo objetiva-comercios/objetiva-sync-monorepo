@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 import { logger } from '../lib/logger.js'
 import fs from 'fs/promises'
@@ -864,10 +863,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     try {
       const { password } = SetPasswordSchema.parse(request.body)
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10)
-
-      // Guardar en .env
+      // Guardar en .env (texto plano, sin bcrypt hash)
       const envPath = path.join(process.cwd(), '.env')
       let envContent = await fs.readFile(envPath, 'utf-8')
 
@@ -878,11 +874,11 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         envContent += '\nSYNC_USERNAME=admin\n'
       }
 
-      // Actualizar SYNC_PASSWORD_HASH
-      if (envContent.includes('SYNC_PASSWORD_HASH=')) {
-        envContent = envContent.replace(/SYNC_PASSWORD_HASH=.*/g, `SYNC_PASSWORD_HASH=${hashedPassword}`)
+      // Actualizar SYNC_PASSWORD
+      if (envContent.includes('SYNC_PASSWORD=')) {
+        envContent = envContent.replace(/SYNC_PASSWORD=.*/g, `SYNC_PASSWORD=${password}`)
       } else {
-        envContent += `SYNC_PASSWORD_HASH=${hashedPassword}\n`
+        envContent += `SYNC_PASSWORD=${password}\n`
       }
 
       await fs.writeFile(envPath, envContent, 'utf-8')
@@ -905,7 +901,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       const DATABASE_URL = process.env.DATABASE_URL || ''
       const JWT_SECRET = process.env.JWT_SECRET || ''
       const SYNC_USERNAME = process.env.SYNC_USERNAME || ''
-      const SYNC_PASSWORD_HASH = process.env.SYNC_PASSWORD_HASH || ''
+      const SYNC_PASSWORD = process.env.SYNC_PASSWORD || ''
 
       // Parsear DATABASE_URL para mostrar info segura
       let dbInfo = null
@@ -934,10 +930,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       // Info de credenciales
       let authInfo = null
-      if (SYNC_USERNAME && SYNC_USERNAME !== 'admin' || SYNC_PASSWORD_HASH && SYNC_PASSWORD_HASH !== 'change-this-hash-in-setup') {
+      if (SYNC_USERNAME && SYNC_USERNAME !== 'admin' || SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me') {
         authInfo = {
           username: SYNC_USERNAME || 'admin',
-          passwordConfigured: SYNC_PASSWORD_HASH && SYNC_PASSWORD_HASH !== 'change-this-hash-in-setup'
+          passwordConfigured: SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me'
         }
       }
 

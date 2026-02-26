@@ -124,7 +124,7 @@ JWT_EXPIRES_IN=86400
 
 # Autenticación del cliente sync
 SYNC_USERNAME=admin
-SYNC_PASSWORD_HASH=$2b$10$hash_bcrypt_aqui
+SYNC_PASSWORD=tu_password_aqui
 
 # Logging
 LOG_LEVEL=info
@@ -134,8 +134,6 @@ SYNC_ENTITIES=
 ```
 
 > **Nota:** El `JWT_SECRET` debe ser idéntico en ambos servicios. Generarlo con: `openssl rand -hex 32`
->
-> Para generar el `SYNC_PASSWORD_HASH`: `node -e "import('bcryptjs').then(b => console.log(b.hashSync('tu_password', 10)))"`
 
 ## Uso
 

@@ -29,7 +29,7 @@ describe('Auth Integration Tests', () => {
     process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-for-integration-tests-32chars';
     process.env.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
     process.env.SYNC_USERNAME = testUsername;
-    // Note: SYNC_PASSWORD_HASH must be set in environment for login tests to work
+    // Note: SYNC_PASSWORD must be set in environment for login tests to work
 
     app = await buildApp();
     await app.ready();
@@ -41,9 +41,9 @@ describe('Auth Integration Tests', () => {
 
   describe('POST /auth/login', () => {
     it('should return token with expiresIn field on successful login', async () => {
-      // Skip if SYNC_PASSWORD_HASH not configured
-      if (!process.env.SYNC_PASSWORD_HASH || process.env.SYNC_PASSWORD_HASH === 'change-this-hash-in-setup') {
-        console.log('Skipping login test: SYNC_PASSWORD_HASH not configured');
+      // Skip if SYNC_PASSWORD not configured
+      if (!process.env.SYNC_PASSWORD || process.env.SYNC_PASSWORD === 'change-me') {
+        console.log('Skipping login test: SYNC_PASSWORD not configured');
         return;
       }
 
@@ -285,9 +285,9 @@ describe('Auth Integration Tests', () => {
     });
 
     it('should return PASSWORD_INVALID for wrong current password', async () => {
-      // Skip if SYNC_PASSWORD_HASH not configured
-      if (!process.env.SYNC_PASSWORD_HASH || process.env.SYNC_PASSWORD_HASH === 'change-this-hash-in-setup') {
-        console.log('Skipping password change test: SYNC_PASSWORD_HASH not configured');
+      // Skip if SYNC_PASSWORD not configured
+      if (!process.env.SYNC_PASSWORD || process.env.SYNC_PASSWORD === 'change-me') {
+        console.log('Skipping password change test: SYNC_PASSWORD not configured');
         return;
       }
 

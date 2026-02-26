@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
 import { logger } from '../lib/logger.js'
@@ -72,10 +72,10 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
     // Obtener credenciales de .env
     const SYNC_USERNAME = process.env.SYNC_USERNAME || 'admin'
-    const SYNC_PASSWORD_HASH = process.env.SYNC_PASSWORD_HASH
+    const SYNC_PASSWORD = process.env.SYNC_PASSWORD
 
-    if (!SYNC_PASSWORD_HASH || SYNC_PASSWORD_HASH === 'change-this-hash-in-setup') {
-      logger.error('SYNC_PASSWORD_HASH no configurado en .env')
+    if (!SYNC_PASSWORD || SYNC_PASSWORD === 'change-me') {
+      logger.error('SYNC_PASSWORD no configurado en .env')
 
       metrics.recordLogin({
         timestamp: new Date(),
@@ -109,8 +109,10 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       })
     }
 
-    // Verificar password
-    const validPassword = await bcrypt.compare(body.password, SYNC_PASSWORD_HASH)
+    // Verificar password (timing-safe comparison)
+    const inputBuf = Buffer.from(body.password)
+    const storedBuf = Buffer.from(SYNC_PASSWORD)
+    const validPassword = inputBuf.length === storedBuf.length && crypto.timingSafeEqual(inputBuf, storedBuf)
 
     if (!validPassword) {
       logger.warn({ username: body.username }, 'Intento de login con password incorrecta')
@@ -199,7 +201,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         config: {
           tokenTTL: process.env.JWT_EXPIRES_IN || '1h',
           jwtSecretConfigured: !!process.env.JWT_SECRET && process.env.JWT_SECRET !== 'change-this-secret-in-production-debe-ser-el-mismo-que-en-objetiva-sync',
-          syncPasswordConfigured: process.env.SYNC_PASSWORD_HASH !== undefined && process.env.SYNC_PASSWORD_HASH !== 'change-this-hash-in-setup'
+          syncPasswordConfigured: process.env.SYNC_PASSWORD !== undefined && process.env.SYNC_PASSWORD !== 'change-me'
         }
       })
     } catch (err) {
@@ -228,8 +230,8 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       const { currentPassword, newPassword } = parseResult.data
 
       // Check if system is configured
-      const SYNC_PASSWORD_HASH = process.env.SYNC_PASSWORD_HASH
-      if (!SYNC_PASSWORD_HASH || SYNC_PASSWORD_HASH === 'change-this-hash-in-setup') {
+      const SYNC_PASSWORD = process.env.SYNC_PASSWORD
+      if (!SYNC_PASSWORD || SYNC_PASSWORD === 'change-me') {
         logger.warn('Password change attempted but system not configured')
         return reply.status(503).send({
           success: false,
@@ -238,8 +240,10 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         })
       }
 
-      // Verify current password
-      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, SYNC_PASSWORD_HASH)
+      // Verify current password (timing-safe)
+      const curBuf = Buffer.from(currentPassword)
+      const storedBuf = Buffer.from(SYNC_PASSWORD)
+      const isCurrentPasswordValid = curBuf.length === storedBuf.length && crypto.timingSafeEqual(curBuf, storedBuf)
       if (!isCurrentPasswordValid) {
         logger.warn({ username: request.user?.username }, 'Password change failed: invalid current password')
         return reply.status(401).send({
@@ -249,10 +253,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         })
       }
 
-      // Hash new password
-      const newPasswordHash = await bcrypt.hash(newPassword, 10)
-
-      // Update .env file
+      // Update .env file with new plain password
       const envPath = path.join(process.cwd(), '.env')
       let envContent: string
       try {
@@ -266,11 +267,11 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         })
       }
 
-      // Replace SYNC_PASSWORD_HASH line
-      if (envContent.includes('SYNC_PASSWORD_HASH=')) {
-        envContent = envContent.replace(/SYNC_PASSWORD_HASH=.*/g, `SYNC_PASSWORD_HASH=${newPasswordHash}`)
+      // Replace SYNC_PASSWORD line
+      if (envContent.includes('SYNC_PASSWORD=')) {
+        envContent = envContent.replace(/SYNC_PASSWORD=.*/g, `SYNC_PASSWORD=${newPassword}`)
       } else {
-        envContent += `\nSYNC_PASSWORD_HASH=${newPasswordHash}\n`
+        envContent += `\nSYNC_PASSWORD=${newPassword}\n`
       }
 
       try {

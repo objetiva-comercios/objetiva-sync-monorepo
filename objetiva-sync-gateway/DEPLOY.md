@@ -35,7 +35,7 @@ Editar `.env` y configurar todas las variables. Las mas importantes para Docker:
 | `DATABASE_URL` | `postgresql://user:pass@postgres:5432/db` | Usar hostname del contenedor PostgreSQL, NO `localhost` |
 | `JWT_SECRET` | resultado de `openssl rand -hex 32` | Debe coincidir con el del sincronizador |
 | `SYNC_USERNAME` | `admin` | Usuario para autenticacion del sincronizador |
-| `SYNC_PASSWORD_HASH` | hash bcrypt | Generar con: `node -e "import('bcryptjs').then(b => console.log(b.hashSync('tupassword', 10)))"` |
+| `SYNC_PASSWORD` | tu contraseña | Contraseña en texto plano para el sincronizador |
 | `HOST` | `0.0.0.0` | Escuchar en todas las interfaces dentro del contenedor |
 | `NODE_ENV` | `production` | |
 
