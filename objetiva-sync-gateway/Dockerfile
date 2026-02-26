@@ -27,7 +27,8 @@ COPY objetiva-sync-gateway/package.json objetiva-sync-gateway/package.json
 RUN mkdir -p objetiva-sync && \
     echo '{"name":"objetiva-sync","version":"1.0.0","private":true}' > objetiva-sync/package.json
 
-RUN npm ci
+# Only install deps for the workspaces we need (skip objetiva-sync's native deps like msnodesqlv8)
+RUN npm ci -w shared -w objetiva-sync-gateway
 
 # ---------------------------------------------------------------------------
 # Stage 2: Compile everything
@@ -78,8 +79,8 @@ COPY objetiva-sync-gateway/package.json objetiva-sync-gateway/package.json
 RUN mkdir -p objetiva-sync && \
     echo '{"name":"objetiva-sync","version":"1.0.0","private":true}' > objetiva-sync/package.json
 
-# Install production deps only, then add prisma CLI for entrypoint migrations
-RUN npm ci --omit=dev && \
+# Install production deps only for gateway workspaces, then add prisma CLI for migrations
+RUN npm ci --omit=dev -w shared -w objetiva-sync-gateway && \
     npm install --no-save prisma
 
 # Copy Prisma generated client from builder
