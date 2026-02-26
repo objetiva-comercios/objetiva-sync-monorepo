@@ -5,7 +5,6 @@
   "description": "MCP servers and development tooling for monorepo",
   "workspaces": [
     "shared",
-    "shared/dashboard",
     "objetiva-sync",
     "objetiva-sync-gateway"
   ]

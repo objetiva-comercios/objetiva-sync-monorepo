@@ -1,136 +1,138 @@
-# Objetiva Sync Gateway - Docker Deployment Guide
+# Objetiva Sync Gateway - Guia de Deployment con Docker
 
-## Prerequisites
+## Requisitos
 
-- **Docker** >= 20.10 with Docker Compose v2
-- **Git** (for sparse checkout)
-- **PostgreSQL** accessible from the Docker network (e.g., running in a container on `sanchez_docker_network`)
+- **Docker** >= 20.10 con Docker Compose v2
+- **Git** (para sparse checkout)
+- **PostgreSQL** accesible desde la red Docker (ej: corriendo en un contenedor en `sanchez_docker_network`)
 
-## 1. Clone with Sparse Checkout
+## 1. Clonar con Sparse Checkout
 
-Only download the files needed for the gateway (~5% of the repo):
+Descarga solo los archivos necesarios para el gateway (~5% del repo):
 
 ```bash
 git clone --filter=blob:none --sparse https://github.com/YOUR_ORG/objetiva-sync-monorepo.git
 cd objetiva-sync-monorepo
 
-git sparse-checkout set \
-  package.json \
-  package-lock.json \
-  .dockerignore \
+git sparse-checkout set --skip-checks \
   shared/ \
   objetiva-sync-gateway/
 ```
 
-> If you already have a full clone, skip this step.
+> Si ya tienes un clon completo, salta este paso.
 
-## 2. Configure Environment
+## 2. Configurar Entorno
 
 ```bash
 cd objetiva-sync-gateway
 cp .env.example .env
 ```
 
-Edit `.env` and set all required variables. Key Docker-specific settings:
+Editar `.env` y configurar todas las variables. Las mas importantes para Docker:
 
-| Variable | Docker value | Notes |
+| Variable | Valor Docker | Notas |
 |----------|-------------|-------|
-| `DATABASE_URL` | `postgresql://user:pass@postgres:5432/db` | Use container hostname, NOT `localhost` |
-| `HOST` | `0.0.0.0` | Listen on all interfaces inside container |
+| `DATABASE_URL` | `postgresql://user:pass@postgres:5432/db` | Usar hostname del contenedor PostgreSQL, NO `localhost` |
+| `JWT_SECRET` | resultado de `openssl rand -hex 32` | Debe coincidir con el del sincronizador |
+| `SYNC_USERNAME` | `admin` | Usuario para autenticacion del sincronizador |
+| `SYNC_PASSWORD_HASH` | hash bcrypt | Generar con: `node -e "import('bcryptjs').then(b => console.log(b.hashSync('tupassword', 10)))"` |
+| `HOST` | `0.0.0.0` | Escuchar en todas las interfaces dentro del contenedor |
 | `NODE_ENV` | `production` | |
-| `JWT_SECRET` | `openssl rand -hex 32` | Generate a secure random string |
 
-## 3. Build and Start
+Ver `.env.example` para la documentacion completa de cada variable.
+
+## 3. Construir e Iniciar
 
 ```bash
 docker compose up -d --build
 ```
 
-This builds the multi-stage Docker image and starts the container. First build takes 2-3 minutes; subsequent builds use cache and are much faster.
+La primera build tarda 2-3 minutos; las siguientes usan cache y son mucho mas rapidas.
 
-Verify it's running:
+Verificar que esta corriendo:
 
 ```bash
-# Check container status
+# Estado del contenedor
 docker compose ps
 
-# Check health
+# Health check
 curl http://localhost:3335/health
 
-# View logs
+# Ver logs
 docker compose logs -f sync-gateway
 ```
 
-## 4. Update Workflow
+## 4. Actualizar
+
+Desde el directorio `objetiva-sync-gateway/`:
 
 ```bash
 git pull
 docker compose up -d --build
 ```
 
-Prisma migrations run automatically on each container start (idempotent).
+Las migraciones de Prisma se ejecutan automaticamente en cada inicio del contenedor (idempotente).
 
-## 5. Traefik Integration (Optional)
+## 5. Integracion con Traefik (Opcional)
 
-If your VPS uses Traefik as reverse proxy, uncomment the labels in `docker-compose.yml` and set your domain:
+Si el VPS usa Traefik como proxy reverso, descomentar los labels en `docker-compose.yml` y configurar el dominio:
 
 ```yaml
 labels:
   - "traefik.enable=true"
-  - "traefik.http.routers.sync-gateway.rule=Host(`gateway.yourdomain.com`)"
+  - "traefik.http.routers.sync-gateway.rule=Host(`gateway.tudominio.com`)"
   - "traefik.http.routers.sync-gateway.entrypoints=websecure"
   - "traefik.http.routers.sync-gateway.tls.certresolver=letsencrypt"
   - "traefik.http.services.sync-gateway.loadbalancer.server.port=3335"
 ```
 
-Ensure the container and Traefik share the same Docker network.
+Asegurarse de que el contenedor y Traefik compartan la misma red Docker.
 
-## 6. Monitoring and Troubleshooting
+## 6. Monitoreo y Troubleshooting
 
 ```bash
-# Container status
+# Estado del contenedor
 docker compose ps
 
-# Real-time logs
+# Logs en tiempo real
 docker compose logs -f sync-gateway
 
-# Shell into container
+# Shell dentro del contenedor
 docker compose exec sync-gateway sh
 
-# Restart
+# Reiniciar
 docker compose restart sync-gateway
 
-# Rebuild from scratch (no cache)
+# Reconstruir sin cache
 docker compose build --no-cache && docker compose up -d
 
-# Prometheus metrics
+# Metricas Prometheus
 curl http://localhost:3335/metrics
 ```
 
-### Common Issues
+### Problemas Comunes
 
-**Container exits immediately:**
-Check logs with `docker compose logs sync-gateway`. Usually a missing or incorrect `.env` variable.
+**El contenedor se detiene inmediatamente:**
+Revisar logs con `docker compose logs sync-gateway`. Generalmente es una variable `.env` faltante o incorrecta.
 
-**Database connection refused:**
-Ensure `DATABASE_URL` uses the PostgreSQL container hostname (not `localhost`). Both containers must be on the same Docker network (`sanchez_docker_network`).
+**Conexion a base de datos rechazada:**
+Verificar que `DATABASE_URL` use el hostname del contenedor PostgreSQL (no `localhost`). Ambos contenedores deben estar en la misma red Docker (`sanchez_docker_network`).
 
-**Migrations fail:**
-Check that the database exists and the user has permissions. Run `docker compose logs sync-gateway` to see the Prisma migration output.
+**Las migraciones fallan:**
+Verificar que la base de datos exista y el usuario tenga permisos. Revisar `docker compose logs sync-gateway` para ver la salida de Prisma.
 
-## 7. Migration from PM2 Deployment
+## 7. Migracion desde PM2
 
-If migrating from the previous bare-metal PM2 setup:
+Si se esta migrando desde el deployment anterior con PM2:
 
-1. Stop PM2: `pm2 stop sync-gateway && pm2 delete sync-gateway`
-2. The Docker container uses the same database, so no data migration is needed
-3. Ensure the `.env` `DATABASE_URL` points to the correct host (container hostname instead of `localhost`)
-4. Old files (`deploy.sh`, `ecosystem.config.js`, `nginx/`) are preserved for reference but are no longer used
+1. Detener PM2: `pm2 stop sync-gateway && pm2 delete sync-gateway`
+2. El contenedor Docker usa la misma base de datos, no se necesita migrar datos
+3. Asegurarse de que `DATABASE_URL` en `.env` apunte al host correcto (hostname del contenedor en vez de `localhost`)
 
-## Architecture Notes
+## Notas de Arquitectura
 
-- **Multi-stage build:** deps -> builder -> runtime (~200MB final image)
-- **Entrypoint runs migrations:** `prisma migrate deploy` on every start (idempotent)
-- **Memory limit:** 512MB (configurable in `docker-compose.yml`)
-- **Health check:** `/health` endpoint, checked every 30s
-- **Logs:** persisted via Docker named volume `gateway-logs`
+- **Build multi-stage:** deps -> builder -> runtime (~200MB imagen final)
+- **El entrypoint ejecuta migraciones:** `prisma migrate deploy` en cada inicio (idempotente)
+- **Limite de memoria:** 512MB (configurable en `docker-compose.yml`)
+- **Health check:** endpoint `/health`, verificado cada 30s
+- **Logs:** persistidos via Docker named volume `gateway-logs`

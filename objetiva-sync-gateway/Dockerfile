@@ -23,12 +23,9 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/package.json
 COPY objetiva-sync-gateway/package.json objetiva-sync-gateway/package.json
 
-# Create stubs for workspaces that exist in the lockfile but aren't needed here.
-# npm ci validates every workspace entry; missing dirs would break the install.
+# Create stub for objetiva-sync workspace (in lockfile but not needed for gateway build)
 RUN mkdir -p objetiva-sync && \
-    echo '{"name":"objetiva-sync","version":"1.0.0","private":true}' > objetiva-sync/package.json && \
-    mkdir -p shared/dashboard && \
-    echo '{"name":"@objetiva/dashboard","version":"1.0.0","private":true}' > shared/dashboard/package.json
+    echo '{"name":"objetiva-sync","version":"1.0.0","private":true}' > objetiva-sync/package.json
 
 RUN npm ci
 
@@ -79,9 +76,7 @@ COPY shared/package.json shared/package.json
 COPY objetiva-sync-gateway/package.json objetiva-sync-gateway/package.json
 
 RUN mkdir -p objetiva-sync && \
-    echo '{"name":"objetiva-sync","version":"1.0.0","private":true}' > objetiva-sync/package.json && \
-    mkdir -p shared/dashboard && \
-    echo '{"name":"@objetiva/dashboard","version":"1.0.0","private":true}' > shared/dashboard/package.json
+    echo '{"name":"objetiva-sync","version":"1.0.0","private":true}' > objetiva-sync/package.json
 
 # Install production deps only, then add prisma CLI for entrypoint migrations
 RUN npm ci --omit=dev && \
