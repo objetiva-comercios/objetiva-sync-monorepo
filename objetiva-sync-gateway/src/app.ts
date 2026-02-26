@@ -28,7 +28,7 @@ declare module 'fastify' {
 
 export async function buildApp() {
   const app = Fastify({
-    loggerInstance: logger,
+    loggerInstance: logger as any,
     trustProxy: true,
     disableRequestLogging: process.env.NODE_ENV === 'production'
   })
