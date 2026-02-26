@@ -1,6 +1,34 @@
-/node_modules/
-NUL
-*.db
-*.db-journal
+# Dependencies
+node_modules/
+
+# Environment variables
 .env
 .env.local
+.env.*.local
+
+# SQLite databases
+*.db
+*.db-journal
+
+# Build output
+dist/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+NUL
+
+# IDE
+.vscode/
+.idea/
+
+# Prisma
+objetiva-sync-gateway/prisma/*.db
+
+# Temp / Cache
+.cache/
+*.tmp

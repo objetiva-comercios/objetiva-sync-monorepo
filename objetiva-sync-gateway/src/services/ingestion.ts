@@ -152,7 +152,7 @@ export class IngestionService {
    * Ingesta de artículos
    * ✅ TODO EN SNAKE_CASE - Sin mapeo manual
    * ✅ BULK OPERATIONS - Batch lookup + createMany + transaction
-   * ✅ COMPOSITE KEY SUPPORT - Handles (erp_codigo, erp_nombre) composite PK
+   * ✅ SINGLE KEY - Uses erp_codigo as primary key
    */
   static async ingestArticulos(
     prisma: PrismaClient,
@@ -171,33 +171,39 @@ export class IngestionService {
       origin_synced_at: new Date(),
     } : {}
 
-    // Composite key: (erp_codigo, erp_nombre)
-    // Prisma uses erp_codigo_erp_nombre for the compound unique identifier
+    // Primary key: erp_codigo (single field)
+    // Step 1: Batch lookup by erp_codigo (trimmed)
 
-    // Step 1: Batch lookup of existing records using first key field for filtering
+    // 
     const keyValues = articulos.map(a => a.erp_codigo).filter(Boolean)
     const existingRecords = await prisma.articulo.findMany({
       where: { erp_codigo: { in: keyValues } },
-      select: { erp_codigo: true, erp_nombre: true },
+      select: { erp_codigo: true },
     })
-    // Build composite key set for efficient lookup
+    // Build key set for efficient lookup
     const existingSet = new Set<string>(
-      existingRecords.map((r) => `${r.erp_codigo}|${r.erp_nombre}`)
+      existingRecords.map((r) => r.erp_codigo)
     )
 
-    // Step 2: Separate into new vs existing records using composite key
+    // Step 2: Separate new vs existing, normalizing whitespace
     const toCreate: ArticuloInput[] = []
-    const toUpdate: Array<{ compositeKey: { erp_codigo: string; erp_nombre: string }; data: ArticuloInput }> = []
+    const toUpdate: Array<{ key: string; data: ArticuloInput }> = []
 
     for (const articulo of articulos) {
-      const keyString = `${articulo.erp_codigo}|${articulo.erp_nombre}`
-      if (existingSet.has(keyString)) {
-        toUpdate.push({
-          compositeKey: { erp_codigo: articulo.erp_codigo, erp_nombre: articulo.erp_nombre },
-          data: articulo
-        })
+      const normalizedCodigo = articulo.erp_codigo?.trim()
+      const normalizedNombre = articulo.erp_nombre?.trim()
+      if (!normalizedCodigo) continue
+
+      const normalizedArticulo = {
+        ...articulo,
+        erp_codigo: normalizedCodigo,
+        erp_nombre: normalizedNombre || articulo.erp_nombre,
+      }
+
+      if (existingSet.has(normalizedCodigo)) {
+        toUpdate.push({ key: normalizedCodigo, data: normalizedArticulo })
       } else {
-        toCreate.push(articulo)
+        toCreate.push(normalizedArticulo)
       }
     }
 
@@ -244,26 +250,26 @@ export class IngestionService {
     // Check for source conflicts before update (best-effort)
     if (metadata?.originSource && toUpdate.length > 0) {
       const samplesToCheck = toUpdate.slice(0, 10)
-      for (const { compositeKey } of samplesToCheck) {
+      for (const { key } of samplesToCheck) {
         await checkSourceConflict(
           'articulo',
-          `${compositeKey.erp_codigo}|${compositeKey.erp_nombre}`,
+          key,
           metadata.originSource,
           () => prisma.articulo.findUnique({
-            where: { erp_codigo_erp_nombre: compositeKey },
+            where: { erp_codigo: key },
             select: { origin_source: true, origin_synced_at: true },
           })
         )
       }
     }
 
-    // Step 4: Update existing records (in transaction) using composite key
+    // Step 4: Update existing records (in transaction) using erp_codigo
     if (toUpdate.length > 0) {
       try {
         await prisma.$transaction(
-          toUpdate.map(({ compositeKey, data }) =>
+          toUpdate.map(({ key, data }) =>
             prisma.articulo.update({
-              where: { erp_codigo_erp_nombre: compositeKey },
+              where: { erp_codigo: key },
               data: nullToUndefined({
                 ...data,
                 ...originData,
@@ -279,10 +285,10 @@ export class IngestionService {
       } catch (error) {
         // If transaction fails, fall back to individual updates
         logger.warn({ error }, 'Transaction failed, falling back to individual updates')
-        for (const [index, { compositeKey, data }] of toUpdate.entries()) {
+        for (const [index, { key, data }] of toUpdate.entries()) {
           try {
             await prisma.articulo.update({
-              where: { erp_codigo_erp_nombre: compositeKey },
+              where: { erp_codigo: key },
               data: nullToUndefined({
                 ...data,
                 ...originData,
@@ -295,7 +301,7 @@ export class IngestionService {
           } catch (updateError) {
             errors.push({
               index,
-              identifier: `${compositeKey.erp_codigo}|${compositeKey.erp_nombre}`,
+              identifier: key,
               error: updateError instanceof Error ? updateError.message : 'Error desconocido',
               code: 'INGESTION_ERROR',
             })

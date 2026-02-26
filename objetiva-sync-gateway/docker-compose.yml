@@ -1,0 +1,41 @@
+services:
+  sync-gateway:
+    build:
+      context: ..
+      dockerfile: objetiva-sync-gateway/Dockerfile
+    container_name: sync-gateway
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3335:3335"
+    volumes:
+      - gateway-logs:/app/objetiva-sync-gateway/logs
+    networks:
+      - sanchez_docker_network
+    mem_limit: 512m
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3335/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    # Traefik labels (uncomment and configure to expose via Traefik)
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.sync-gateway.rule=Host(`gateway.example.com`)"
+    #   - "traefik.http.routers.sync-gateway.entrypoints=websecure"
+    #   - "traefik.http.routers.sync-gateway.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.sync-gateway.loadbalancer.server.port=3335"
+
+volumes:
+  gateway-logs:
+
+networks:
+  sanchez_docker_network:
+    external: true

@@ -1,0 +1,29 @@
+# Dependencies (all node_modules across the monorepo)
+**/node_modules
+
+# Build outputs (rebuilt fresh inside Docker)
+**/dist
+
+# Version control
+.git
+
+# Environment files (contain secrets)
+**/.env
+**/.env.local
+**/.env.production
+
+# Logs and data
+**/logs
+**/backups
+**/*.log
+
+# Testing
+**/coverage
+
+# IDE and tooling
+.claude
+.planning
+.vscode
+.idea
+**/*.swp
+**/*.swo

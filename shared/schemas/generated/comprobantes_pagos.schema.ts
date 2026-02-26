@@ -1,6 +1,6 @@
 // Auto-generated from PostgreSQL schema introspection
 // DO NOT EDIT - regenerate with: npm run regenerate-schemas
-// Generated: 2026-02-12T21:08:00.608Z
+// Generated: 2026-02-18T20:48:20.985Z
 // Table: comprobantes_pagos
 
 import { z } from 'zod';

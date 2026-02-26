@@ -1,6 +1,6 @@
 // Auto-generated from PostgreSQL schema introspection
 // DO NOT EDIT - regenerate with: npm run regenerate-schemas
-// Generated: 2026-02-12T21:08:00.605Z
+// Generated: 2026-02-18T20:48:20.981Z
 // Table: articulos
 
 import { z } from 'zod';
@@ -68,10 +68,10 @@ export type ArticuloInput = z.infer<typeof articuloSchema>;
  * Metadata for articulo entity
  * Used for dynamic field operations in ingestion and validation.
  */
-export const articuloMetadata: EntityMetadata<readonly ['erp_codigo', 'erp_nombre']> = {
+export const articuloMetadata: EntityMetadata<readonly ['erp_codigo']> = {
   entity: 'articulo',
   tableName: 'articulos',
-  keyFields: ['erp_codigo', 'erp_nombre'] as const,
+  keyFields: ['erp_codigo'] as const,
   systemFields: ['erp_sincronizado', 'erp_fecha_sync', 'actualizado', 'creado'] as const,
   validations: {},
 };
@@ -492,8 +492,7 @@ export const articuloTableSchema: TableSchemaMetadata = {
       "constraint_name": "articulos_pkey",
       "constraint_type": "PRIMARY KEY",
       "columns": [
-        "erp_codigo",
-        "erp_nombre"
+        "erp_codigo"
       ]
     }
   ],

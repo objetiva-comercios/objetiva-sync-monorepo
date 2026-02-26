@@ -44,7 +44,7 @@ model Articulo {
   creado DateTime? @default(now()) @db.Timestamp(6)
   actualizado DateTime? @default(now()) @updatedAt @db.Timestamp(6)
   erp_id String? @db.Text
-  erp_codigo String @db.Text
+  erp_codigo String @id @db.Text
   erp_nombre String @db.Text
   erp_precio Decimal? @db.Decimal(10, 2)
   erp_costo Decimal? @db.Decimal(10, 2)
@@ -57,8 +57,6 @@ model Articulo {
   origin_source String? @db.Text
   origin_sync_id String? @db.Text
   origin_synced_at DateTime? @db.Timestamp(6)
-
-  @@id([erp_codigo, erp_nombre])
   @@index([activo], map: "idx_articulos_activo")
   @@index([codigo_barras], map: "idx_articulos_codigo_barras")
   @@index([codigo_equivalencia], map: "idx_articulos_codigo_equivalencia")
