@@ -44,10 +44,13 @@ COPY shared/tsconfig.json shared/tsconfig.json
 
 RUN cd shared && npx tsc -p tsconfig.json --outDir .
 
-# --- Prisma: generate client ---
+# --- Prisma: generate client and stage to known path ---
 COPY objetiva-sync-gateway/prisma objetiva-sync-gateway/prisma
 
-RUN cd objetiva-sync-gateway && npx prisma generate
+RUN cd objetiva-sync-gateway && npx prisma generate && \
+    mkdir -p /tmp/prisma-client && \
+    (cp -r /app/node_modules/.prisma/client /tmp/prisma-client/ 2>/dev/null || \
+     cp -r /app/objetiva-sync-gateway/node_modules/.prisma/client /tmp/prisma-client/)
 
 # --- Dashboard: install deps and build React SPA ---
 COPY objetiva-sync-gateway/dashboard objetiva-sync-gateway/dashboard
@@ -83,8 +86,8 @@ RUN mkdir -p objetiva-sync && \
 RUN npm ci --omit=dev -w shared -w objetiva-sync-gateway && \
     npm install --no-save prisma
 
-# Copy Prisma generated client from builder
-COPY --from=builder /app/node_modules/.prisma node_modules/.prisma
+# Copy Prisma generated client from builder (staged to known path)
+COPY --from=builder /tmp/prisma-client/client node_modules/.prisma/client
 
 # Copy compiled shared package (.js files alongside .ts source)
 COPY --from=builder /app/shared/schemas shared/schemas
