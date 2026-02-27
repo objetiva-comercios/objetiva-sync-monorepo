@@ -86,8 +86,9 @@ RUN mkdir -p objetiva-sync && \
 RUN npm ci --omit=dev -w shared -w objetiva-sync-gateway && \
     npm install --no-save prisma
 
-# Copy Prisma generated client from builder (staged to known path)
+# Copy Prisma generated client to both possible resolution paths
 COPY --from=builder /tmp/prisma-client/client node_modules/.prisma/client
+COPY --from=builder /tmp/prisma-client/client objetiva-sync-gateway/node_modules/.prisma/client
 
 # Copy compiled shared package (.js files alongside .ts source)
 COPY --from=builder /app/shared/schemas shared/schemas
