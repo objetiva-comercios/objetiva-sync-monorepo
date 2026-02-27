@@ -44,10 +44,8 @@ Ver `.env.example` para la documentacion completa de cada variable.
 ## 3. Construir e Iniciar
 
 ```bash
-docker compose up -d --build
+docker compose build --no-cache && docker compose up -d
 ```
-
-La primera build tarda 2-3 minutos; las siguientes usan cache y son mucho mas rapidas.
 
 Verificar que esta corriendo:
 
@@ -68,7 +66,7 @@ Desde el directorio `objetiva-sync-gateway/`:
 
 ```bash
 git pull
-docker compose up -d --build
+docker compose build --no-cache && docker compose up -d
 ```
 
 Las migraciones de Prisma se ejecutan automaticamente en cada inicio del contenedor (idempotente).
