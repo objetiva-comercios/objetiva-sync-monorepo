@@ -153,17 +153,20 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 | v1.1-rc | Release candidate with sync reliability | 2026-02-05 | `.planning/milestones/v1.1-rc-ROADMAP.md` |
 | v1.1-rc2 | Multi-source sync & hardening | 2026-02-18 | `.planning/milestones/v1.1-rc2-ROADMAP.md` |
 
-## Current Milestone: v1.1 Stable
+## Current Milestone: v1.2 Setup & Pairing
 
-**Goal:** Human acceptance testing and stable release of v1.1 features.
+**Goal:** Simplificar radicalmente la instalación del gateway y el enlace sync↔gateway.
 
-**Pending verification:**
-- 100K+ record sync completes without timeout (SYNC-01)
-- Batch sizes 200/500 work without degradation (SYNC-04)
-- Multi-source sync with PostgreSQL data source
-- Origin tracking with real multi-origin data
+**Target features:**
+- Pairing con código de enlace: gateway genera código corto, sync lo consume y quedan enlazados automáticamente
+- Setup page mejorada del gateway: wizard paso a paso que genera el .env completo
+- Checklist de pre-vuelo que valida cada parámetro antes de arrancar Docker
+- Variables de entorno unificadas en .env para docker-compose (subdominio Traefik, PostgreSQL, credenciales, JWT)
 
-**Note:** Dashboard modernization (Phase 17) was rolled back. HTMX dashboard remains at /dashboard.
+**Context:**
+- Sync se instala primero (Windows), gateway después (VPS/Docker)
+- El setup page del sync no requiere cambios
+- Ambos sistemas se conectan via Tailscale
 
 ---
-*Last updated: 2026-02-18 after v1.1-rc2 milestone complete*
+*Last updated: 2026-03-04 after v1.2 milestone started*
