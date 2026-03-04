@@ -77,7 +77,7 @@ Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde si
 
 ### Despliegue con Docker (Gateway)
 
-El Gateway incluye un Dockerfile multi-stage optimizado para produccion. Ver `objetiva-sync-gateway/DEPLOY.md` para la guia completa.
+El Gateway incluye un Dockerfile multi-stage optimizado para produccion. Se puede desplegar en un VPS descargando solo los archivos necesarios del monorepo mediante sparse checkout (sin necesidad de clonar `objetiva-sync/`).
 
 ```bash
 cd objetiva-sync-gateway
@@ -87,6 +87,8 @@ docker compose build --no-cache && docker compose up -d
 ```
 
 El contenedor ejecuta migraciones de Prisma automaticamente en cada inicio (idempotente).
+
+Ver `objetiva-sync-gateway/SETUP-DOCKER-VPS.md` para la guia paso a paso de instalacion en VPS con sparse checkout, Traefik y Tailscale.
 
 ## Configuracion
 

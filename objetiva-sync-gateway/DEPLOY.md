@@ -11,7 +11,7 @@
 Descarga solo los archivos necesarios para el gateway (~5% del repo):
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/YOUR_ORG/objetiva-sync-monorepo.git
+git clone --filter=blob:none --sparse https://github.com/objetiva-comercios/objetiva-sync-monorepo.git
 cd objetiva-sync-monorepo
 
 git sparse-checkout set --skip-checks \
