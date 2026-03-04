@@ -88,7 +88,7 @@ docker compose build --no-cache && docker compose up -d
 
 El contenedor ejecuta migraciones de Prisma automaticamente en cada inicio (idempotente).
 
-Ver `objetiva-sync-gateway/SETUP-DOCKER-VPS.md` para la guia paso a paso de instalacion en VPS con sparse checkout, Traefik y Tailscale.
+Ver `objetiva-sync-gateway/DEPLOY.md` para la guia completa de instalacion en VPS con sparse checkout, Traefik, Tailscale y troubleshooting.
 
 ## Configuracion
 

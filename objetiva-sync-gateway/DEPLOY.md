@@ -41,7 +41,15 @@ Editar `.env` y configurar todas las variables. Las mas importantes para Docker:
 
 Ver `.env.example` para la documentacion completa de cada variable.
 
-## 3. Construir e Iniciar
+## 3. Crear la red Docker (si no existe)
+
+```bash
+docker network create sanchez_docker_network
+```
+
+Traefik y sync-gateway deben estar en esta misma red.
+
+## 4. Construir e Iniciar
 
 ```bash
 docker compose build --no-cache && docker compose up -d
@@ -60,7 +68,7 @@ curl http://localhost:3335/health
 docker compose logs -f sync-gateway
 ```
 
-## 4. Actualizar
+## 5. Actualizar
 
 Desde el directorio `objetiva-sync-gateway/`:
 
@@ -71,7 +79,7 @@ docker compose build --no-cache && docker compose up -d
 
 Las migraciones de Prisma se ejecutan automaticamente en cada inicio del contenedor (idempotente).
 
-## 5. Traefik + Tailscale
+## 6. Traefik + Tailscale
 
 El servicio se publica detras de Tailscale usando Traefik como reverse proxy en HTTP. Los labels ya estan configurados en `docker-compose.yml` para el dominio `sync-gateway.sanchezrepuestos.com.ar`.
 
@@ -90,7 +98,7 @@ Para cambiar el dominio, editar el label en `docker-compose.yml`:
 
 Para desarrollo local sin Traefik, descomentar el port mapping en `docker-compose.yml`.
 
-## 6. Monitoreo y Troubleshooting
+## 7. Monitoreo y Troubleshooting
 
 ```bash
 # Estado del contenedor
@@ -123,7 +131,7 @@ Verificar que `DATABASE_URL` use el hostname del contenedor PostgreSQL (no `loca
 **Las migraciones fallan:**
 Verificar que la base de datos exista y el usuario tenga permisos. Revisar `docker compose logs sync-gateway` para ver la salida de Prisma.
 
-## 7. Migracion desde PM2
+## 8. Migracion desde PM2
 
 Si se esta migrando desde el deployment anterior con PM2:
 
