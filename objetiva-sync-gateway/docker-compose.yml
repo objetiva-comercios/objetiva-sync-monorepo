@@ -6,8 +6,10 @@ services:
     container_name: sync-gateway
     restart: unless-stopped
     env_file: .env
-    ports:
-      - "3335:3335"
+    # No port mapping — Traefik routes internally via Docker network
+    # Uncomment for local development without Traefik:
+    # ports:
+    #   - "3335:3335"
     volumes:
       - gateway-logs:/app/objetiva-sync-gateway/logs
     networks:
@@ -25,13 +27,11 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-    # Traefik labels (uncomment and configure to expose via Traefik)
-    # labels:
-    #   - "traefik.enable=true"
-    #   - "traefik.http.routers.sync-gateway.rule=Host(`gateway.example.com`)"
-    #   - "traefik.http.routers.sync-gateway.entrypoints=websecure"
-    #   - "traefik.http.routers.sync-gateway.tls.certresolver=letsencrypt"
-    #   - "traefik.http.services.sync-gateway.loadbalancer.server.port=3335"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sync-gateway.rule=Host(`sync-gateway.sanchezrepuestos.com.ar`)"
+      - "traefik.http.routers.sync-gateway.entrypoints=web"
+      - "traefik.http.services.sync-gateway.loadbalancer.server.port=3335"
 
 volumes:
   gateway-logs:

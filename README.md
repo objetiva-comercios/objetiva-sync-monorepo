@@ -1,25 +1,27 @@
 # Objetiva Sync Monorepo
 
-Sistema de sincronización ETL (Extract-Transform-Load) que extrae datos desde sistemas ERP (SQL Server, PostgreSQL) y los centraliza en una base de datos PostgreSQL a través de un API Gateway REST. Diseñado para empresas que necesitan consolidar información de artículos, comprobantes y pagos desde múltiples orígenes hacia un único repositorio de datos confiable. El sistema incluye un dashboard web para configuración de consultas, monitoreo en tiempo real y gestión de sincronizaciones.
+Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde sistemas ERP (SQL Server, PostgreSQL, MySQL, Excel) y los centraliza en una base de datos PostgreSQL a traves de un API Gateway REST. Diseñado para empresas que necesitan consolidar informacion de articulos, comprobantes y pagos desde multiples origenes hacia un unico repositorio de datos confiable. El sistema incluye un dashboard web para configuracion de consultas, monitoreo en tiempo real, gestion de sincronizaciones y soporte multi-origen con tracking de procedencia.
 
-## Tecnologías
+## Tecnologias
 
-| Categoría | Tecnología |
+| Categoria | Tecnologia |
 |---|---|
 | Lenguaje | TypeScript 5.7 |
-| Runtime | Node.js 20+ |
-| Framework HTTP | Fastify 5 |
+| Runtime | Node.js >= 20 |
+| Framework HTTP | Fastify 5 (Sync), Fastify 4 (Gateway) |
 | ORM (Sync) | Drizzle ORM + SQLite (better-sqlite3) |
-| ORM (Gateway) | Prisma + PostgreSQL |
-| Validación | Zod |
-| Autenticación | JWT (@fastify/jwt) + bcrypt |
+| ORM (Gateway) | Prisma 6 + PostgreSQL |
+| Validacion | Zod 3.23 |
+| Autenticacion | JWT (@fastify/jwt) + bcrypt |
 | Frontend (Sync) | HTMX + EJS + Tailwind CSS |
 | Frontend (Gateway) | React 18 + Vite + Tailwind CSS |
-| Iconos | Lucide React |
 | Logging | Pino |
-| Métricas | prom-client (Prometheus) |
+| Metricas | prom-client (Prometheus) |
 | Scheduling | node-cron |
+| Drivers ERP | mssql, msnodesqlv8, pg, mysql2 |
 | Testing | Vitest |
+| Contenedores | Docker (multi-stage build) |
+| Reverse Proxy | Traefik |
 | Monorepo | npm workspaces |
 
 ## Requisitos previos
@@ -27,9 +29,12 @@ Sistema de sincronización ETL (Extract-Transform-Load) que extrae datos desde s
 - **Node.js** >= 20.0.0
 - **npm** >= 9.0.0
 - **PostgreSQL** >= 14 (para el Gateway)
-- **SQL Server** (como origen de datos ERP, opcional si se usa PostgreSQL como origen)
+- **SQL Server** (como origen de datos ERP, opcional segun adaptador)
+- **Docker** >= 20.10 + Docker Compose v2 (para despliegue del Gateway)
 
-## Instalación
+## Instalacion
+
+### Desarrollo local
 
 1. Clonar el repositorio:
    ```bash
@@ -42,13 +47,13 @@ Sistema de sincronización ETL (Extract-Transform-Load) que extrae datos desde s
    npm install
    ```
 
-3. Copiar los archivos de configuración:
+3. Copiar los archivos de configuracion:
    ```bash
    cp objetiva-sync/.env.example objetiva-sync/.env
    cp objetiva-sync-gateway/.env.example objetiva-sync-gateway/.env
    ```
 
-4. Configurar las variables de entorno en cada `.env` (ver sección [Configuración](#configuración)).
+4. Configurar las variables de entorno en cada `.env` (ver seccion [Configuracion](#configuracion)).
 
 5. Preparar la base de datos del Gateway:
    ```bash
@@ -68,9 +73,22 @@ Sistema de sincronización ETL (Extract-Transform-Load) que extrae datos desde s
    npm run dev
    ```
 
-7. Acceder al wizard de configuración del Gateway en `http://localhost:3335/setup` y al dashboard del Sync en `http://localhost:3000`.
+7. Acceder al wizard de configuracion del Gateway en `http://localhost:3335/setup` y al dashboard del Sync en `http://localhost:3000`.
 
-## Configuración
+### Despliegue con Docker (Gateway)
+
+El Gateway incluye un Dockerfile multi-stage optimizado para produccion. Ver `objetiva-sync-gateway/DEPLOY.md` para la guia completa.
+
+```bash
+cd objetiva-sync-gateway
+cp .env.example .env
+# Editar .env con valores de produccion
+docker compose build --no-cache && docker compose up -d
+```
+
+El contenedor ejecuta migraciones de Prisma automaticamente en cada inicio (idempotente).
+
+## Configuracion
 
 ### objetiva-sync/.env
 
@@ -82,26 +100,26 @@ NODE_ENV=development
 # Base de datos local (SQLite)
 DATABASE_PATH=./database/objetiva-sync.db
 
-# Seguridad (se auto-generan en el primer arranque si se dejan vacíos)
+# Seguridad (se auto-generan en el primer arranque si se dejan vacios)
 ENCRYPTION_KEY=
 SESSION_SECRET=
 
-# Aplicación
+# Aplicacion
 APP_NAME=Objetiva Sync
 ADMIN_PASSWORD=cambiar123
 LOG_LEVEL=info
 LOG_FILE=./logs/sync.log
 
-# Conexión al Gateway
+# Conexion al Gateway
 REMOTE_API_URL=http://localhost:3335
 REMOTE_API_USERNAME=admin
 REMOTE_API_PASSWORD=tu_password_aqui
 
-# Sincronización
+# Sincronizacion
 SYNC_INTERVAL_MINUTES=15
 BATCH_SIZE=500
 
-# Validación de schemas (debe coincidir con el Gateway)
+# Validacion de schemas (debe coincidir con el Gateway)
 GATEWAY_URL=http://localhost:3335
 JWT_SECRET=tu_jwt_secret_64_hex_chars
 SCHEMA_CACHE_TTL_MS=3600000
@@ -112,7 +130,7 @@ SCHEMA_CACHE_TTL_MS=3600000
 ```env
 # Servidor
 PORT=3335
-NODE_ENV=development
+NODE_ENV=production
 HOST=0.0.0.0
 
 # Base de datos PostgreSQL
@@ -122,28 +140,33 @@ DATABASE_URL=postgresql://sync_user:tu_password_aqui@localhost:5432/objetiva_syn
 JWT_SECRET=tu_jwt_secret_64_hex_chars
 JWT_EXPIRES_IN=86400
 
-# Autenticación del cliente sync
+# Autenticacion del cliente sync
 SYNC_USERNAME=admin
 SYNC_PASSWORD=tu_password_aqui
 
 # Logging
 LOG_LEVEL=info
 
-# Entidades a sincronizar (vacío = todas las predeterminadas)
+# Aplicacion
+APP_NAME=Objetiva Sync Gateway
+
+# Entidades a sincronizar (vacio = todas las predeterminadas)
 SYNC_ENTITIES=
 ```
 
-> **Nota:** El `JWT_SECRET` debe ser idéntico en ambos servicios. Generarlo con: `openssl rand -hex 32`
+> **Nota:** El `JWT_SECRET` debe ser identico en ambos servicios. Generarlo con: `openssl rand -hex 32`
+
+> **Docker:** Si el Gateway corre en Docker, el `DATABASE_URL` debe usar el hostname del contenedor PostgreSQL (no `localhost`). El `HOST` debe ser `0.0.0.0`.
 
 ## Uso
 
-### objetiva-sync (Motor de sincronización)
+### objetiva-sync (Motor de sincronizacion)
 
-| Comando | Descripción |
+| Comando | Descripcion |
 |---|---|
 | `npm run dev` | Inicia en modo desarrollo con hot-reload |
-| `npm run build` | Compila para producción |
-| `npm start` | Ejecuta la build de producción |
+| `npm run build` | Compila para produccion |
+| `npm start` | Ejecuta la build de produccion |
 | `npm test` | Ejecuta tests con Vitest |
 | `npm run test:coverage` | Tests con reporte de cobertura |
 | `npm run test:e2e` | Tests end-to-end contra ERP real |
@@ -151,61 +174,85 @@ SYNC_ENTITIES=
 | `npm run db:migrate` | Ejecuta migraciones de SQLite |
 | `npm run db:studio` | Abre Drizzle Studio (inspector de BD) |
 | `npm run lint` | Ejecuta ESLint |
-| `npm run format` | Formatea código con Prettier |
+| `npm run format` | Formatea codigo con Prettier |
 
 ### objetiva-sync-gateway (API Gateway)
 
-| Comando | Descripción |
+| Comando | Descripcion |
 |---|---|
 | `npm run dev` | Inicia en modo desarrollo con hot-reload |
 | `npm run build` | Compila TypeScript |
-| `npm start` | Ejecuta la build de producción |
+| `npm start` | Ejecuta la build de produccion |
 | `npm test` | Ejecuta tests con Vitest |
 | `npm run test:coverage` | Tests con reporte de cobertura |
 | `npm run prisma:generate` | Genera el cliente Prisma |
 | `npm run prisma:push` | Aplica el schema a PostgreSQL |
-| `npm run prisma:migrate` | Crea una migración de Prisma |
+| `npm run prisma:migrate` | Crea una migracion de Prisma |
 | `npm run prisma:studio` | Abre Prisma Studio (inspector visual de BD) |
 | `npm run regenerate-schemas` | Regenera schemas Zod y Prisma desde PostgreSQL |
-| `npm run regenerate-schemas:dry-run` | Vista previa de la regeneración sin aplicar cambios |
+| `npm run regenerate-schemas:dry-run` | Vista previa de la regeneracion sin aplicar cambios |
+
+### Docker (Gateway)
+
+| Comando | Descripcion |
+|---|---|
+| `docker compose build --no-cache` | Construir imagen desde cero |
+| `docker compose up -d` | Iniciar en background |
+| `docker compose logs -f sync-gateway` | Ver logs en tiempo real |
+| `docker compose ps` | Estado del contenedor |
+| `docker compose restart sync-gateway` | Reiniciar servicio |
+| `curl http://localhost:3335/health` | Verificar salud |
+| `curl http://localhost:3335/metrics` | Metricas Prometheus |
 
 ## Arquitectura del proyecto
 
 ```
-├── objetiva-sync/                    # Motor de extracción y sincronización
+├── objetiva-sync/                    # Motor de extraccion y sincronizacion
 │   ├── src/
-│   │   ├── adapters/                 # Conectores de BD (SQL Server, PostgreSQL)
-│   │   ├── api-client/               # Cliente HTTP para comunicación con el Gateway
-│   │   ├── config/                   # Configuración y constantes
+│   │   ├── adapters/                 # Conectores de BD (SQL Server, PostgreSQL, MySQL, Excel)
+│   │   │   ├── sqlserver/            # Adaptador SQL Server (mssql + msnodesqlv8)
+│   │   │   ├── postgresql/           # Adaptador PostgreSQL (pg)
+│   │   │   ├── adapter-pool.ts       # Pool de conexiones multi-origen
+│   │   │   └── base-adapter.ts       # Clase base con logica compartida
+│   │   ├── api-client/               # Cliente HTTP para comunicacion con el Gateway
+│   │   ├── config/                   # Configuracion y constantes
 │   │   ├── dashboard/                # Dashboard web (HTMX + EJS)
 │   │   │   ├── routes/               # Rutas HTTP (API y vistas)
 │   │   │   ├── static/               # Assets CSS/JS
 │   │   │   └── views/                # Templates EJS
-│   │   ├── services/                 # Lógica de negocio (auth, sync)
+│   │   ├── services/                 # Logica de negocio (auth)
 │   │   ├── store/                    # Acceso a datos SQLite (Drizzle)
+│   │   │   ├── schema.ts             # Esquema de tablas
+│   │   │   ├── repositories/         # Patron repository
+│   │   │   └── migrations/           # Migraciones Drizzle
 │   │   ├── sync/                     # Motor de sync, scheduler, batch processor
+│   │   │   ├── sync-engine.ts        # Orquestador principal
+│   │   │   ├── batch-processor.ts    # Procesamiento por lotes
+│   │   │   ├── query-validator.ts    # Validacion de queries contra schema
+│   │   │   ├── sync-state-manager.ts # Tracking de estado incremental
+│   │   │   └── retry-queue-manager.ts # Cola de reintentos
 │   │   ├── types/                    # Definiciones de tipos TypeScript
 │   │   └── utils/                    # Logger, crypto, helpers
-│   ├── database/                     # Archivos SQLite (gitignored)
 │   ├── tests/                        # Tests (unit, integration, e2e)
-│   └── package.json
+│   └── database/                     # Archivos SQLite (gitignored)
 │
 ├── objetiva-sync-gateway/            # API Gateway + persistencia PostgreSQL
 │   ├── src/
-│   │   ├── lib/                      # Utilidades (logger, Prisma, métricas, auth)
-│   │   ├── middleware/               # JWT auth, manejo de errores, CORS
-│   │   ├── routes/                   # Endpoints de ingesta, auth y salud
-│   │   ├── services/                 # Lógica de ingesta (upserts)
+│   │   ├── codegen/                  # Introspection PostgreSQL -> Zod/Prisma
+│   │   ├── lib/                      # Utilidades (logger, Prisma, metricas)
+│   │   ├── middleware/               # JWT auth, manejo de errores
+│   │   ├── routes/                   # Endpoints de ingesta, auth, schemas y salud
+│   │   ├── services/                 # Logica de ingesta (upserts con origin tracking)
 │   │   └── app.ts / server.ts        # Setup y arranque de Fastify
 │   ├── dashboard/                    # Dashboard React (Vite + Tailwind)
-│   │   └── src/components/           # Componentes de monitoreo
 │   ├── prisma/
 │   │   ├── schema.prisma             # Modelos PostgreSQL
 │   │   └── migrations/               # Historial de migraciones
-│   ├── tests/                        # Tests (unit, integration)
-│   └── package.json
+│   ├── Dockerfile                    # Build multi-stage (3 etapas, ~200MB)
+│   ├── docker-compose.yml            # Despliegue con Traefik
+│   └── tests/                        # Tests (unit, integration)
 │
-├── shared/                           # Código compartido entre servicios
+├── shared/                           # Codigo compartido entre servicios
 │   ├── schemas/
 │   │   └── generated/                # Schemas Zod auto-generados desde PostgreSQL
 │   │       ├── articulos.schema.ts
@@ -214,48 +261,49 @@ SYNC_ENTITIES=
 │   │       └── comprobantes_pagos.schema.ts
 │   └── types/                        # Tipos compartidos (EntityMetadata)
 │
-└── package.json                      # Configuración del monorepo (workspaces)
+└── package.json                      # Configuracion del monorepo (workspaces)
 ```
 
 ## API / Endpoints
 
 El Gateway expone los siguientes endpoints en el puerto `3335`:
 
-### Autenticación
+### Autenticacion
 
-| Método | Ruta | Descripción |
+| Metodo | Ruta | Descripcion |
 |---|---|---|
-| POST | `/api/auth/login` | Autenticación con usuario y contraseña, devuelve JWT |
-| POST | `/api/auth/refresh` | Renueva un token JWT próximo a expirar |
-| GET | `/api/auth/diagnostics` | Diagnóstico del estado de autenticación |
+| POST | `/api/auth/login` | Autenticacion con usuario y contraseña, devuelve JWT |
+| POST | `/api/auth/refresh` | Renueva un token JWT proximo a expirar |
+| GET | `/api/auth/diagnostics` | Diagnostico del estado de autenticacion |
+| POST | `/api/auth/change-password` | Cambio de contraseña con verificacion bcrypt |
 
 ### Ingesta de datos
 
-| Método | Ruta | Descripción |
+| Metodo | Ruta | Descripcion |
 |---|---|---|
 | POST | `/api/batch/:entityType` | Ingesta de un lote de registros para una entidad |
-| GET | `/api/schemas` | Obtiene los schemas de validación vigentes |
-| GET | `/api/schemas/:entityType` | Schema de validación para una entidad específica |
+| GET | `/api/schemas` | Obtiene los schemas de validacion vigentes |
+| GET | `/api/schemas/:entityType` | Schema de validacion para una entidad especifica |
 
 ### Monitoreo
 
-| Método | Ruta | Descripción |
+| Metodo | Ruta | Descripcion |
 |---|---|---|
-| GET | `/health` | Estado de salud del servicio |
-| GET | `/metrics` | Métricas en formato Prometheus |
-| GET | `/api/stats` | Estadísticas de sincronización |
+| GET | `/health` | Estado de salud del servicio (compatible con Kubernetes) |
+| GET | `/metrics` | Metricas en formato Prometheus |
+| GET | `/api/stats` | Estadisticas de sincronizacion |
 | GET | `/api/logs` | Logs recientes en formato JSON |
 
 ### Dashboard
 
-| Método | Ruta | Descripción |
+| Metodo | Ruta | Descripcion |
 |---|---|---|
 | GET | `/` | Dashboard de monitoreo (React) |
-| GET | `/setup` | Wizard de configuración inicial |
+| GET | `/setup` | Wizard de configuracion inicial |
 
-## Scripts y automatización
+## Scripts y automatizacion
 
-### Regeneración de schemas
+### Regeneracion de schemas
 
 Cuando la estructura de PostgreSQL cambia, los schemas Zod y modelos Prisma deben regenerarse:
 
@@ -267,22 +315,24 @@ npm run regenerate-schemas:dry-run  # Vista previa sin aplicar
 
 Este comando introspecciona PostgreSQL y actualiza los archivos en `shared/schemas/generated/` y `prisma/schema.prisma`.
 
-### Sincronización programada
+### Sincronizacion programada
 
-El motor de sincronización usa `node-cron` para ejecutar extracciones periódicas. El intervalo se configura con la variable `SYNC_INTERVAL_MINUTES` o desde el dashboard web en `http://localhost:3000`.
+El motor de sincronizacion usa `node-cron` para ejecutar extracciones periodicas. El intervalo se configura con la variable `SYNC_INTERVAL_MINUTES` o desde el dashboard web en `http://localhost:3000`. Soporta sincronizacion incremental con tracking de timestamps por entidad y proteccion de clock skew (5 minutos de overlap).
 
 ### Cola de reintentos
 
-Los lotes fallidos se encolan automáticamente con backoff exponencial. El estado de la cola se visualiza y gestiona desde el dashboard del sincronizador.
+Los lotes fallidos se encolan automaticamente con backoff exponencial (1s, 2s, 4s, 8s, 16s). El estado de la cola se visualiza y gestiona desde el dashboard del sincronizador.
 
 ### Despliegue con Docker
 
-El Gateway incluye configuración Docker para despliegue:
+El Gateway se despliega como contenedor Docker detras de Traefik. Las migraciones de Prisma se ejecutan automaticamente en cada inicio del contenedor.
 
 ```bash
 cd objetiva-sync-gateway
-docker compose up -d
+docker compose build --no-cache && docker compose up -d
 ```
+
+Ver `objetiva-sync-gateway/DEPLOY.md` para la guia completa de despliegue, configuracion de Traefik y troubleshooting.
 
 ## Flujo de datos
 
@@ -294,21 +344,29 @@ docker compose up -d
 └──────────────┘         └───────────────────┘            └────────────────┘
 ```
 
-1. El **Scheduler** dispara la sincronización según el cron configurado
+1. El **Scheduler** dispara la sincronizacion segun el cron configurado
 2. Los **Adapters** ejecutan las queries SQL contra el ERP origen
 3. El **Validator** verifica los datos contra los schemas Zod compartidos
 4. El **BatchProcessor** agrupa registros en lotes configurables
-5. El **APIClient** envía los lotes al Gateway con autenticación JWT
-6. El **Gateway** valida con Zod e inserta/actualiza con Prisma
-7. La **RetryQueue** reintenta automáticamente los lotes fallidos
+5. El **APIClient** envia los lotes al Gateway con autenticacion JWT
+6. El **Gateway** valida con Zod e inserta/actualiza con Prisma (origin tracking)
+7. La **RetryQueue** reintenta automaticamente los lotes fallidos
 
 ## Entidades sincronizadas
 
-| Entidad | Clave primaria | Descripción |
+| Entidad | Clave primaria | Descripcion |
 |---|---|---|
-| `articulos` | `erp_codigo` | Catálogo de productos/artículos |
+| `articulos` | `erp_codigo` | Catalogo de productos/articulos |
 | `comprobantes_cabecera` | `operacion, formulario, numero` | Cabeceras de comprobantes |
-| `comprobantes_detalle` | `comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero` | Líneas de detalle |
+| `comprobantes_detalle` | `comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero` | Lineas de detalle |
 | `comprobantes_pagos` | `comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero` | Registros de pagos |
 
-Todas las entidades incluyen campos de auditoría: `erp_creado`, `erp_actualizado`, `erp_sincronizado`, `erp_fecha_sync`.
+Todas las entidades incluyen campos de auditoria (`erp_creado`, `erp_actualizado`, `erp_sincronizado`, `erp_fecha_sync`) y campos de origin tracking (`origin_source`, `origin_sync_id`, `origin_synced_at`) para soporte multi-origen.
+
+## Estado del proyecto
+
+Milestone actual: **v1.1-rc2** completado (16 de 16 fases finalizadas, 43 planes ejecutados).
+
+Milestones anteriores: v1.0 (2026-02-03), v1.1-rc (2026-02-05), v1.1-rc2 (2026-02-18).
+
+Pendiente: verificacion humana con datos de produccion (sync de 100K+ registros, multi-origen, token refresh) para el release de v1.1 estable.

@@ -71,20 +71,24 @@ docker compose build --no-cache && docker compose up -d
 
 Las migraciones de Prisma se ejecutan automaticamente en cada inicio del contenedor (idempotente).
 
-## 5. Integracion con Traefik (Opcional)
+## 5. Traefik + Tailscale
 
-Si el VPS usa Traefik como proxy reverso, descomentar los labels en `docker-compose.yml` y configurar el dominio:
+El servicio se publica detras de Tailscale usando Traefik como reverse proxy en HTTP. Los labels ya estan configurados en `docker-compose.yml` para el dominio `sync-gateway.sanchezrepuestos.com.ar`.
+
+**Importante:** Se usa HTTP (entrypoint `web`) porque Let's Encrypt no puede completar el challenge HTTP-01 detras de Tailscale (el puerto 80 no es accesible desde internet). El trafico viaja cifrado por el tunel de Tailscale.
+
+Para cambiar el dominio, editar el label en `docker-compose.yml`:
 
 ```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.sync-gateway.rule=Host(`gateway.tudominio.com`)"
-  - "traefik.http.routers.sync-gateway.entrypoints=websecure"
-  - "traefik.http.routers.sync-gateway.tls.certresolver=letsencrypt"
-  - "traefik.http.services.sync-gateway.loadbalancer.server.port=3335"
+- "traefik.http.routers.sync-gateway.rule=Host(`sync-gateway.sanchezrepuestos.com.ar`)"
 ```
 
-Asegurarse de que el contenedor y Traefik compartan la misma red Docker.
+**Requisitos:**
+- Traefik y sync-gateway deben compartir la red Docker `sanchez_docker_network`
+- El DNS del subdominio debe apuntar a la IP de Tailscale del servidor
+- No se exponen puertos directamente al host (Traefik rutea internamente)
+
+Para desarrollo local sin Traefik, descomentar el port mapping en `docker-compose.yml`.
 
 ## 6. Monitoreo y Troubleshooting
 

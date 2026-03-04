@@ -134,7 +134,9 @@
       "Bash(npx shadcn@latest add:*)",
       "Bash(rm:*)",
       "Bash(PGPASSWORD='S4nch3zR3pu3st0s' psql -h localhost -U sanchez -d admin_base -c \"SELECT COUNT\\(*\\) as total, COUNT\\(*\\) FILTER \\(WHERE erp_nombre != TRIM\\(erp_nombre\\)\\) as con_espacios FROM articulos;\")",
-      "Bash(PGPASSWORD='S4nch3zR3pu3st0s' psql -h localhost -U sanchez -d admin_base -c \"SELECT COUNT\\(*\\) as total FROM articulos;\")"
+      "Bash(PGPASSWORD='S4nch3zR3pu3st0s' psql -h localhost -U sanchez -d admin_base -c \"SELECT COUNT\\(*\\) as total FROM articulos;\")",
+      "Bash(gh repo:*)",
+      "Bash(cp:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
