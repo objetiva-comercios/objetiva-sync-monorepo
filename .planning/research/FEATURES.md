@@ -1,247 +1,197 @@
-# Features Research: v1.1-rc2
+# Feature Landscape: v1.2 Setup & Pairing
 
-**Domain:** Multi-source data synchronization with dashboard modernization
-**Researched:** 2026-02-11
-**Overall Confidence:** MEDIUM
-
----
-
-## Multi-Source Sync
-
-Adding PostgreSQL as an additional data origin alongside SQL Server, enabling free-form upsert where any source can write any entity.
-
-### Table Stakes
-
-| Feature | Description | Complexity | Dependencies |
-|---------|-------------|------------|--------------|
-| **PostgreSQL Adapter** | Implement `IDataSourceAdapter` for PostgreSQL using `pg` library following existing SQLServerAdapter pattern | Medium | Existing adapter pattern in `src/adapters/` |
-| **Adapter Registry** | Extend adapter selection to support multiple registered adapters (sqlserver, postgres) | Low | Existing `IAdapterRegistry` interface |
-| **Connection Configuration UI** | Dashboard UI to configure PostgreSQL connections (host, port, database, credentials) | Medium | Existing connection.ejs pattern |
-| **Connection Testing** | Test connection button for PostgreSQL with meaningful error messages | Low | Existing `testConnection()` pattern |
-| **Entity Resolution** | Consistent entity identification across sources using `erp_codigo` as the natural key | Medium | Existing sync-engine.ts |
-| **Last-Write-Wins Conflict Resolution** | When same entity arrives from multiple sources, most recent timestamp wins | Low | Timestamps already tracked in PostgreSQL gateway |
-
-### Differentiators
-
-| Feature | Description | Value Proposition | Complexity |
-|---------|-------------|-------------------|------------|
-| **Source Tracking** | Store `source_adapter_type` with each synced record for audit trail | Debug/audit capability | Low |
-| **Per-Source Sync Status** | Track last sync time and status independently per source | Granular monitoring | Medium |
-| **Source Priority Override** | Optional: Allow certain sources to take precedence for specific entities | Advanced conflict control | High |
-| **Cross-Source Validation** | Detect when same entity exists in multiple sources with different values | Data quality insight | Medium |
-
-### Anti-Features
-
-| Anti-Feature | Why NOT to Build |
-|--------------|------------------|
-| **Bidirectional sync back to sources** | Project scope is pull-only ETL; writing back introduces complexity, locking, transaction issues |
-| **Custom conflict resolution rules per field** | Over-engineering for the use case; last-write-wins is sufficient |
-| **Real-time CDC from PostgreSQL** | Polling-based sync is established pattern; CDC adds infrastructure complexity |
-| **Automatic schema inference** | Query-based sync with explicit SQL already works; inference is error-prone |
+**Domain:** Code-based service pairing, setup wizard with .env generation, Docker pre-flight validation
+**Researched:** 2026-03-04
+**Overall Confidence:** HIGH
 
 ---
 
-## Dashboard Modernization
+## Context: What Already Exists
 
-Migrating HTMX + EJS dashboard (objetiva-sync) to shadcn/ui staged, while preserving working controls.
+Before classifying features, what the codebase already has is important. These are **not** things to build.
 
-### Table Stakes
-
-| Feature | Description | Complexity | Dependencies |
-|---------|-------------|------------|--------------|
-| **shadcn/ui Component Setup** | Initialize shadcn/ui in objetiva-sync dashboard with Tailwind, cn() utility | Low | Existing Tailwind setup |
-| **Staged Migration Strategy** | Migrate page-by-page rather than all-at-once to minimize risk | Low | None (process, not code) |
-| **Preserve Existing Routes** | Keep all existing `/config/*`, `/sync/*`, `/scheduler/*` routes working | Low | Existing route handlers |
-| **Component Parity** | Migrate each EJS view to React with equivalent functionality | High | Multiple views (~15 EJS files) |
-| **HTMX Partial Replacement** | Replace `hx-get`/`hx-post` with React Query or SWR for data fetching | Medium | Current HTMX patterns |
-| **Form Handling Migration** | Replace HTMX form submissions with React Hook Form or similar | Medium | Existing form patterns |
-
-### Differentiators
-
-| Feature | Description | Value Proposition | Complexity |
-|---------|-------------|-------------------|------------|
-| **Unified Design System** | Single component library (shadcn/ui) across both dashboards | Consistency, maintainability | Medium |
-| **Dark Mode Toggle** | shadcn/ui comes with dark mode support built-in | Modern UX | Low |
-| **Responsive Layout Improvements** | Current EJS views are functional but not optimized; React components can be more polished | Better mobile experience | Medium |
-| **Component Reuse** | Share components between objetiva-sync and gateway dashboards | DRY, faster development | Medium |
-| **Loading State Skeletons** | Replace "Cargando..." text with proper skeleton loaders | Perceived performance | Low |
-
-### Anti-Features
-
-| Anti-Feature | Why NOT to Build |
-|--------------|------------------|
-| **Full SPA with client-side routing** | Overkill for admin dashboard; server-rendered with React islands is sufficient |
-| **State Management Library (Redux, Zustand)** | Dashboard is mostly CRUD forms; local state + React Query is enough |
-| **Mobile App** | Dashboard is admin-only; web-responsive is sufficient |
-| **Complete Rewrite in One Phase** | High risk; staged migration preserves working functionality |
-| **Base UI Migration (instead of Radix)** | shadcn/ui just added Base UI support in Feb 2026, but Radix is more stable and documented |
+| Already Built | Location | Status |
+|---------------|----------|--------|
+| Gateway `/setup` page (4-step wizard: DB, JWT, tables, credentials) | `objetiva-sync-gateway/src/routes/setup.ts` | Working, 954 lines |
+| Wizard writes to `.env` file at runtime | `setup.ts` POST handlers | Working |
+| Sync dashboard `/config/api` page (URL + username + password) | `objetiva-sync/src/dashboard/views/config/api.ejs` | Working |
+| JWT auth login/refresh between sync and gateway | `auth.ts`, `AuthManager` | Working |
+| Health check endpoint `/health` | `health.ts` | Working |
+| Auth diagnostics endpoint `/api/auth/diagnostics` | `auth.ts` | Working |
+| Docker Compose with Traefik labels | `docker-compose.yml` | Working |
+| `.env.example` files for both modules | Root of each module | Working |
+| Docker entrypoint runs Prisma migrations | `docker-entrypoint.sh` | Working |
 
 ---
 
-## Auth Simplification
+## Table Stakes
 
-Reducing initial setup complexity, token rotation pain, and debugging issues.
+Features that users of this system will expect. Missing any of these means the pairing/setup experience is incomplete.
 
-### Table Stakes
+### Pairing Code System
 
-| Feature | Description | Complexity | Dependencies |
-|---------|-------------|------------|--------------|
-| **First-Time Setup Wizard** | Guided flow for initial admin setup instead of env vars + manual steps | Medium | Existing auth-service.ts |
-| **Clear Error Messages** | When JWT fails, show exactly what went wrong (expired, wrong secret, invalid signature) | Low | Existing JWT validation |
-| **Token Status Dashboard** | Show current token expiry, last refresh, upcoming expiration warning | Low | Current JWT handling |
-| **Automatic Token Refresh** | Background refresh before expiry to prevent mid-sync failures | Medium | Existing gateway-client.ts |
-| **Connection Test with Auth** | Single "Test Full Connection" button that validates auth + connectivity | Low | Existing test patterns |
+| Feature | Why Expected | Complexity | Dependencies on Existing |
+|---------|--------------|------------|--------------------------|
+| **Gateway generates short pairing code** | Standard pattern (OAuth device flow, Tailscale, Vercel CLI) — user expects a code to copy, not manual credential entry | Low | None — new endpoint `/api/pairing/generate` |
+| **Code is short and human-typeable** | 6-8 alphanumeric chars (e.g. `A3K9-FP2`) avoids typos; pure UUID is too long for manual entry | Low | `crypto.randomBytes` already in gateway |
+| **Code expires after a time window** | Codes that live forever are a security risk; 10-30 minutes is standard for setup workflows | Low | In-memory map with timestamp; no DB changes needed |
+| **Code is single-use** | After sync consumes the code, it must be invalidated; prevents replay | Low | Same in-memory map, delete after claim |
+| **Code encodes all connection parameters** | Gateway URL, username, password, JWT secret — sync reads one code and gets everything it needs; no manual credential entry | Medium | Requires gateway to know its own public URL (env var `GATEWAY_PUBLIC_URL`) |
+| **Sync has a "Link via code" UI** | Input field in `/config/api` page; user types code, sync calls gateway to claim it | Low | Existing api.ejs form; add one field + button |
+| **Sync claims code from gateway API** | `POST /api/pairing/claim` with the code; gateway returns credentials; sync saves them to SQLite + .env | Medium | Existing `REMOTE_API_URL` / `REMOTE_API_USERNAME` / `REMOTE_API_PASSWORD` in sync store |
+| **Pairing status confirmation** | After claiming, sync shows "Linked to [gateway URL]" with green indicator and tests connection | Low | Existing connection test pattern in api.ejs |
+| **Code display is prominent on gateway UI** | Code shown in `/setup` or a new `/pairing` page, large and easy to read | Low | Existing setup page HTML |
 
-### Differentiators
+### Improved Gateway Setup Wizard
 
-| Feature | Description | Value Proposition | Complexity |
-|---------|-------------|-------------------|------------|
-| **One-Click Auth Setup** | Generate shared secret between modules, auto-configure both sides | Major DX improvement | Medium |
-| **Auth Troubleshooting Page** | Dedicated page showing: token validity, gateway reachability, last successful auth | Debug productivity | Medium |
-| **JWT Debugging Mode** | Optional verbose logging for auth flow during setup | Setup assistance | Low |
-| **Session Persistence Across Restarts** | Store session state so service restart doesn't require re-login | Convenience | Low |
+| Feature | Why Expected | Complexity | Dependencies on Existing |
+|---------|--------------|------------|--------------------------|
+| **Wizard knows when Docker is the deployment context** | Docker vs bare-metal changes which validations matter; wizard must not try to ping `localhost` when DB is in a container | Low | Read `DOCKER_CONTEXT` or similar env var |
+| **DB URL field with builder UI** | Instead of typing `postgresql://user:pass@host:5432/db`, have host/port/db/user/pass fields that assemble the URL | Low | Existing `databaseUrl` field in setup step 1 |
+| **JWT secret generation button** | "Generate" button creates a `crypto.randomBytes(32).toString('hex')` value and fills the field | Low | `crypto` already imported in gateway |
+| **Show the complete generated .env** | After completing wizard, show a copyable text block of the full `.env` content for review | Low | Wizard already writes to .env; just render current state |
+| **Wizard can be re-run** | If configuration changes, user should be able to redo the wizard without restarting | Low | Current wizard routes are always accessible |
+| **Wizard validates each step before advancing** | Step 1 (DB): test connection. Step 2 (JWT): validate format. Step 3 (tables): verify tables exist. Step 4 (credentials): save and test login | Low | All step validation logic already exists; UI step-gating is missing |
+| **Step state persists across page refresh** | If user refreshes mid-wizard, completed steps should remain checked | Low | Load from `/api/setup/status` on page load; already exists |
 
-### Anti-Features
+### Docker Pre-Flight Validation
 
-| Anti-Feature | Why NOT to Build |
-|--------------|------------------|
-| **OAuth2/OIDC Integration** | Over-engineering for single-tenant admin dashboard; simple JWT is sufficient |
-| **Multi-User Access Control** | Current single admin user is sufficient for the use case |
-| **SSO/LDAP Integration** | Enterprise feature not needed for this deployment model |
-| **Passwordless/Magic Link Auth** | Adds complexity; password-based is fine for admin dashboard |
-| **API Key Management UI** | JWT between modules is already working; API keys add another auth mechanism |
+| Feature | Why Expected | Complexity | Dependencies on Existing |
+|---------|--------------|------------|--------------------------|
+| **Pre-flight checklist page or section** | Users deploying Docker need confidence that all required vars are set before `docker-compose up` | Low | New page or section in setup wizard |
+| **Validate all required env vars are set** | Check `DATABASE_URL`, `JWT_SECRET`, `SYNC_USERNAME`, `SYNC_PASSWORD` are not placeholder values | Low | Existing `/api/setup/status` logic already detects placeholder values |
+| **Validate DATABASE_URL format for Docker** | Catch the common mistake of using `localhost` instead of container name in Docker context | Low | Parse URL, check hostname against known pitfall list |
+| **Test actual DB connection** | Button that tests live connection to PostgreSQL with the current `DATABASE_URL` | Low | `POST /api/setup/test-db` already exists |
+| **Verify Prisma tables exist** | Tables must exist before accepting sync data | Low | `POST /api/setup/verify-tables` already exists |
+| **Show external URL/domain configured** | Confirm `GATEWAY_PUBLIC_URL` or Traefik hostname is set; needed for pairing code | Low | New env var check |
+| **Pre-flight generates a readiness report** | Show pass/fail for each check with clear remediation text | Low | New endpoint `GET /api/setup/preflight` aggregating all checks |
+| **Pairing code available only after pre-flight passes** | Prevents issuing pairing codes before the gateway is properly configured | Low | Guard on `/api/pairing/generate` |
 
 ---
 
-## Observability
+## Differentiators
 
-Adding metrics, logging, and monitoring capabilities for production reliability.
+Features that go beyond expectations and significantly improve the install experience. Worth building if time allows.
 
-### Table Stakes
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **Pairing code shown as QR code** | Scan from phone instead of typing; Tailscale does this | Low | `qrcode` npm package; optional enhancement |
+| **Wizard generates complete docker-compose.yml** | Fill in subdomain + DB password, download ready-to-use compose file | Medium | Template substitution; prevents docker-compose editing mistakes |
+| **Wizard generates complete .env for docker-compose** | Download button on last step generates a properly formatted `.env`; user does not need to edit text file | Low | Render current state of all vars as text/plain download |
+| **Sync shows pairing status in dashboard sidebar** | Persistent indicator showing "Gateway: Connected" or "Not linked" | Low | Use existing connection state |
+| **Gateway shows last paired sync timestamp** | "Last synced from: [IP] at [time]" in dashboard | Low | Already trackable from request headers |
+| **Re-pairing flow (replace existing link)** | If sync is already linked, "Re-link" option invalidates old link and starts new pairing | Low | Same pairing flow with a "force" flag |
+| **Pairing code with expiry countdown** | Show "Expires in 12:34" on gateway, auto-expire with visual feedback | Low | JS countdown using expiry timestamp from API response |
 
-| Feature | Description | Complexity | Dependencies |
-|---------|-------------|------------|--------------|
-| **Structured Logging** | JSON logs with correlation IDs across sync operations | Low | Existing pino logger |
-| **Sync Duration Metrics** | Track time per sync operation, per entity type, per batch | Low | Existing timing in sync-engine.ts |
-| **Error Rate Tracking** | Count and categorize errors (network, validation, timeout) | Low | Existing error handling |
-| **Health Check Endpoint** | `/health` endpoint returning service status, dependencies, metrics summary | Low | Standard pattern |
-| **Sync Progress Events** | Emit progress updates during long-running syncs for UI feedback | Medium | Existing `onProgress` callback |
+---
 
-### Differentiators
+## Anti-Features
 
-| Feature | Description | Value Proposition | Complexity |
-|---------|-------------|-------------------|------------|
-| **Prometheus Metrics Export** | `/metrics` endpoint in Prometheus format for external monitoring | Industry standard observability | Medium |
-| **OpenTelemetry Traces** | Distributed tracing across objetiva-sync -> gateway | Debug cross-service issues | High |
-| **RED Metrics Dashboard** | Rate, Errors, Duration metrics visualized in gateway dashboard | SRE best practice | Medium |
-| **Log Correlation** | TraceId/SpanId in logs for correlating across components | Debug productivity | Medium |
-| **Grafana Dashboard Templates** | Pre-built Grafana dashboards for sync monitoring | Fast observability setup | Low |
+Features to explicitly NOT build for this milestone.
 
-### Anti-Features
-
-| Anti-Feature | Why NOT to Build |
-|--------------|------------------|
-| **Full APM Integration (Datadog, New Relic)** | Vendor lock-in; Prometheus + Grafana is sufficient and free |
-| **Custom Metrics Database** | Use existing PostgreSQL or external Prometheus; don't reinvent |
-| **Real-Time Alerting System** | External tool (Grafana Alerting, PagerDuty) handles this better |
-| **Log Aggregation Service** | Loki or external service; don't build log storage |
-| **Distributed Tracing Infrastructure** | Just export OTLP; let external systems (Jaeger, Tempo) handle storage |
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| **OAuth 2.0 device flow (full RFC 8628)** | Overkill — no authorization server, no scopes, no refresh tokens needed; the goal is linking two systems owned by one operator | Simple short-lived code with a claim endpoint |
+| **QR code scanning from sync app** | Sync runs on Windows with a web dashboard; QR scanning requires mobile app or camera integration — wrong delivery mechanism | Manual code entry with optional QR display on gateway side only |
+| **Encrypted pairing payload (full envelope encryption)** | Pairing happens over HTTPS (Tailscale or Traefik TLS); double-encrypting the code adds complexity without security gain | HTTPS is sufficient transport security |
+| **Multi-gateway pairing (one sync to N gateways)** | Current architecture is one sync to one gateway; the config model is not built for multiple remotes | Keep one-to-one; document as intended constraint |
+| **Pairing code persistence in database** | Codes are short-lived (10-30 min); storing in DB adds migration complexity; in-memory with process restart handling is enough | In-memory map; document that restarting gateway invalidates pending codes |
+| **Wizard with real-time Prisma migration execution** | Running `prisma migrate deploy` from the wizard UI is dangerous in production; it is already handled by `docker-entrypoint.sh` | Pre-flight check verifies tables exist; if missing, show instruction to restart container |
+| **Docker Compose orchestration from the wizard** | The wizard should never run `docker-compose` commands; it validates state, not drives deployment | Pre-flight validates; user runs docker commands manually |
+| **Automatic JWT secret sync between systems** | Sync and gateway are on different servers; auto-sync requires an initial trust relationship (chicken-and-egg problem) | Pairing code embeds the JWT secret so it is shared in one step |
 
 ---
 
 ## Feature Dependencies
 
 ```
-Multi-Source Sync
+Pre-flight validation
     |
-    +-- PostgreSQL Adapter (requires adapter pattern understanding)
+    +-- All required env vars set (validate before pairing)
+    |       (existing /api/setup/status detects placeholders)
     |
-    +-- Connection Configuration UI (requires dashboard)
+    +-- DB connection live (existing /api/setup/test-db)
     |
-    +-- Source Tracking (optional, enhances debugging)
+    +-- Tables exist (existing /api/setup/verify-tables)
+    |
+    +-- GATEWAY_PUBLIC_URL configured (new check)
 
-Dashboard Modernization
+Pairing code generation
     |
-    +-- shadcn/ui Setup (foundational)
+    +-- Pre-flight must pass (guard: no code if misconfigured)
     |
-    +-- Component Migration (page-by-page)
-    |       |
-    |       +-- Login/Auth pages
-    |       +-- Configuration pages
-    |       +-- Sync pages
-    |       +-- Scheduler pages
+    +-- GATEWAY_PUBLIC_URL known (code must embed it)
     |
-    +-- HTMX Replacement (per-page)
+    +-- JWT_SECRET set (code must embed it for sync to use)
 
-Auth Simplification
+Pairing code claim (sync side)
     |
-    +-- Error Message Improvements (low risk, do first)
+    +-- Sync calls gateway POST /api/pairing/claim with code
     |
-    +-- Token Status Dashboard (requires dashboard migration?)
+    +-- Gateway returns: url, username, password, jwt_secret
     |
-    +-- Setup Wizard (depends on improved error messages)
+    +-- Sync saves to SQLite (existing store) + .env (existing updateEnvFile pattern)
+    |
+    +-- Connection test runs automatically after save
 
-Observability
+Improved wizard
     |
-    +-- Structured Logging (foundational, do first)
+    +-- Step gating (cannot advance without passing validation) -- new UI behavior only
     |
-    +-- Health Endpoint (standalone)
+    +-- DB URL builder -- new UI widget, no backend changes needed
     |
-    +-- Metrics Export (depends on structured logging)
+    +-- Generate .env button -- renders current env state, no new backend logic
     |
-    +-- Tracing (optional, highest complexity)
+    +-- Pairing code section is the final step AFTER all other steps pass
 ```
 
 ---
 
 ## MVP Recommendation
 
-For v1.1-rc2 milestone, prioritize:
+**Critical path for v1.2:**
 
-1. **Multi-Source: PostgreSQL Adapter + Config UI** - Core feature request
-2. **Auth: Error Messages + Token Status** - Quick wins for setup pain
-3. **Observability: Structured Logging + Health Endpoint** - Production readiness
-4. **Dashboard: shadcn/ui Setup + 1-2 Page Migrations** - Prove the pattern
+1. **Pre-flight validation endpoint** (`GET /api/setup/preflight`) — aggregates all existing checks plus new `GATEWAY_PUBLIC_URL` check. Single source of truth for "is gateway ready?" All logic already exists; this is wiring.
 
-Defer to future milestones:
+2. **Pairing code generate/claim endpoints** — gateway generates code, sync claims it. Core value of the milestone. Build backend first, then UI. Two endpoints: `POST /api/pairing/generate` and `POST /api/pairing/claim`.
 
-- **Dashboard: Full Migration** - Too risky in one milestone
-- **Observability: OpenTelemetry Tracing** - High complexity, not blocking
-- **Multi-Source: Source Priority Override** - Over-engineering for initial release
-- **Auth: One-Click Setup** - Nice-to-have, not critical
+3. **"Link via code" UI on sync** — one new field + button in existing `/config/api` view. Minimal UI change, maximum UX improvement.
+
+4. **Wizard step gating** — existing wizard already has all validation logic; just prevent advancing if current step has not passed. Pure frontend change, no new backend endpoints needed.
+
+5. **DB URL builder fields** — UX improvement for step 1 of wizard. Low complexity, high user value for Docker deployments where host is a container name, not `localhost`.
+
+**Defer to stretch goals:**
+
+- QR code display (nice-to-have, 1-2 hours, but not blocking)
+- docker-compose.yml generation (medium effort, solves real pain, not MVP)
+- Pairing status in sync sidebar (cosmetic polish, not blocking)
+- `.env` download button (useful, not critical)
 
 ---
 
 ## Sources
 
-### Multi-Source Sync
-- [10 Common Data Integration Patterns: A Complete Guide for 2026](https://blog.skyvia.com/common-data-integration-patterns/)
-- [Two-Way Sync Architecture: Essential Knowledge for Data Professionals](https://www.stacksync.com/blog/two-way-sync-architecture-essential-knowledge-for-data-professionals)
-- [node-postgres documentation](https://node-postgres.com/)
-- [pg library on npm](https://www.npmjs.com/package/pg)
-
-### Dashboard Modernization
-- [shadcn/ui Changelog - February 2026](https://ui.shadcn.com/docs/changelog/2026-02-blocks)
-- [Shadcn UI Best Practices for 2026](https://medium.com/write-a-catalyst/shadcn-ui-best-practices-for-2026-444efd204f44)
-- [HTMX vs React: A First Look and Comparison](https://www.builder.io/blog/htmx-vs-react)
-- [Integrating HTMX with React and Next.js](https://www.syncfusion.com/blogs/post/htmx-with-react-nextjs-server-driven-ui)
-
-### Auth Simplification
-- [JWT Validation: A Developer's Pain Point and the Solution](https://medium.com/@davidlogicballs/jwt-validation-a-developers-pain-point-and-the-solution-ca9f0da40008)
-- [How to Build Authentication Flow Design](https://oneuptime.com/blog/post/2026-01-30-authentication-flow-design/view)
-
-### Observability
-- [Essential OpenTelemetry Best Practices for Robust Observability](https://betterstack.com/community/guides/observability/opentelemetry-best-practices/)
-- [Go Observability Stack: Prometheus, Grafana, and OpenTelemetry](https://dasroot.net/posts/2026/02/go-observability-stack-prometheus-grafana-opentelemetry/)
-- [OpenTelemetry Metrics: Types, Examples & Best Practices](https://www.groundcover.com/opentelemetry/opentelemetry-metrics)
+- OAuth 2.0 Device Authorization Grant (RFC 8628) — pattern reference for short user codes and expiry: https://datatracker.ietf.org/doc/html/rfc8628
+- OAuth Device Flow code format patterns (Base 20 chars, dash-separated): https://curity.io/resources/learn/oauth-device-flow/
+- Docker Compose Health Checks Practical Guide: https://www.tvaidyan.com/2025/02/13/health-checks-in-docker-compose-a-practical-guide/
+- Docker Compose depends_on condition healthy: https://last9.io/blog/docker-compose-health-checks/
+- Open WebUI env configuration (setup wizard .env patterns): https://docs.openwebui.com/reference/env-configuration/
+- Existing codebase: `objetiva-sync-gateway/src/routes/setup.ts` (954 lines, all step validation logic)
+- Existing codebase: `objetiva-sync-gateway/src/routes/auth.ts` (JWT, login, refresh patterns)
+- Existing codebase: `objetiva-sync/src/dashboard/views/config/api.ejs` (current sync API config UI)
+- Existing codebase: `objetiva-sync-gateway/docker-entrypoint.sh` (Prisma migration on container start)
+- Existing codebase: `objetiva-sync/src/config/env.ts` (`updateEnvFile` pattern for writing to .env)
 
 ---
 
 ## Quality Gate Checklist
 
-- [x] Categories are clear (table stakes vs differentiators vs anti-features)
-- [x] Complexity noted for each feature
-- [x] Dependencies on existing features identified
+- [x] Categories clear: table stakes vs differentiators vs anti-features
+- [x] Complexity noted for each feature (Low/Medium/High)
+- [x] Dependencies on existing features identified and cross-referenced
+- [x] Anti-features include "what to do instead" — not just what to avoid
+- [x] MVP recommendation identifies critical path vs stretch goals
 
 ---
-*Researched: 2026-02-11*
+*Researched: 2026-03-04 | Milestone: v1.2 Setup & Pairing*

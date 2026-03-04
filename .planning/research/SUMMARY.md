@@ -1,241 +1,224 @@
 # Project Research Summary
 
-**Project:** objetiva-sync-monorepo v1.1-rc2
-**Domain:** Multi-source data synchronization with dashboard modernization
-**Researched:** 2026-02-11
+**Project:** objetiva-sync-monorepo
+**Domain:** Code-based service pairing, setup wizard with .env generation, Docker pre-flight validation
+**Milestone:** v1.2 Setup & Pairing
+**Researched:** 2026-03-04
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The v1.1-rc2 milestone adds multi-origin sync capability (PostgreSQL as data source), modernizes the gateway dashboard with shadcn/ui, simplifies authentication workflows, and introduces structured observability. Research confirms the existing architecture was designed for extensibility: all new features map to existing extension points. The PostgreSQL adapter slots cleanly into the established adapter pattern alongside SQLServerAdapter, using the mature pg library already present in the gateway dependencies.
+This milestone is an installation and onboarding improvement layer on top of an already-working sync system. The core problem it solves is that operators currently must manually copy a 64-character JWT secret between a Docker container on a VPS and a Windows desktop service — an error-prone step that silently breaks authentication with no clear diagnostic. The solution is a short-lived, code-based pairing flow (6 chars, 10-minute TTL) where the gateway generates the code and the sync claims it, receiving all connection credentials in one automated exchange. This is a standard pattern (analogous to OAuth device flow, Tailscale node registration) and the entire implementation requires exactly one new npm dependency (`@fastify/rate-limit`).
 
-The recommended approach is to implement features in dependency order: multi-source first (enabling the core capability), then origin tracking in the gateway (for audit trail), followed by auth improvements (reducing setup friction), observability (production readiness), and finally dashboard modernization (lowest priority but highest polish). The free-form upsert model (any origin can INSERT/UPDATE, last write wins) is viable but requires origin tracking columns (origin_source, origin_synced_at) to maintain data provenance.
+The recommended approach uses only what is already in the stack: Node.js built-in `crypto` for code generation, a plain `Map` for the in-memory TTL store, `Zod` for startup env validation, and `fs/promises` for .env file generation — all already present in the codebase. The setup wizard is extended from its existing 3-step, 954-line inline-HTML form into a 6-step wizard; no new frontend framework is introduced. A TypeScript pre-flight module runs before `app.listen()` and exits the container with structured errors if any critical configuration is absent or invalid.
 
-Key risks center on multi-source sync: clock skew between sources can cause silent data loss, and per-query sync state tracking must be extended to handle multiple origins. Critical mitigation: add sourceId to sync_state table and track separate watermarks per source. Authentication changes must preserve existing security (bcrypt + JWT) while simplifying setup UX. Dashboard migration requires strict isolation to avoid breaking working HTMX controls.
+The key risks are all operational rather than architectural: the gateway's .env is not reflected in running memory until container recreation (not restart), Docker's `compose restart` does not re-read `env_file`, concurrent .env writes can corrupt the file, and the pairing code must not be exposed in query strings or logs. All of these risks have clear, low-cost preventions identified in the research. The pairing endpoint is the only unauthenticated new surface area and must be rate-limited from day one.
+
+---
 
 ## Key Findings
 
 ### Recommended Stack
 
-No major new dependencies required. The PostgreSQL adapter uses pg (already in gateway), shadcn/ui integrates with existing React/Tailwind in gateway dashboard, and observability leverages @fastify/otel (official Fastify instrumentation replacing deprecated @opentelemetry/instrumentation-fastify).
+The v1.2 stack adds a single new npm dependency. Everything else leverages what is already installed. The gateway's existing `setup.ts` already uses `fs/promises` for .env writes, Zod is already used throughout both modules, `@fastify/jwt` handles all existing auth, and Node.js built-in `crypto.randomBytes` provides the CSPRNG needed for code generation. The decision to use a plain `Map` with `setTimeout` for the TTL store (rather than Redis or `node-cache`) is appropriate because pairing codes are ephemeral by design — container restart invalidating a pending code is acceptable behavior, not a bug.
 
-**Core additions:**
+**Core technologies:**
+- `node:crypto` (built-in): Pairing code generation — CSPRNG, already available, zero new dependency
+- `Map + setTimeout` (built-in): In-memory TTL store for pairing codes — matches what Fastify's own session plugin uses internally
+- `@fastify/rate-limit` ^9.1.0: Rate limit on `/api/pairing/claim` — the only new dependency; official Fastify team package, Fastify 5.x compatible
+- `node:fs/promises` (built-in): .env file generation — already used in `setup.ts`, no change needed
+- `zod` ^3.23.8 (already installed): Startup env schema validation — consistent with existing codebase patterns
+- Vanilla JS + HTML (no new framework): Wizard UI step management — existing inline setup page pattern; browser Blob API for .env download
 
-- **pg ^8.18.0**: PostgreSQL adapter for sync module - same library gateway already uses, follows existing adapter pattern
-- **@fastify/otel + @opentelemetry/sdk-node**: Observability stack - official Fastify instrumentation, OTLP export for backend flexibility
-- **radix-ui ^1.4.3**: Unified Radix primitives for shadcn/ui - new unified package (Feb 2026), cleaner than individual @radix-ui/* packages
-- **pino-opentelemetry-transport**: Log correlation with traces - integrates with existing Pino logging
-
-**Explicitly NOT recommended:**
-
-- postgres.js (different API, AWS issues, smaller ecosystem)
-- @opentelemetry/instrumentation-fastify (deprecated, EOL June 2025)
-- better-auth/passport (overkill for existing JWT setup)
+See: [.planning/research/STACK.md](.planning/research/STACK.md)
 
 ### Expected Features
 
+The existing codebase already has a working 4-step setup wizard, .env write capability, JWT auth, health endpoint, and Docker Compose deployment. The v1.2 feature set is additive — no existing routes are removed or replaced.
+
 **Must have (table stakes):**
+- Gateway generates short 6-char pairing code with 10-minute TTL and single-use enforcement
+- Sync has "Link via code" UI: operator enters code, sync calls gateway, receives all credentials automatically
+- Pre-flight validation endpoint that aggregates all readiness checks into a structured pass/fail report
+- Wizard step gating: cannot advance to next step until current step's validation passes
+- DB URL builder fields: separate host/port/db/user/pass fields instead of manual `postgresql://` string
+- Complete `.env` preview and download at wizard completion
+- Pairing code generation as the final wizard step, gated behind pre-flight passing
 
-- PostgreSQL Adapter implementing IDataSourceAdapter for extraction queries
-- Adapter Registry extension for multiple registered adapters
-- Connection Configuration UI for PostgreSQL (host, port, database, credentials)
-- Last-Write-Wins conflict resolution with origin tracking
-- First-Time Setup Wizard for auth (vs manual bcrypt hash generation)
-- Clear error messages for auth failures
-- Structured logging with correlation IDs
-- Health check endpoint (/health)
-
-**Should have (differentiators):**
-
-- Source tracking (origin_source column) for audit trail
-- Per-source sync status tracking
-- Token refresh mechanism (avoid re-login during long syncs)
-- Auth diagnostics endpoint for troubleshooting
-- Prometheus metrics export (/metrics)
-- Dark mode toggle (shadcn built-in)
+**Should have (competitive differentiators):**
+- QR code display on gateway (operator scans instead of typing)
+- Pairing expiry countdown on gateway UI
+- Pairing status indicator in sync dashboard sidebar
+- Re-pairing flow (replace existing link without full setup)
+- `docker-compose.yml` generation from wizard (template substitution)
 
 **Defer (v2+):**
+- OAuth 2.0 device flow (RFC 8628) — overkill for one-to-one operator-owned system
+- QR scanning from sync app — requires mobile or camera; wrong delivery mechanism
+- Multi-gateway pairing — current config model is one-to-one by design
+- Encrypted pairing payload — HTTPS transport is sufficient
 
-- Full HTMX to React dashboard migration (staged approach preferred)
-- OpenTelemetry distributed tracing (high complexity)
-- Source priority override for conflict resolution
-- Cross-source validation for data quality
+See: [.planning/research/FEATURES.md](.planning/research/FEATURES.md)
 
 ### Architecture Approach
 
-The existing adapter pattern provides clean extension point for PostgreSQL. Multi-source upsert requires gateway-side changes (origin columns in Prisma schema, header extraction in routes, ingestion service modifications). Auth simplification adds endpoints without changing existing flow. Observability is additive layer. Dashboard modernization targets gateway React dashboard only; sync HTMX dashboard remains unchanged.
+The v1.2 architecture is strictly additive: four new files, seven modified files, no schema migrations, no new database tables, no changes to the existing JWT auth flow or sync engine. The pairing code system lives entirely in `src/services/pairing.ts` (in-memory store) and `src/routes/pairing.ts` (three endpoints). The pre-flight module lives in `src/lib/preflight.ts` and is called once in `server.ts` before `app.listen()`. The setup wizard is extended in-place in the existing `routes/setup.ts` with two new steps and two new endpoints. The sync side adds one route file and UI additions to the existing `config/api.ejs` view.
 
-**Major components (changes):**
+**Major components:**
+1. **Pairing Code Service** (`gateway/src/services/pairing.ts`) — In-memory Map with lazy TTL cleanup; 6-char alphanumeric code using unambiguous charset (no 0/O/1/I/l); single-use enforcement via `claimed` flag
+2. **Pairing Routes** (`gateway/src/routes/pairing.ts`) — Three endpoints: `POST /api/pairing/generate` (JWT-authenticated), `POST /api/pairing/claim` (unauthenticated, rate-limited), `GET /api/pairing/status` (JWT-authenticated)
+3. **Sync Pairing Client** (`sync/src/dashboard/routes/api/pairing.ts`) — Submits code to gateway, stores result in SQLite config table using existing `setConfig()` with encryption; no sync restart required
+4. **Pre-Flight Validator** (`gateway/src/lib/preflight.ts`) — Synchronous startup gate; 5 ordered checks (env-required, env-format, postgres-connect, postgres-tables, jwt-strength); structured pino log output; `process.exit(1)` on critical failure
+5. **Extended Setup Wizard** (modified `gateway/src/routes/setup.ts`) — Adds step 2 (Traefik domain), step 5 (generate-env download), step 6 (pairing code display); client-side step state in localStorage; existing steps 1/3/4 unchanged
 
-1. **PostgreSQLAdapter** (NEW) - extends AbstractAdapter, implements same interface as SQLServerAdapter
-2. **IngestionService** (MODIFY) - accept and store origin_source, origin_sync_id, origin_synced_at
-3. **Auth routes** (EXTEND) - add /auth/refresh, /api/auth/diagnostics, /setup/change-password
-4. **Observability layer** (NEW) - prometheus-exporter.ts, trace-context.ts middleware
-5. **Gateway Dashboard** (ENHANCE) - add shadcn/ui components, display origin information
+Key asymmetry: gateway config changes require container recreation to take effect; sync config (SQLite setConfig) takes effect immediately at runtime. This shapes wizard UX — every `.env` write response must include `requiresRestart: true`.
 
-**Data flow addition:**
-
-```
-Sync Module                    Gateway
------------                    -------
-PostgreSQLAdapter.executeQuery()
-    |
-    v
-BatchProcessor (adds X-Origin-Source header)
-    |
-    v                          Route extracts origin header
-                                   |
-                                   v
-                               IngestionService stores origin_source, origin_synced_at
-```
+See: [.planning/research/ARCHITECTURE.md](.planning/research/ARCHITECTURE.md)
 
 ### Critical Pitfalls
 
-Top 5 pitfalls requiring attention:
+1. **Pairing code brute-forceable without rate limiting** (PC-01, HIGH) — 6-char code has a finite search space; any Tailscale node can enumerate it in seconds. Apply `@fastify/rate-limit` to `/api/pairing/claim`: max 5 attempts per IP per minute; expire code after 3 failed attempts.
 
-1. **MSS-01: Per-query state breaks with multi-origin** - Current sync_state tracks lastSyncValue per query, not per source. Prevention: Add sourceId column, track separate watermarks per source+entity.
+2. **`docker compose restart` does not re-read `env_file`** (ENV-03, HIGH) — Docker-confirmed behavior (WONTFIX). Users who run "restart the container" after .env changes get no effect. All wizard UI must show the exact command: `docker compose up -d --force-recreate sync-gateway`. Every `.env` write API response must include `requiresRestart: true`.
 
-2. **MSS-02: Clock skew causes silent data loss** - Last-write-wins assumes synchronized clocks. Prevention: Add version counters, log conflicts when two sources touch same record within overlap window.
+3. **Concurrent .env writes corrupt the file** (ENV-01, HIGH) — The existing `read → regex-replace → write` pattern is not atomic. Two simultaneous setup form submissions corrupt the file. Implement an async promise-queue mutex around all .env writes; write to `.env.tmp` then `fs.rename()` for atomic replacement.
 
-3. **AS-01: Removing security while simplifying setup** (CRITICAL) - Must maintain bcrypt hashing, JWT validation, HTTPS. Simplify UX only: setup wizard, error messages, diagnostics.
+4. **Special characters in passwords break regex replacement** (ENV-04, HIGH) — `String.replace()` interprets `$` in replacement strings as metacharacters. Confirmed exposure in current `auth.ts` line 271. Password `test$123` silently becomes `test23`. Fix with a `safeEnvReplace()` helper that escapes `$` before calling replace.
 
-4. **DM-01: Breaking HTMX during partial migration** - Staged migration means HTMX and React coexist. Prevention: Keep HTMX 100% functional until React replacement tested, use separate route prefixes.
+5. **Setup wizard exposed via Traefik before configuration complete** (INT-04, HIGH) — Gateway starts, Traefik routes public traffic, `/setup` is unauthenticated. Attacker can configure their own JWT secret during the setup window. Mitigation: log a one-time setup token at first startup; require it to access `/setup`.
 
-5. **CC-04: Contract breaks between sync and gateway** - New headers/fields may break older clients. Prevention: Version API (/api/v2/), add X-Sync-Version header for capability detection.
+6. **Pairing code lost on container restart** (PC-02, HIGH) — In-memory token disappears if the container restarts during the pairing window. The `restart: unless-stopped` policy in docker-compose.yml makes this plausible. Persist the active pairing token to a file or into `.env` as `PAIRING_TOKEN=` / `PAIRING_EXPIRES=`; delete on successful claim.
+
+7. **Pre-flight passes with default placeholder secrets** (INT-05, HIGH) — Pre-flight must check semantic validity (JWT_SECRET is not the default value, SYNC_PASSWORD is not `change-me`) as blocking checks, not just format checks. "All checks pass" with placeholder values is a security regression.
+
+See: [.planning/research/PITFALLS.md](.planning/research/PITFALLS.md)
+
+---
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+The architecture research explicitly defines a 4-phase build order based on component dependencies. This order is correct and should be followed directly.
 
-### Phase 1: PostgreSQL Adapter
-**Rationale:** Core feature with zero dependencies. Clean extension of existing adapter pattern.
-**Delivers:** Ability to extract data from PostgreSQL sources using same query-based sync mechanism.
-**Addresses:** PostgreSQL Adapter, Adapter Registry, Connection Config UI (table stakes)
-**Avoids:** MSS-03 (interface mismatch) - review IDataSourceAdapter interface before implementing
-**Complexity:** MEDIUM | **Risk:** LOW
+### Phase 1: Pre-Flight Validator
 
-**Key files:**
-- objetiva-sync/src/adapters/postgres/postgres-adapter.ts (NEW)
-- objetiva-sync/src/adapters/index.ts (MODIFY - add registry)
-- objetiva-sync/src/dashboard/views/config/connection.ejs (MODIFY)
+**Rationale:** Independent of all other new features. Touches only `server.ts` and a new `lib/preflight.ts`. Zero risk of breaking existing functionality. Delivers immediate value (structured startup errors replace cryptic crashes). Can be validated in isolation before touching any user-facing routes.
 
-### Phase 2: Multi-Source Origin Tracking
-**Rationale:** Enables free-form upsert model. Database changes should precede code using them.
-**Delivers:** Audit trail showing which source wrote each record, when.
-**Uses:** Prisma migrations, existing ingestion service
-**Implements:** Origin tracking columns, header extraction, ingestion modification
-**Avoids:** MSS-05 (no data ownership), MSS-02 (clock skew) via origin_synced_at timestamps
-**Complexity:** MEDIUM | **Risk:** LOW
+**Delivers:** Container startup validation module; structured pino log output for each check; `process.exit(1)` on critical failure; warning-only for jwt-strength; placeholder value detection as a blocking check.
 
-**Key files:**
-- objetiva-sync-gateway/prisma/schema.prisma (MODIFY - add origin columns)
-- objetiva-sync-gateway/src/services/ingestion.ts (MODIFY)
-- objetiva-sync-gateway/src/routes/articulos.ts, comprobantes.ts (MODIFY)
+**Addresses:** Startup env validation (table stakes), DB connectivity check, table existence check, placeholder secret detection.
 
-### Phase 3: Auth Simplification
-**Rationale:** Reduces setup friction without touching core sync flow. Independent of Phases 1-2.
-**Delivers:** Token refresh, diagnostics endpoint, better error messages, setup wizard.
-**Uses:** Existing @fastify/jwt, bcrypt (no new libraries)
-**Implements:** New auth endpoints, AuthManager refresh support
-**Avoids:** AS-01 (security removal), AS-02 (token rotation downtime), AS-05 (JWT secret mismatch)
-**Complexity:** MEDIUM | **Risk:** LOW
+**Avoids:** INT-05 (pre-flight passing with default secrets), PF-03 (show migration command when tables missing, not hard block), PF-01 (add "pending config" mode that validates .env file values rather than running process.env, for use in wizard context).
 
-**Key files:**
-- objetiva-sync-gateway/src/routes/auth.ts (MODIFY)
-- objetiva-sync-gateway/src/lib/token-manager.ts (NEW)
-- objetiva-sync/src/api-client/auth.ts (MODIFY)
+**Research flag:** Standard patterns — no research-phase needed. Zod env validation and raw pg connectivity check are well-documented and follow existing codebase conventions.
 
-### Phase 4: Observability
-**Rationale:** Production readiness before dashboard polish. Metrics inform dashboard design.
-**Delivers:** Prometheus metrics, trace context, correlation IDs, health endpoint.
-**Uses:** @fastify/otel, @opentelemetry/sdk-node, pino-opentelemetry-transport
-**Implements:** Observability layer in both services
-**Avoids:** OB-01 (high cardinality), OB-02 (no correlation IDs)
-**Complexity:** MEDIUM | **Risk:** LOW
+---
 
-**Key files:**
-- objetiva-sync-gateway/src/lib/observability/prometheus-exporter.ts (NEW)
-- objetiva-sync-gateway/src/lib/observability/trace-context.ts (NEW)
-- objetiva-sync-gateway/src/routes/metrics.ts (NEW)
+### Phase 2: Setup Wizard Enhancement
 
-### Phase 5: Dashboard Modernization
-**Rationale:** Lowest priority, highest risk. Requires all other features for full integration.
-**Delivers:** shadcn/ui components in gateway React dashboard, origin display, metrics visualization.
-**Uses:** radix-ui, existing React/Tailwind stack
-**Implements:** Component replacement (not rewrite), origin and metrics display
-**Avoids:** DM-01 (breaking HTMX), DM-02 (structure churn)
-**Complexity:** MEDIUM | **Risk:** MEDIUM
+**Rationale:** Gateway must be fully configurable before pairing codes make sense. Adding the Traefik domain step (new `TRAEFIK_DOMAIN` env var) and the generate-env endpoint are prerequisites for pairing — the operator needs a running, fully-configured gateway before generating a code. This phase is gateway-only with no sync-side dependencies.
 
-**Key files:**
-- objetiva-sync-gateway/dashboard/components.json (NEW)
-- objetiva-sync-gateway/dashboard/src/components/ui/*.tsx (NEW - shadcn)
-- objetiva-sync-gateway/dashboard/src/components/*.tsx (MODIFY)
+**Delivers:** Step 2 (Traefik domain configuration); Step 5 (.env generation with browser download); updated `docker-compose.yml` using `${TRAEFIK_DOMAIN}` instead of hardcoded domain; wizard step gating (cannot advance without passing current step's validation); DB URL builder widget.
+
+**Uses:** `fs/promises` (existing), vanilla JS Blob API for browser download, `navigator.clipboard` for copy-to-clipboard.
+
+**Avoids:** ENV-01 (async mutex on all .env writes), ENV-02 (requiresRestart in every .env write response), ENV-03 (exact `docker compose up --force-recreate` command in UI with copy button), ENV-04 (safeEnvReplace helper), ENV-05 (absolute path from module, not CWD), XC-01 (backup before write + single-write strategy for complete .env generation).
+
+**Research flag:** No research-phase needed — all patterns established; existing codebase provides the model.
+
+---
+
+### Phase 3a: Gateway Pairing Routes
+
+**Rationale:** Depends on Phase 2 (gateway must be configured before generating pairing codes). Does not depend on sync changes. Establishes the backend contract that Phase 3b will consume.
+
+**Delivers:** `services/pairing.ts` (in-memory store with TTL); `routes/pairing.ts` (`/generate`, `/claim`, `/status` endpoints); rate limiting on `/claim` via `@fastify/rate-limit`; pairing code display in wizard step 6; `GATEWAY_PAIRED` flag set after successful claim.
+
+**Implements:** Pairing Code Service component and Pairing Routes component from architecture.
+
+**Avoids:** PC-01 (rate limit from day one), PC-02 (persist token to file), PC-03 (GATEWAY_PAIRED flag blocks /generate after pairing), PC-04 (no claim response body in logs — explicit redaction), INT-02 (claim completes before container restart — decouple claim from restart; it is a manual step), INT-04 (setup token for wizard access during unpairedwindow).
+
+**Research flag:** No research-phase needed — in-memory TTL store and rate limiting are standard patterns with clear prior art.
+
+---
+
+### Phase 3b: Sync Pairing Client UI
+
+**Rationale:** Depends on Phase 3a (gateway claim endpoint must exist). Sync-side changes are isolated to the dashboard: one new route file and additions to the existing `config/api.ejs` view. Minimal risk.
+
+**Delivers:** `dashboard/routes/api/pairing.ts` (submit + status endpoints); "Conectar Gateway" section in `config/api.ejs`; successful pairing stores all credentials to SQLite config using existing `setConfig()` with encryption; automatic connection test after successful claim.
+
+**Implements:** Sync Pairing Client component from architecture.
+
+**Avoids:** INT-03 (Windows service CWD issue — use SQLite config table, not .env write, for pairing results on sync side; setConfig takes effect immediately without restart).
+
+**Research flag:** No research-phase needed — follows existing `setConfig()` encrypted storage patterns already in production.
+
+---
 
 ### Phase Ordering Rationale
 
-- **Phases 1-2 first:** Multi-source is the primary milestone goal. Database changes (Phase 2) must precede code that uses them but can run in parallel with adapter work (Phase 1).
-- **Phase 3 independent:** Auth simplification has no dependencies on Phases 1-2. Could theoretically run in parallel.
-- **Phase 4 before Phase 5:** Observability informs dashboard metrics display. Build metrics first, then visualize.
-- **Phase 5 last:** Dashboard modernization is polish. All other features should work before adding UI improvements. Lower risk if cut from milestone.
+- Pre-flight first because it is zero-dependency and delivers immediate value with minimal risk
+- Setup wizard second because `TRAEFIK_DOMAIN` and generate-env are prerequisites for a properly-configured gateway, which is a prerequisite for pairing
+- Gateway pairing routes third because the backend contract must exist before the client can be built
+- Sync pairing client last because it depends on the gateway endpoint and is the most user-visible change
 
-### Cross-Cutting Concerns (All Phases)
-
-- **CC-01:** Run full test suite before every commit (79 integration tests)
-- **CC-03:** Implement feature flags (ENABLE_MULTI_SOURCE, ENABLE_TOKEN_ROTATION)
-- **CC-05:** Update docs in same PR as code
+Each phase can be shipped and tested in isolation. If Phase 2 is delayed, Phase 1 still ships value. If Phase 3a is delayed, Phase 2 still ships value. Phases 3a and 3b are the only pair that must be coordinated.
 
 ### Research Flags
 
-**Phases likely needing deeper research during planning:**
+Phases with standard patterns (skip research-phase):
+- **Phase 1 (Pre-Flight):** Zod env validation and raw pg connectivity checks are well-documented. Pino logger already in use.
+- **Phase 2 (Wizard Enhancement):** `fs/promises` .env writing already in codebase. Browser Blob download is MDN-documented.
+- **Phase 3a (Gateway Pairing):** In-memory TTL Map and `@fastify/rate-limit` are first-party or built-in patterns with official documentation.
+- **Phase 3b (Sync Pairing Client):** Follows existing `setConfig()`/`getConfig()` SQLite patterns already in production.
 
-- **Phase 2:** Origin tracking timestamp format and conflict detection threshold need design decision
-- **Phase 4:** OpenTelemetry SDK versions change rapidly - verify latest before implementing
+No phases require a `/gsd:research-phase` invocation. All decisions are based on direct codebase analysis and official documentation.
 
-**Phases with standard patterns (skip research-phase):**
-
-- **Phase 1:** PostgreSQL adapter - well-documented pg library, mirrors existing SQLServerAdapter
-- **Phase 3:** Auth simplification - standard JWT refresh pattern, existing @fastify/jwt
-- **Phase 5:** Dashboard - official shadcn/ui CLI handles setup
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Libraries already in use or official recommendations; pg verified, @fastify/otel confirmed |
-| Features | MEDIUM | Feature priorities inferred from PROJECT.md and user context; may need validation |
-| Architecture | HIGH | Based on comprehensive codebase analysis; extension points verified |
-| Pitfalls | HIGH | 25 pitfalls identified with specific prevention strategies; cross-referenced with codebase |
+| Stack | HIGH | Only 1 new dependency; all other decisions based on existing codebase patterns and official Node.js/Fastify docs |
+| Features | HIGH | Based on direct codebase analysis of existing routes; clear MVP vs. stretch goal separation with rationale for each |
+| Architecture | HIGH | Based on comprehensive codebase analysis of actual file structure, existing patterns, and verified integration points; new files named specifically |
+| Pitfalls | HIGH | ENV-01 through ENV-05 confirmed in codebase (auth.ts line 271 confirmed ENV-04); ENV-03 confirmed via Docker docs WONTFIX issue; PC-01 through PC-04 verified against ecosystem patterns |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Conflict detection threshold:** When two sources write same record within X minutes, should we log a warning? What is X? (Decide during Phase 2 planning)
-- **Sync state migration:** Adding sourceId to sync_state requires migration for existing data. Null handling strategy needed.
-- **Dashboard scope confirmation:** Research assumes gateway React dashboard modernization. Verify sync HTMX dashboard stays unchanged.
-- **OpenTelemetry version pinning:** SDK versions evolve rapidly. Pin versions when implementing Phase 4.
+- **Pairing token persistence strategy** (PC-02): Research recommends persisting to file or writing to .env as `PAIRING_TOKEN=`. The exact strategy (separate `/app/data/pairing.json` vs. into `.env` itself) should be decided in Phase 3a planning. The .env approach is simpler but mixes ephemeral state with config.
+
+- **Setup wizard access token** (INT-04): Research identifies the exposure window but the mitigation options (log-only token vs. Traefik IP restriction middleware) have different tradeoffs. This decision point should be addressed explicitly in Phase 2 planning before implementation.
+
+- **Pre-flight "pending config" mode** (PF-01): Pre-flight has two conceptually different modes — validating running `process.env` vs. validating `.env` file values for post-restart. The wizard should use the pending mode. Implementation detail for Phase 1 planning.
+
+- **Windows service .env path** (INT-03): Sync uses `dotenv` with `process.cwd()`. If the Windows service sets a different CWD, env vars silently miss. The fix (`--env-file` flag or explicit path in `dotenv.config()`) is straightforward but the Windows service installation instructions must be updated accordingly.
+
+---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-
-- **node-postgres documentation** (https://node-postgres.com/) - PostgreSQL adapter patterns, connection pooling
-- **@fastify/otel GitHub** (https://github.com/fastify/otel) - Official Fastify instrumentation, replaces deprecated package
-- **shadcn/ui Installation** (https://ui.shadcn.com/docs/installation) - Component setup, unified radix-ui package
-- **Codebase analysis** - Comprehensive review of objetiva-sync-monorepo patterns
+- Direct codebase analysis: `objetiva-sync-gateway/src/routes/setup.ts` (954 lines) — existing .env write patterns, wizard structure
+- Direct codebase analysis: `objetiva-sync-gateway/src/routes/auth.ts` — confirmed ENV-04 exposure at line 271
+- Direct codebase analysis: `objetiva-sync/src/store/repositories/config-repo.ts` — setConfig/getConfig runtime patterns
+- Direct codebase analysis: `objetiva-sync/src/config/env.ts` — updateEnvFile pattern
+- Direct codebase analysis: `objetiva-sync-gateway/docker-compose.yml` — restart policy, healthcheck, Traefik labels
+- [Node.js crypto.randomBytes](https://nodejs.org/api/crypto.html#cryptorandombytessize-callback) — official Node.js docs
+- [@fastify/rate-limit GitHub](https://github.com/fastify/fastify-rate-limit) — official Fastify team package
+- [Docker Compose restart docs](https://docs.docker.com/reference/cli/docker/compose/restart/) — confirmed ENV-03 behavior
+- [Docker Compose up --force-recreate docs](https://docs.docker.com/reference/cli/docker/compose/up/) — confirmed correct command for env_file reloading
+- [Zod docs](https://zod.dev/) — env validation patterns
+- [MDN Blob API](https://developer.mozilla.org/en-US/docs/Web/API/Blob) — client-side .env download
 
 ### Secondary (MEDIUM confidence)
-
-- **Multi-Master Conflicts** (https://arpitbhayani.me/blogs/conflict-resolution/) - Last-write-wins limitations
-- **Data Sync Challenges** (https://www.leadsforge.ai/blog/top-challenges-in-data-sync-and-how-to-solve-them) - Data ownership patterns
-- **Shadcn UI Best Practices 2026** (https://medium.com/write-a-catalyst/shadcn-ui-best-practices-for-2026-444efd204f44) - Component structure
-- **Observability Best Practices** (https://spacelift.io/blog/observability-best-practices) - Cardinality, alerting
-
-### Tertiary (LOW confidence)
-
-- **Refresh Token Rotation** (https://www.serverion.com/uncategorized/refresh-token-rotation-best-practices-for-developers/) - Token lifetime recommendations
-- **OpenTelemetry Metrics Guide** (https://www.groundcover.com/opentelemetry/opentelemetry-metrics) - Metric types
+- OAuth 2.0 Device Authorization Grant (RFC 8628) — pairing code pattern reference (not full implementation)
+- [Docker Compose GitHub issue #4140](https://github.com/docker/compose/issues/4140) — env_file reload behavior, closed WONTFIX
+- Tailscale MagicDNS docs — Tailscale overlay topology context
 
 ---
-*Research completed: 2026-02-11*
+*Research completed: 2026-03-04*
 *Ready for roadmap: yes*

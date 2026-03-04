@@ -1,442 +1,409 @@
-# PITFALLS: v1.1-rc2 Multi-Source & Hardening
+# PITFALLS: v1.2 Setup & Pairing
 
-**Research Focus**: Common mistakes when adding multi-source sync, dashboard modernization, auth simplification, and observability to existing objetiva-sync system
+**Research Focus**: Common mistakes when adding code-based pairing, improved setup wizards with .env generation, and Docker pre-flight validation to an existing Fastify + Docker system.
 
-**Project Context**: Adding PostgreSQL adapter, HTMX->shadcn migration, JWT simplification, structured logging/metrics
+**Project Context**: Gateway runs in Docker behind Traefik + Tailscale. Sync runs on Windows with npm start. Current auth uses JWT with shared secret in .env. Gateway setup page already rewrites .env files. Password stored plain text in gateway .env.
 
-**Previous Version**: v1.0 research focused on schema-driven validation systems (still relevant, preserved below)
-
----
-
-## v1.1-rc2 SPECIFIC PITFALLS
-
-### Part A: Multi-Source Sync Pitfalls
+**Previous Version**: v1.1-rc2 research focused on multi-source sync, auth hardening, and observability. Those pitfalls are archived at end of this document.
 
 ---
 
-#### MSS-01: Per-Query State Breaks with Multi-Origin Writes
+## v1.2 SPECIFIC PITFALLS
 
-**Risk:** Current `sync_state` table tracks `lastSyncValue` per query, assuming single origin. When PostgreSQL adapter writes to same entities, timestamps from two sources will collide.
+### Part A: Pairing Code Security Pitfalls
 
-**Warning signs:**
-- Incremental sync misses records written by other sources
-- `lastSyncValue` jumps backward when switching origins
-- Records appear in full sync but not incremental
+---
+
+#### PC-01: Pairing Code Brute-Forceable Without Rate Limiting
+
+**What goes wrong:** A 6-digit or short alphanumeric pairing code has a small search space. Without rate limiting, an attacker on the local network can enumerate all codes in seconds. Even inside Tailscale mesh, lateral movement from a compromised machine is possible.
+
+**Why it happens:** Setup flows feel "internal-only" so rate limiting seems unnecessary. Developers forget that gateway is also reachable from all Tailscale nodes, not just the sync Windows machine.
+
+**Consequences:** Any Tailscale node can impersonate the sync and complete pairing, permanently hijacking the JWT secret.
 
 **Prevention:**
-- Track `lastSyncValue` per source+entity combination, not per query
-- Add `sourceId` column to `sync_state` table
-- Store separate watermarks: `lastSyncValue_sqlserver`, `lastSyncValue_postgres`
+- Apply a strict rate limit on `/api/pairing/claim`: maximum 5 attempts per IP per minute with exponential backoff
+- Expire the code after 3 failed attempts (force regeneration)
+- Use `@fastify/rate-limit` already in the ecosystem — add to pairing endpoint only
+- Log all claim attempts with IP address
 
-**Phase:** Multi-source adapter implementation (Phase 1-2)
+**Detection:** Code claim attempts from unexpected IPs; repeated 4xx responses on pairing endpoint.
 
-**Codebase reference:** Current implementation in `src/store/repositories/sync-state-repo.ts` assumes queryId uniqueness, but multi-source means same entity receives writes from different queries.
+**Phase:** Pairing code implementation
 
 ---
 
-#### MSS-02: Last-Write-Wins Without Clock Sync Creates Silent Data Loss
+#### PC-02: Pairing Code Stored In-Memory Is Lost on Container Restart
 
-**Risk:** "Free-form upsert, any origin can insert/update, last write wins" model assumes clocks are synchronized. ERP and PostgreSQL sources may have clock skew exceeding the existing 5-minute overlap protection.
+**What goes wrong:** Gateway generates a pairing code and stores it in a `Map` or module-level variable. Docker Compose restarts the container (`restart: unless-stopped`), or Traefik health check triggers a restart. The code disappears. Sync tries to claim it and gets 404. User is confused.
 
-**Warning signs:**
-- Legitimate updates from slower source get overwritten
-- `erp_fecha_sync` timestamps don't match actual write order
-- User reports "my update disappeared"
+**Why it happens:** In-memory state is the simplest implementation. The `restart: unless-stopped` policy in the existing docker-compose.yml means any crash or OOM triggers a silent restart.
+
+**Consequences:** Pairing fails intermittently. Hard to reproduce. User regenerates code multiple times, each attempt requires another Docker restart cycle to pick up the resulting .env changes.
 
 **Prevention:**
-- Use logical clocks (version counters) instead of/alongside timestamps
-- Add `origin` column to gateway tables to track write source
-- Log conflicts: record when two sources touch same record within overlap window
-- Consider adding `version` or `revision` field to detect concurrent updates
+- Persist the active pairing token to a file (`/app/data/pairing.json`) or to the .env file itself as a comment-like marker
+- Alternatively: store token in a SQLite file inside the container volume (a `gateway-data` volume, separate from `gateway-logs`)
+- Set a short TTL (10-15 minutes) and write it on generation, delete it on successful claim or expiry
+- For simplest approach: write `PAIRING_TOKEN=xxx` and `PAIRING_EXPIRES=timestamp` to .env itself — they get cleared after successful pairing
 
-**Phase:** Gateway ingestion service modification (Phase 1-2)
+**Detection:** "Pairing code not found" errors immediately after any container restart.
 
-**External source:** [Multi-Master Conflicts](https://arpitbhayani.me/blogs/conflict-resolution/) - "This approach will not guarantee the actual ordering of writes, so it is possible that the actual Last Write got overwritten"
+**Phase:** Pairing code implementation
 
 ---
 
-#### MSS-03: PostgreSQL Adapter Mismatch with SQL Server Adapter Interface
+#### PC-03: Pairing Code Endpoint Left Open After Pairing Completes
 
-**Risk:** Current `IDataSourceAdapter` interface was designed for SQL Server extraction. PostgreSQL has different connection semantics, transaction models, and query patterns.
+**What goes wrong:** After a successful pairing, the `/api/pairing/generate` and `/api/pairing/claim` endpoints remain available indefinitely. Any future Tailscale node can trigger a new pairing, overwriting the JWT secret.
 
-**Warning signs:**
-- PostgreSQL adapter feels awkward to implement
-- Connection pool exhaustion in PostgreSQL vs SQL Server
-- Query parameter syntax differs (`@lastSync` vs `$1`)
+**Why it happens:** The generate/claim endpoints are added as permanent routes. There is no state machine tracking "paired vs. unpaired."
+
+**Consequences:** Security regression — any operator with Tailscale access can re-pair and get the JWT secret, effectively rotating credentials without authorization.
 
 **Prevention:**
-- Review `IDataSourceAdapter` interface before implementing PostgreSQL adapter
-- Use native parameter binding (pg library uses `$1`, `$2`)
-- Consider connection pool settings per adapter type
-- Test query parameter substitution thoroughly
+- Add a `GATEWAY_PAIRED=true` flag to .env after successful pairing
+- On startup, if `GATEWAY_PAIRED=true`, reject requests to `/api/pairing/generate` with 403
+- Make the pairing endpoint require a one-time setup token or restrict it to the setup wizard context
+- Document that re-pairing requires explicit reset (delete `GATEWAY_PAIRED` from .env)
 
-**Phase:** PostgreSQL adapter implementation (Phase 1)
+**Detection:** Pairing endpoint responding with 200 after gateway is already configured.
 
-**Codebase reference:** `src/adapters/types.ts` defines interface; `src/adapters/sqlserver/sqlserver-adapter.ts` shows current implementation pattern.
+**Phase:** Pairing code implementation and setup wizard integration
 
 ---
 
-#### MSS-04: Composite Key Lookup Fails Under Load
+#### PC-04: JWT Secret Generated on Gateway and Transmitted to Sync Without Encryption
 
-**Risk:** Current ingestion uses composite key lookups (`erp_codigo|erp_nombre`). With multiple sources upserting same entities, concurrent lookups may cause race conditions.
+**What goes wrong:** The pairing flow has gateway generate the JWT secret and return it in the pairing claim response. Sync reads it over HTTP (Tailscale handles encryption at the network layer, but the response body is plain JSON). This is fine functionally, but the secret could be logged by intermediaries.
 
-**Warning signs:**
-- "Unique constraint failed" errors during high-volume syncs
-- Duplicate records appearing in PostgreSQL
-- Transaction failures under load
+**Why it happens:** The simplest implementation returns `{ jwtSecret: "..." }` in the claim response JSON. Pino logger on both ends may log request/response bodies in debug mode.
+
+**Consequences:** JWT secret leaks in log files on either side. On the sync (Windows) side, logs may be stored in user-accessible locations.
 
 **Prevention:**
-- Use database-level UPSERT (`ON CONFLICT DO UPDATE`) instead of lookup+insert/update
-- Ensure composite key constraints are properly indexed
-- Add advisory locks for high-contention entities
+- Ensure LOG_LEVEL is `info` in production (not `debug` or `trace`) — both services already log at `info` by default
+- Never log the pairing response body, even in debug mode; add explicit redaction: `logger.debug({ action: 'pairing-claimed' }, 'Pairing successful')` (no body)
+- After receiving the secret, sync should immediately write it to .env and clear it from memory
 
-**Phase:** Gateway ingestion refactoring (Phase 2)
+**Detection:** Check pino log output in debug mode for JWT secret presence.
 
-**Codebase reference:** `src/services/ingestion.ts` shows current batch lookup + createMany + transaction pattern.
+**Phase:** Pairing code claim response implementation
 
 ---
 
-#### MSS-05: Unclear Data Ownership Creates Debugging Nightmare
+### Part B: .env File Write Pitfalls
 
-**Risk:** When any origin can upsert, debugging "where did this data come from?" becomes impossible without tracking.
+---
 
-**Warning signs:**
-- Cannot reproduce data issues (which source caused it?)
-- Support tickets require cross-referencing multiple logs
-- Data quality issues with no clear owner
+#### ENV-01: Concurrent .env Writes Corrupt the File
+
+**What goes wrong:** The existing setup routes already write to .env (`save-jwt-secret`, `verify-tables`, `set-password`, `change-password`). If two setup wizard steps are clicked rapidly, or if the sync side is polling the gateway while the wizard is saving, concurrent `fs.readFile` + `fs.writeFile` sequences interleave and corrupt the file.
+
+**Why it happens:** The current pattern is: read entire file → regex replace → write entire file. This is not atomic. Two concurrent requests can both read the file, both apply their regex, and write different results, with one overwriting the other's change.
+
+**Consequences:** .env file loses a variable. Container restarts with missing config. Could cause `DATABASE_URL` to disappear, breaking all sync.
 
 **Prevention:**
-- Add `source_system` column to all synced tables
-- Log source identifier with every batch ingestion
-- Include source in structured logs: `{ source: 'sqlserver', entity: 'articulos', action: 'upsert' }`
-- Create audit trail for debugging
+- Add a module-level async mutex for all .env write operations (use the `async-mutex` npm package, or implement a simple promise-based queue)
+- Write to a `.env.tmp` file first, then `fs.rename()` for atomic replacement (rename is atomic on same filesystem)
+- Pattern:
+  ```typescript
+  // In a shared env-writer.ts module
+  let writeLock = Promise.resolve();
+  export function writeEnv(updates: Record<string, string>) {
+    writeLock = writeLock.then(() => _writeEnvImpl(updates));
+    return writeLock;
+  }
+  ```
+- Both setup.ts and auth.ts already write .env — centralize in a single utility
 
-**Phase:** Schema migration + ingestion logging (Phase 1-2)
+**Detection:** .env file missing variables after setup wizard use. Validate by reading .env immediately after write and checking all expected keys are present.
 
-**External source:** [Sync Challenges](https://www.leadsforge.ai/blog/top-challenges-in-data-sync-and-how-to-solve-them) - "Design Clear Data Ownership: Establish clear rules about which systems are authoritative for different types of data"
+**Phase:** Setup wizard .env generation implementation
 
 ---
 
-### Part B: Dashboard Migration Pitfalls
+#### ENV-02: .env Write Succeeds But Docker Container Reads Stale Environment
 
----
+**What goes wrong:** The setup wizard writes to .env. The UI shows "success." The user does not restart the container. The running container process still has the OLD environment variables in memory from startup. `process.env.JWT_SECRET` does not update until container restart. Auth fails.
 
-#### DM-01: Breaking Working HTMX Controls During Partial Migration
+**Why it happens:** Node.js (and all processes) read environment variables at startup. `process.env` is a snapshot, not a live view. Writing to the .env file does not update the running process's environment.
 
-**Risk:** Staged migration means HTMX and React coexist. Changes to shared components (nav, layout) can break HTMX pages while building React equivalents.
-
-**Warning signs:**
-- Navigation breaks after React route added
-- HTMX partials stop loading
-- CSS conflicts between Tailwind (shadcn) and existing styles
+**Consequences:** User configures everything correctly through the wizard but cannot authenticate. Support nightmare — everything looks right, nothing works.
 
 **Prevention:**
-- Keep HTMX views 100% functional until React replacement is complete AND tested
-- Use separate route prefixes: `/dashboard/*` (HTMX), `/app/*` (React)
-- Don't modify shared layouts until final migration phase
-- Test HTMX pages after every React addition
+- After EVERY .env write, the API response MUST include `{ success: true, requiresRestart: true, message: "Reinicia el contenedor: docker compose restart sync-gateway" }`
+- The setup wizard UI must prominently show a restart-required banner that persists until dismissed
+- Add a `GET /api/setup/needs-restart` endpoint that compares current `process.env` values with .env file values — if they differ, return `{ needsRestart: true }`
+- The pre-flight checker should include "restart required" detection as a check item
 
-**Phase:** Dashboard staging throughout (Phase 3-4)
+**Detection warning:** The existing setup UI already has this issue — `set-password` response says "reiniciar el servidor" but only in the success message text, not as a blocking UI element.
 
-**Codebase reference:** 19 EJS templates in `src/dashboard/views/` - each must continue working during migration.
+**Phase:** Setup wizard and pre-flight check implementation
+
+**Existing exposure:** Current `/api/setup/set-password` already has this behavior — the password change takes effect only after restart. The planned wizard must not repeat this as a subtle note.
 
 ---
 
-#### DM-02: Shadcn Component Structure Churn
+#### ENV-03: docker compose restart vs docker compose up Does Not Apply .env Changes
 
-**Risk:** Shadcn recommends specific folder structure (`ui/`, `primitives/`, `blocks/`). Starting without this causes painful refactoring later.
+**What goes wrong:** User follows the wizard instruction to "restart the container" using `docker compose restart`. This command stops and starts the container but does NOT re-read the `env_file:` directive from docker-compose.yml. Environment variables from .env are injected at container creation time, not at restart time. The container restarts with the OLD environment.
 
-**Warning signs:**
-- Components scattered across files
-- Can't upgrade shadcn components without breaking custom code
-- Duplicate component implementations
+**Why it happens:** This is a well-known Docker Compose behavior (confirmed in Docker docs). `docker compose restart` only restarts the process inside the existing container. `docker compose up` recreates the container and re-reads env_file.
+
+**Consequences:** User restarts container per instruction. Nothing changes. Repeats the process multiple times. Eventually gives up or accidentally uses `up --force-recreate` and it works.
 
 **Prevention:**
-- Establish structure from day one:
-  - `ui/` - raw shadcn components (don't modify)
-  - `primitives/` - lightly modified components
-  - `blocks/` - product-level compositions
-- Document which components are customized
+- All user-facing instructions in the wizard MUST specify the correct command: `docker compose up -d --force-recreate sync-gateway` (NOT `docker compose restart`)
+- The pre-flight checker documentation should explain this distinction
+- In the "restart required" banner (see ENV-02), show the exact command with copy button
+- Add this to the deployment documentation
 
-**Phase:** React dashboard setup (Phase 3)
+**Detection:** Container restarts but JWT_SECRET or SYNC_PASSWORD still show old values. Check with `docker exec sync-gateway env | grep JWT_SECRET`.
 
-**External source:** [Shadcn Best Practices 2026](https://medium.com/write-a-catalyst/shadcn-ui-best-practices-for-2026-444efd204f44)
+**Phase:** Setup wizard restart instructions, pre-flight documentation
+
+**External source:** Docker Compose docs confirm: "Changes to compose.yml configuration are not reflected after running the restart command. For env_file changes, use `docker compose up --force-recreate`."
 
 ---
 
-#### DM-03: State Management Mismatch with Existing SSE Patterns
+#### ENV-04: .env Values with Special Characters Break Regex Replacement
 
-**Risk:** Current dashboard uses SSE for real-time log streaming. React components need to integrate with existing SSE, not replace it.
+**What goes wrong:** The existing .env write code uses `envContent.replace(/JWT_SECRET=.*/g, ...)`. If the new JWT_SECRET value contains regex special characters (it won't — hex is safe), or if a user sets a password containing `$`, `\`, or backticks, the regex replacement interprets them as replacement pattern metacharacters and corrupts the value.
 
-**Warning signs:**
-- Duplicate connections to log stream
-- Memory leaks from unclean SSE teardown
-- React state out of sync with SSE events
+**Why it happens:** `String.replace()` in JavaScript interprets `$` in the replacement string as a special pattern (`$&`, `$1`, etc.). A password like `pass$word` becomes `password` after replacement.
+
+**Actual current exposure in codebase:** `auth.ts` line 271: `envContent.replace(/SYNC_PASSWORD=.*/g, \`SYNC_PASSWORD=${newPassword}\`)`. If `newPassword` contains `$`, this silently truncates the value.
+
+**Consequences:** Password is set to a different value than what the user typed. Authentication silently fails. No error is shown.
 
 **Prevention:**
-- Create single SSE connection manager used by all React components
-- Use React hooks (`useEffect` cleanup) to properly disconnect
-- Match existing log streaming endpoint, don't create new ones
-- Test memory usage during long dashboard sessions
+- Use a raw string replacement helper that escapes `$` in replacement strings:
+  ```typescript
+  function safeEnvReplace(content: string, key: string, value: string): string {
+    // Escape $ to prevent String.replace() metacharacter interpretation
+    const safeValue = value.replace(/\$/g, '$$$$');
+    return content.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${safeValue}`);
+  }
+  ```
+- Or use a proper .env parser/writer library like `dotenv-flow` or write a line-by-line parser
+- Add a test with passwords containing `$`, `\`, and other special characters
 
-**Phase:** React dashboard + logs integration (Phase 3-4)
+**Detection:** Set password to `test$123`, restart, attempt login — it will fail.
 
-**Codebase reference:** `src/dashboard/routes/api/log-stream.ts` implements current SSE.
+**Phase:** .env writer utility implementation (applies to all setup and auth routes)
 
 ---
 
-#### DM-04: Gateway React Dashboard is Separate from Sync Dashboard
+#### ENV-05: .env File Generated with Wrong Path When CWD Differs
 
-**Risk:** There are TWO dashboards in this monorepo - gateway has React (`dashboard/`), sync has HTMX (`src/dashboard/views/`). Confusion about which is being modernized.
+**What goes wrong:** All .env writes use `path.join(process.cwd(), '.env')`. Inside Docker, `process.cwd()` is the working directory set in the Dockerfile (`WORKDIR /app/objetiva-sync-gateway`). If the Dockerfile WORKDIR ever changes, or if the container is started from a different working directory, the .env is written to the wrong location — or fails silently because the file doesn't exist at that path.
 
-**Warning signs:**
-- Building features in wrong dashboard
-- Styles/components don't match
-- Deployment only updates one dashboard
+**Why it happens:** Relative path assumption. The current codebase consistently uses `process.cwd()` for the .env path, which works correctly in the current Docker setup, but is fragile.
+
+**Consequences:** Setup wizard writes to a non-existent .env path. On restart, the container reads the actual .env from the original location (unchanged). Configuration appears to not save.
 
 **Prevention:**
-- Clarify scope: v1.1-rc2 modernizes sync dashboard (HTMX -> React)
-- Gateway React dashboard (`objetiva-sync-gateway/dashboard/`) stays as-is
-- Use same React stack (Vite, shadcn) for consistency across both
-- Consider shared component library in `shared/` later
+- Use `import.meta.url` or `__dirname`-equivalent to resolve .env path relative to the module file, not CWD
+- Or add an explicit `ENV_FILE_PATH` environment variable that overrides the default
+- Add a startup check: verify the .env file exists at the expected path and log a warning if it doesn't
+- For the wizard: return the absolute path used in the success response so user can verify
 
-**Phase:** Planning clarification (Phase 0)
+**Detection:** Run `docker exec sync-gateway ls -la /app/objetiva-sync-gateway/.env` to verify the file exists and has been modified recently.
 
-**Codebase reference:** `objetiva-sync-gateway/dashboard/` vs `objetiva-sync/src/dashboard/`
+**Phase:** .env writer utility implementation
 
 ---
 
-#### DM-05: Form State Loss During SSE-Heavy Operations
+### Part C: Docker Pre-Flight Validation Pitfalls
 
-**Risk:** Current HTMX forms use server-side state. React forms use client state. Long-running sync operations may cause form state confusion.
+---
 
-**Warning signs:**
-- Form data disappears during sync
-- Double-submit bugs
-- Optimistic UI doesn't match actual state
+#### PF-01: Pre-Flight Check Tests Connection But Not What Container Will See
+
+**What goes wrong:** The pre-flight check runs a Prisma connection test inside the Node.js process. It succeeds because the test uses the DATABASE_URL from the current `process.env` (set at container start). But the validation is checking whether the current running config works — not whether the new .env values the user just wrote will work after restart.
+
+**Why it happens:** Pre-flight is implemented as "does the gateway work right now?" rather than "will the gateway work with the pending .env changes?"
+
+**Consequences:** Pre-flight shows all green. User restarts container. New .env value has a typo in DATABASE_URL. Container fails to start. Pre-flight gave false confidence.
 
 **Prevention:**
-- Use form libraries (react-hook-form) for robust state
-- Debounce form submissions during active syncs
-- Show clear loading states that prevent interaction
-- Persist critical form state to localStorage for recovery
+- Pre-flight should have two modes:
+  1. **Current state check**: validates running process.env (useful for health monitoring)
+  2. **Pending config check**: reads .env file, parses it, and validates the PENDING values (useful before restart)
+- The setup wizard pre-flight should use mode 2 — "validate what will happen after restart"
+- For DATABASE_URL validation in mode 2: create a temporary Prisma client with the .env file value (not process.env) and test it
 
-**Phase:** React form implementation (Phase 3-4)
+**Detection:** Wizard shows "all checks pass" followed by container startup failure.
+
+**Phase:** Pre-flight check implementation
 
 ---
 
-### Part C: Auth Simplification Pitfalls
+#### PF-02: Pre-Flight Tailscale Reachability Check Is Not Bidirectional
 
----
+**What goes wrong:** The pre-flight check validates that the gateway can reach PostgreSQL. It does not validate that the SYNC machine (Windows, running npm start) can reach the gateway's Tailscale IP. The wizard is running on the gateway side; it cannot test the path from sync to itself.
 
-#### AS-01: Removing Security While Simplifying Setup
+**Why it happens:** Pre-flight naturally tests what the gateway can reach. Testing the reverse path requires a probe from the sync side, which adds complexity.
 
-**Risk:** "Simplified auth" may remove important security features. Current JWT with bcrypt password hashing is secure - don't weaken it.
-
-**Warning signs:**
-- Plain-text password storage proposed
-- Removing JWT validation
-- Hardcoded credentials in code
+**Consequences:** Gateway pre-flight passes. User declares setup complete. Sync starts and gets connection refused to gateway. The Tailscale IP used in GATEWAY_URL is wrong (e.g., using the public domain instead of the Tailscale IP, or vice versa).
 
 **Prevention:**
-- Keep: bcrypt hashing, JWT tokens, HTTPS requirement
-- Simplify: setup flow, token diagnostics, error messages
-- Never: store plain passwords, skip token validation
-- Add: better error messages, not less security
+- Add a `/api/health/ping` endpoint to the gateway that simply returns `{ ok: true, timestamp: ... }`
+- On the SYNC side, add a "Test Gateway Connection" button in its own setup page that calls this endpoint and shows latency
+- The sync pre-flight is where the bidirectional check belongs
+- Document clearly: "gateway pre-flight validates server-side; sync side must run its own connection test"
 
-**Phase:** Auth simplification (Phase 4)
+**Detection:** Gateway health check passes; sync shows "ECONNREFUSED" on first sync attempt.
 
-**Codebase reference:** `src/services/auth-service.ts` and `objetiva-sync-gateway/src/routes/auth.ts` - current implementation is secure.
+**Phase:** Pre-flight check design, sync-side setup page
 
 ---
 
-#### AS-02: Token Rotation Without Refresh Tokens Creates Downtime
+#### PF-03: Pre-Flight Validates Tables That May Not Exist Yet
 
-**Risk:** Adding token rotation is good, but with current short-lived JWT (24h default), rotation during long syncs may cause auth failures.
+**What goes wrong:** Pre-flight includes a table existence check (already in the current setup wizard). It queries `pg_tables` for the 4 required tables. If migrations haven't been run yet, this fails and blocks setup completion. Users who set up a fresh PostgreSQL instance cannot proceed.
 
-**Warning signs:**
-- Sync fails partway through with 401
-- Token expires during 100K+ record sync
-- User re-authenticates but sync is lost
+**Why it happens:** The check was designed for an already-migrated database. The v1.2 wizard may attract new users setting up from scratch.
+
+**Consequences:** User sets up PostgreSQL, runs wizard, gets "missing tables" error. Has no idea what migrations to run or how. Setup abandonment.
 
 **Prevention:**
-- Use refresh tokens for token renewal (opaque tokens, not JWT for refresh)
-- Extend token lifetime for active operations
-- Implement "Token is about to expire" warning
-- Auto-refresh during long operations
+- When table check fails, the wizard must show actionable next steps:
+  - Show the exact `docker exec` command to run Prisma migrations: `docker exec sync-gateway npx prisma migrate deploy`
+  - Or add a "Run Migrations Now" button that triggers `prisma migrate deploy` from within the wizard API (with a warning and confirmation)
+- The pre-flight check result for missing tables should be "WARNING: action required" not "FAIL: blocked"
+- Document the database setup as a prerequisite in the wizard step description
 
-**Phase:** Token rotation implementation (Phase 4-5)
+**Detection:** "Missing tables" error on fresh PostgreSQL install.
 
-**External source:** [Refresh Token Rotation](https://www.serverion.com/uncategorized/refresh-token-rotation-best-practices-for-developers/) - "Use single-use refresh tokens (valid for 7-14 days)"
+**Phase:** Pre-flight table validation UX
 
 ---
 
-#### AS-03: Dual Auth Systems (Sync Dashboard vs Gateway API)
+#### PF-04: Pre-Flight Success Does Not Account for Container Memory Limits
 
-**Risk:** Sync dashboard uses session auth (`auth-service.ts`), gateway API uses JWT (`routes/auth.ts`). Simplification may accidentally break one while fixing the other.
+**What goes wrong:** The docker-compose.yml sets `mem_limit: 512m`. During heavy sync operations, the gateway may hit this limit and be OOM-killed, then restarted. The pre-flight checker has no visibility into memory pressure. After a "successful" setup, the first large sync (100K+ records) kills the container.
 
-**Warning signs:**
-- Dashboard login works but API calls fail
-- Token works for sync but not schema fetch
-- Different JWT secrets between systems
+**Why it happens:** Memory limits are a deployment concern, not an application concern. Pre-flight typically checks connectivity and config, not resource headroom.
+
+**Consequences:** Setup passes. First real sync triggers OOM restart. Sync gets 502 from Traefik mid-operation. Confusing error.
 
 **Prevention:**
-- Document both auth flows before modifying
-- Test both flows after every auth change
-- Ensure `JWT_SECRET` is shared correctly between systems
-- Consider unifying to single auth mechanism long-term
+- Add a lightweight memory check to pre-flight: read `/proc/meminfo` (Linux inside container) and warn if available < 200MB
+- The pre-flight should be a soft warning, not a blocker: "Container has 512MB limit. Large syncs (>50K records) may cause OOM. Consider increasing mem_limit."
+- Add `mem_limit` to the generated docker-compose.yml with a comment explaining the tradeoff
+- This is a LOW priority check — include only if pre-flight is comprehensive
 
-**Phase:** Auth simplification (Phase 4)
+**Detection:** Container OOM events visible in `docker stats` and `docker logs`.
 
-**Codebase reference:** Two separate implementations - must maintain both.
+**Phase:** Pre-flight check (optional enhancement)
 
 ---
 
-#### AS-04: Setup Complexity From Hash Generation
+### Part D: Integration Pitfalls (Connecting the Features Together)
 
-**Risk:** Current setup requires pre-generating bcrypt hash for `SYNC_PASSWORD_HASH`. This is a UX friction point.
+---
 
-**Warning signs:**
-- Users deploy without proper password setup
-- Support tickets about "hash not configured" errors
-- Users store plain password thinking it will be hashed
+#### INT-01: Setup Wizard Rewrites JWT Secret Without Invalidating Existing Sync Session
+
+**What goes wrong:** The setup wizard allows changing the JWT secret. The sync Windows service is currently running with a valid token signed by the OLD secret. After the wizard rotates the secret and the gateway restarts, the sync's cached token is invalid. The sync does not know to re-authenticate. Sync retries with 401s until the auth manager's next scheduled refresh.
+
+**Why it happens:** JWT secret rotation is a gateway-only event. The sync has no notification mechanism. The AuthManager only refreshes the token proactively when it's near expiration, not when the server's secret changes.
+
+**Consequences:** Up to 24 hours of broken sync if JWT_EXPIRES_IN is set to 86400. AuthManager will retry login on 401, so it eventually self-heals, but only if the `login()` fallback path is triggered. Existing v1.1-rc2 auth code does handle 401 → re-login, but only during batch send, not during idle periods.
 
 **Prevention:**
-- Add `/api/setup/generate-hash` endpoint (one-time, with initial secret)
-- CLI tool to generate hash: `npm run generate-hash`
-- Better error message explaining hash requirement
-- First-run wizard that handles hash generation
+- The wizard's JWT secret rotation step must show a clear warning: "Changing the JWT secret will require sync to re-authenticate. This happens automatically on the next sync attempt."
+- The AuthManager already handles 401 → login() fallback — document this as the recovery path
+- Consider adding a `/api/auth/invalidate-all` endpoint that forces all token holders to re-login (useful for emergency rotation)
+- Do NOT silently rotate the secret; require explicit user confirmation
 
-**Phase:** Auth simplification (Phase 4-5)
+**Detection:** After secret rotation, sync logs show `TOKEN_INVALID` errors followed by `Login exitoso` (automatic recovery).
 
-**Codebase reference:** `objetiva-sync-gateway/src/routes/setup.ts` - current setup flow.
+**Phase:** Setup wizard JWT secret step, auth integration
 
 ---
 
-#### AS-05: JWT Secret Mismatch Causes Silent Failures
+#### INT-02: Pairing Code Does Not Survive the "Generate .env, Restart, Claim" Cycle
 
-**Risk:** Sync service generates JWTs, gateway validates them. If `JWT_SECRET` differs, auth silently fails with 401.
+**What goes wrong:** The intended flow is: (1) gateway generates pairing code, (2) user enters code in sync, (3) sync claims code from gateway and receives JWT secret, (4) sync saves JWT secret to its own .env, (5) gateway has already written JWT secret to its .env, (6) gateway restarts to pick up the new env. But in step 6, after the restart, the pairing claim endpoint may have already processed the claim and the pairing token is consumed. If sync didn't complete step 4 before the restart, it retries step 3 and gets "token not found."
 
-**Warning signs:**
-- Sync connects but schema fetch fails with 401
-- "Gateway authentication failed" errors
-- Works locally, fails in deployment
+**Why it happens:** The pairing is a two-phase operation: gateway writes config + restarts, sync claims. The restart breaks the in-memory token (see PC-02). The timing between write-then-restart and claim is a race condition.
+
+**Consequences:** Pairing fails at the last step. User sees "pairing code expired or not found" after a successful gateway restart. Must start over.
 
 **Prevention:**
-- Add JWT secret validation on startup (sync checks it can decode gateway's test token)
-- Diagnostic endpoint: `GET /api/auth/test-token` returns token validity
-- Include JWT secret hash in status endpoint (for comparison, not the secret itself)
-- Better error message: "JWT_SECRET mismatch between sync and gateway"
+- Decouple the "claim" from the "restart": the claim should succeed and return the JWT secret BEFORE the gateway restarts
+- Flow: sync claims → gateway responds with JWT secret → sync saves to its .env → THEN user triggers gateway restart (manual step, not automatic)
+- Do NOT auto-restart the gateway as part of pairing; make restart an explicit separate step in the wizard
+- Persist the claim result to disk (see PC-02) so the token survives restart in case of retry
 
-**Phase:** Auth diagnostics (Phase 4)
-
----
-
-### Part D: Observability Pitfalls
+**Phase:** Pairing flow design
 
 ---
 
-#### OB-01: High-Cardinality Metrics Kill Performance
+#### INT-03: Sync Windows Service vs npm start — Different .env Loading Behaviors
 
-**Risk:** Adding metrics with user IDs, sync IDs, or request IDs as labels creates cardinality explosion.
+**What goes wrong:** The sync runs on Windows. In development, it uses `npm start`. In production deployment as a Windows service, the working directory and environment loading may differ. The dotenv library loads `.env` from `process.cwd()` which for a Windows service may be `C:\Windows\System32` or the service binary location, not the project directory.
 
-**Warning signs:**
-- Memory usage grows unboundedly
-- Metrics storage fills up quickly
-- Dashboard queries slow down
+**Why it happens:** Windows services run with the SYSTEM account in a different working directory. `dotenv` uses `process.cwd()` by default.
+
+**Consequences:** Sync Windows service starts but cannot find its .env. All env vars are undefined. Gateway URL, JWT secret, credentials — all missing. Silent failures.
 
 **Prevention:**
-- Never use as metric labels: syncId, userId, requestId, entityId
-- Use as log fields only (where they belong)
-- Good labels: entityType (4 values), status (5 values), source (limited)
-- Add cardinality limits: max 1000 events in memory
+- Pass `--env-file` path explicitly when starting: `node --env-file=C:\projects\objetiva-sync\.env dist/index.js` (Node 20+ built-in support)
+- Or in the dotenv call: `dotenv.config({ path: path.join(import.meta.dirname, '..', '.env') })`
+- Add a startup validation that checks all required env vars are loaded and logs each one's presence (not value) at startup
+- Document the Windows service installation with the explicit env file path requirement
 
-**Phase:** Metrics enhancement (Phase 5)
+**Detection:** Sync service starts (process is running) but all connections fail with "undefined" in error messages (baseUrl: undefined).
 
-**External source:** [Observability Best Practices](https://spacelift.io/blog/observability-best-practices) - "High cardinality labels destroy Prometheus performance"
-
-**Codebase reference:** `objetiva-sync-gateway/src/lib/metrics.ts` already has `maxEvents = 1000` - maintain this discipline.
+**Phase:** Sync-side setup and Windows service deployment
 
 ---
 
-#### OB-02: Logging Without Correlation IDs
+#### INT-04: Traefik Routes Gateway Before .env Configuration Is Complete
 
-**Risk:** Adding structured logging is good, but without correlation IDs, tracing requests across sync and gateway is impossible.
+**What goes wrong:** The gateway starts in Docker with Traefik labels. Traefik immediately begins routing public traffic to `sync-gateway.sanchezrepuestos.com.ar`. The `/setup` endpoint is unauthenticated and reachable from the internet. Anyone who discovers the domain before setup is complete can access the setup wizard.
 
-**Warning signs:**
-- Cannot follow a single sync operation across logs
-- Gateway log doesn't show which sync triggered it
-- Debugging requires timestamp matching (error-prone)
+**Why it happens:** The gateway serves `/setup` with no authentication by design (pre-configuration access). Traefik routes all traffic once the container is healthy. The health check passes (Fastify starts up fine) even before setup is complete.
+
+**Consequences:** Security exposure window between deployment and setup completion. An attacker who discovers the gateway URL during this window can configure their own JWT secret, effectively owning the gateway.
 
 **Prevention:**
-- Generate `syncId` at sync start, propagate to all related logs
-- Include `syncId` in gateway batch headers (already partially done)
-- Add to all log calls: `{ syncId, entity, operation }`
-- Ensure `syncId` appears in both sync and gateway logs
+- Add a setup token: generate a random one-time token at first startup (written to logs only), require it to access `/setup` on the first visit
+- Or: restrict `/setup` to Tailscale IP ranges only (add Traefik middleware for IP whitelist)
+- Or: make the setup UI require a "setup password" derived from the hostname or a pre-shared secret
+- Simplest viable: log `SETUP TOKEN: [token]` on first startup, require it in the setup form — this token is visible only in the container logs (operator must have server access)
+- Document the exposure window in deployment instructions
 
-**Phase:** Structured logging (Phase 5)
+**Detection:** `/setup` endpoint reachable via public domain with no authentication required.
 
-**Codebase reference:** `syncId` exists in metadata but not consistently propagated.
+**Phase:** Setup wizard security model, deployment guide
 
 ---
 
-#### OB-03: Duplicate Logging Between Services
+#### INT-05: Pre-Flight Incorrectly Reports Success When JWT_SECRET Still Has Default Value
 
-**Risk:** Both sync and gateway log the same events (batch sent, batch received). Creates noisy, redundant logs.
+**What goes wrong:** The existing status endpoint already checks for the default JWT_SECRET value (`change-this-secret-in-production...`). But the pre-flight checker may not include this validation. If a user skips the JWT configuration step, the pre-flight still shows green for connectivity checks, and setup appears complete with the default (insecure) secret.
 
-**Warning signs:**
-- Same event appears twice in log aggregator
-- Confusion about which service logged what
-- Storage costs double for same information
+**Why it happens:** Pre-flight checks connectivity (database, tables, network). It may not check configuration values for semantic correctness beyond "is the variable set?"
 
-**Prevention:**
-- Define clear log ownership:
-  - Sync logs: query execution, batch preparation, retry decisions
-  - Gateway logs: ingestion results, database operations
-- Use different log prefixes: `[sync]`, `[gateway]`
-- Avoid logging same information in both places
-
-**Phase:** Log consolidation (Phase 5)
-
----
-
-#### OB-04: Alerting on Everything Creates Alert Fatigue
-
-**Risk:** Adding observability often means adding alerts for every metric. This leads to ignored alerts.
-
-**Warning signs:**
-- Team ignores alert channel
-- Real issues get buried in noise
-- "Alert fatigue" - assume alerts are false positives
+**Consequences:** Gateway runs with the default JWT secret. Any sync instance that also uses the default secret will successfully authenticate. This is a security regression, not a functional failure — it works but is insecure.
 
 **Prevention:**
-- Start with ONLY critical alerts: sync failure, gateway down, auth failure
-- Add alerts gradually as you understand normal patterns
-- Use severity levels: CRITICAL (page), WARNING (Slack), INFO (log only)
-- Maximum 5 initial alerts
+- Pre-flight MUST include configuration checks as first-class checks:
+  - `JWT_SECRET` is not the default value AND is at least 32 characters
+  - `SYNC_PASSWORD` is not `change-me`
+  - `DATABASE_URL` is not the placeholder value
+- These should be BLOCKING checks (not warnings) — pre-flight must not show "all good" with placeholder values
 
-**Phase:** Alerting setup (Phase 5)
+**Detection:** `docker exec sync-gateway env | grep JWT_SECRET` shows the default value.
 
-**External source:** [Observability Best Practices](https://spacelift.io/blog/observability-best-practices) - "It's better to have five reliable alerts than fifty noisy ones"
-
----
-
-#### OB-05: Metrics Without Dashboards Are Useless
-
-**Risk:** Collecting metrics that no one looks at. Classic observability anti-pattern.
-
-**Warning signs:**
-- Metrics endpoint exists but no dashboard
-- No one knows what the metrics mean
-- "We have metrics" but can't answer basic questions
-
-**Prevention:**
-- Build dashboard FIRST, then add metrics it needs
-- Start with key questions: "Is sync healthy?", "How many records synced today?"
-- Gateway already has React dashboard - add metrics visualization there
-- Create runbook linking alerts to dashboards
-
-**Phase:** Dashboard metrics integration (Phase 5)
+**Phase:** Pre-flight check implementation
 
 ---
 
@@ -444,190 +411,140 @@
 
 ---
 
-#### CC-01: Breaking Existing Tests During Feature Addition
+#### XC-01: No Rollback Path If Setup Wizard Corrupts .env
 
-**Risk:** 79 integration tests pass. New features may break them without triggering failures.
+**What goes wrong:** The setup wizard writes multiple values to .env in sequence. If a write fails midway (disk full, permissions error), or if the user closes the browser window mid-wizard, the .env may be in a partially updated state — e.g., JWT_SECRET changed but DATABASE_URL not yet updated.
 
-**Warning signs:**
-- Tests pass but behavior changed
-- Test coverage decreases
-- Tests skip new code paths
+**Why it happens:** Each setup step writes independently. There is no transactional .env update.
+
+**Consequences:** Container is in an inconsistent configuration state. The original .env (from deployment) and the wizard-modified .env are both partially valid. Hard to diagnose without reading the file directly.
 
 **Prevention:**
-- Run full test suite before every commit
-- Maintain test coverage percentage
-- Add tests for new features before implementing
-- Don't skip or modify existing tests without review
+- Implement a "generate complete .env" approach: collect ALL settings in the wizard, then write the entire .env in a single operation at the end (not one variable at a time per step)
+- Keep a `.env.backup` before any write operation: `fs.copyFile('.env', '.env.backup')` before `fs.writeFile('.env', ...)`
+- Show users the generated .env content before writing (preview step), and allow them to download/copy it manually as a fallback
 
-**Phase:** All phases
+**Detection:** Check `.env.backup` existence; compare with current `.env`.
 
-**Codebase reference:** `tests/integration/` - 79 tests documented in v1.1-rc.
+**Phase:** Setup wizard architecture design
 
 ---
 
-#### CC-02: Migration Runs on Production Before Testing
+#### XC-02: Setup Wizard Breaks Existing Authenticated Sessions Mid-Reconfiguration
 
-**Risk:** Multi-source requires schema changes (`source_system` column). Running migrations without testing breaks production.
+**What goes wrong:** The setup wizard is currently unauthenticated (intended for initial setup). But if used for reconfiguration, an existing sync session is actively running while the wizard changes the password. The running sync session's next login attempt uses the old password. The change-password flow in auth.ts already requires authentication, so this is more of a wizard UX issue than a code bug.
 
-**Warning signs:**
-- "Column not found" errors after deploy
-- Rollback required
-- Data loss during migration
+**Why it happens:** The wizard was designed for first-time setup, not for reconfiguration of a live system. The distinction between initial setup and reconfiguration is not enforced.
+
+**Consequences:** Sync operator uses the wizard to change password. Sync is mid-operation. The next token refresh or login fails silently. Sync stops working. Operator doesn't realize the wizard changed the password.
 
 **Prevention:**
-- Test all migrations on copy of production data
-- Use reversible migrations
-- Add columns as nullable first, then populate, then add constraints
-- Deploy migration separately from code that uses it
+- If `GATEWAY_PAIRED=true` (already paired), show the wizard in "reconfiguration" mode with prominent warnings: "Changing credentials will interrupt active sync operations"
+- Require an explicit "I understand" confirmation for credential changes on already-paired systems
+- Do not expose the password change flow in the initial setup wizard at all — make it a separate "settings" page
 
-**Phase:** Database migrations (Phase 1-2)
+**Detection:** Sync stops after wizard use; logs show auth failures.
+
+**Phase:** Setup wizard UX design (reconfiguration vs. initial setup distinction)
 
 ---
 
-#### CC-03: Feature Flags Needed for Staged Rollout
+#### XC-03: Plain Text Password Stored in .env Is Visible to Anyone with File Access
 
-**Risk:** All v1.1-rc2 features shipping simultaneously. If one breaks, all must be rolled back.
+**What goes wrong:** `SYNC_PASSWORD` is stored plain text in the gateway .env. The .env file is mounted into the Docker container via `env_file: .env`. On the VPS, anyone with SSH access to the host user can `cat /path/to/objetiva-sync-gateway/.env` and see the password. This also means the .env backup (XC-01) contains the plain text password.
 
-**Warning signs:**
-- "All or nothing" deployment
-- Cannot disable broken feature
-- Users can't test new features gradually
+**Why it happens:** The design decision was to use plain text for simplicity (noted as a known limitation in PROJECT.md). The timing-safe comparison in auth.ts uses `crypto.timingSafeEqual` on the plain text value.
 
-**Prevention:**
-- Add feature flags for major features:
-  - `ENABLE_MULTI_SOURCE` - PostgreSQL adapter
-  - `ENABLE_NEW_DASHBOARD` - React dashboard
-  - `ENABLE_TOKEN_ROTATION` - new auth flow
-- Ship flags disabled, enable gradually
-- Quick disable without deploy
+**Consequences:** Credential exposure to anyone with VPS filesystem access. The password also travels in HTTP request bodies (over Tailscale, which is encrypted at the network level) but logged in plain text if log level is debug.
 
-**Phase:** Configuration setup (Phase 0-1)
+**Prevention for v1.2:**
+- This is a known design decision from v1.1-rc2, accepted as "simplicity over security for internal tool"
+- Minimum mitigation: ensure the .env file has restrictive permissions (`chmod 600 .env`)
+- If upgrading to bcrypt in v1.2, the setup wizard's set-password API must hash before storing
+- Do not regress: if the pairing flow generates a new password, make sure it stores hashed not plain text
+- Add a comment in the .env.example documenting the plain text limitation and planned bcrypt migration path
 
----
+**Detection:** `stat -c %a /path/to/.env` — should return 600, not 644.
 
-#### CC-04: Sync-Gateway Contract Changes Break Compatibility
-
-**Risk:** Multi-source may require new headers/fields in sync-gateway communication. Old sync versions break with new gateway.
-
-**Warning signs:**
-- Old sync client fails against new gateway
-- Missing header errors
-- Schema validation failures
-
-**Prevention:**
-- Version the API: add `/api/v2/` for breaking changes
-- Keep `/api/v1/` working during transition
-- Add header: `X-Sync-Version: 2.0` for capability detection
-- Document breaking changes
-
-**Phase:** API versioning (Phase 1-2)
+**Phase:** Setup wizard (document known limitation, implement permission enforcement)
 
 ---
 
-#### CC-05: Documentation Lags Behind Implementation
-
-**Risk:** Rapid feature addition without documentation updates. Users and future maintainers suffer.
-
-**Warning signs:**
-- README doesn't match actual behavior
-- Support questions about undocumented features
-- Onboarding is difficult
-
-**Prevention:**
-- Update docs in same PR as code
-- Add inline code comments for complex logic
-- Maintain CHANGELOG.md
-- Review docs as part of PR checklist
-
-**Phase:** All phases (continuous)
-
----
-
-## SUMMARY TABLE: v1.1-rc2 Pitfalls
+## SUMMARY TABLE: v1.2 Pitfalls
 
 | ID | Pitfall | Severity | Phase | Quick Prevention |
 |----|---------|----------|-------|------------------|
-| MSS-01 | Per-query state breaks | HIGH | 1-2 | Add sourceId to sync_state |
-| MSS-02 | Clock skew data loss | HIGH | 1-2 | Use version counters |
-| MSS-03 | Adapter interface mismatch | MEDIUM | 1 | Review interface first |
-| MSS-04 | Composite key races | MEDIUM | 2 | Use UPSERT |
-| MSS-05 | No data ownership | MEDIUM | 1-2 | Add source_system column |
-| DM-01 | Breaking HTMX during migration | HIGH | 3-4 | Separate route prefixes |
-| DM-02 | Shadcn structure churn | MEDIUM | 3 | Establish structure day 1 |
-| DM-03 | SSE state mismatch | MEDIUM | 3-4 | Single SSE manager |
-| DM-04 | Two dashboards confusion | LOW | 0 | Clarify scope |
-| DM-05 | Form state loss | MEDIUM | 3-4 | Use form libraries |
-| AS-01 | Removing security | CRITICAL | 4 | Keep bcrypt+JWT |
-| AS-02 | Token rotation downtime | HIGH | 4-5 | Add refresh tokens |
-| AS-03 | Dual auth systems | MEDIUM | 4 | Document both flows |
-| AS-04 | Hash generation friction | MEDIUM | 4-5 | Add CLI tool |
-| AS-05 | JWT secret mismatch | HIGH | 4 | Add diagnostics |
-| OB-01 | High cardinality metrics | HIGH | 5 | No IDs as labels |
-| OB-02 | No correlation IDs | MEDIUM | 5 | Propagate syncId |
-| OB-03 | Duplicate logging | LOW | 5 | Define ownership |
-| OB-04 | Alert fatigue | MEDIUM | 5 | Start with 5 alerts |
-| OB-05 | Metrics without dashboards | MEDIUM | 5 | Dashboard first |
-| CC-01 | Breaking tests | HIGH | All | Run tests always |
-| CC-02 | Untested migrations | HIGH | 1-2 | Test on prod copy |
-| CC-03 | No feature flags | MEDIUM | 0-1 | Add flags |
-| CC-04 | Contract breaks | HIGH | 1-2 | Version API |
-| CC-05 | Doc lag | MEDIUM | All | Docs with code |
+| PC-01 | Pairing code brute-forceable | HIGH | Pairing impl | Rate limit to 5 attempts/min |
+| PC-02 | Pairing code lost on restart | HIGH | Pairing impl | Persist to file or .env |
+| PC-03 | Pairing endpoint left open | HIGH | Pairing impl | GATEWAY_PAIRED flag |
+| PC-04 | JWT secret logged | MEDIUM | Pairing impl | Redact claim response from logs |
+| ENV-01 | Concurrent .env writes corrupt | HIGH | Setup wizard | Async mutex + atomic rename |
+| ENV-02 | .env write visible only after restart | HIGH | All .env writes | requiresRestart in every response |
+| ENV-03 | docker restart vs docker up --force-recreate | HIGH | Setup wizard UX | Show exact correct command |
+| ENV-04 | Special chars break regex replace | HIGH | .env writer | Escape $ in replacement |
+| ENV-05 | Wrong .env path if CWD differs | MEDIUM | .env writer | Absolute path from module |
+| PF-01 | Pre-flight tests current not pending config | HIGH | Pre-flight impl | Pending config validation mode |
+| PF-02 | Pre-flight not bidirectional | MEDIUM | Pre-flight design | Sync-side connection test |
+| PF-03 | Pre-flight blocks on missing tables | MEDIUM | Pre-flight UX | Show migration command |
+| PF-04 | No memory limit check | LOW | Pre-flight (optional) | /proc/meminfo check |
+| INT-01 | JWT rotation breaks running sync | MEDIUM | Wizard JWT step | Warn before rotation |
+| INT-02 | Pairing race with restart | HIGH | Pairing flow design | Claim before restart |
+| INT-03 | Windows service CWD issue | MEDIUM | Sync deployment | Explicit --env-file path |
+| INT-04 | Setup exposed via Traefik before config | HIGH | Security model | Setup token or IP restriction |
+| INT-05 | Pre-flight passes with default secret | HIGH | Pre-flight impl | Check for placeholder values |
+| XC-01 | No .env rollback path | MEDIUM | Wizard architecture | Backup + single-write strategy |
+| XC-02 | Wizard breaks live sessions | MEDIUM | Wizard UX design | Reconfiguration mode with warnings |
+| XC-03 | Plain text password in .env | MEDIUM | Known limitation | 600 permissions, document |
+
+---
+
+## PHASE-SPECIFIC WARNINGS
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Pairing code generation | PC-02, INT-02 | Persist token; decouple claim from restart |
+| Pairing code claim | PC-01, PC-03 | Rate limit; paired flag |
+| Setup wizard .env writing | ENV-01, ENV-04 | Mutex + $ escaping in safeEnvReplace() |
+| Setup wizard UX | ENV-02, ENV-03 | Explicit restart command, requiresRestart flag |
+| Pre-flight implementation | PF-01, INT-05 | Two modes (current + pending); check placeholders |
+| Gateway deployment | INT-04 | Setup token for public exposure window |
+| Windows sync deployment | INT-03 | Document explicit --env-file path |
+| JWT secret configuration | INT-01 | Warn before rotation; auto-heal documented |
 
 ---
 
 ## SOURCES
 
-- [Multi-Master Conflicts](https://arpitbhayani.me/blogs/conflict-resolution/)
-- [Data Sync Challenges](https://www.leadsforge.ai/blog/top-challenges-in-data-sync-and-how-to-solve-them)
-- [Shadcn UI Best Practices 2026](https://medium.com/write-a-catalyst/shadcn-ui-best-practices-for-2026-444efd204f44)
-- [Refresh Token Rotation](https://www.serverion.com/uncategorized/refresh-token-rotation-best-practices-for-developers/)
-- [JWT Best Practices](https://curity.io/resources/learn/jwt-best-practices/)
-- [Observability Best Practices 2026](https://spacelift.io/blog/observability-best-practices)
-- [Structured Logging](https://www.grepr.ai/blog/structured-logging---what-it-is-and-why-you-need-it)
-- Codebase analysis: objetiva-sync-monorepo source code
+- Docker Compose docs: [`docker compose restart` does not re-read `env_file`](https://docs.docker.com/reference/cli/docker/compose/restart/)
+- Docker Compose docs: [`docker compose up --force-recreate` for env_file changes](https://docs.docker.com/reference/cli/docker/compose/up/)
+- Docker Community Forums: [Updating ENV variables without losing data](https://forums.docker.com/t/how-to-update-environment-variables-on-running-container-without-losing-data/138995)
+- GitHub Issue: [Add ability to reload env_file for a specific container](https://github.com/docker/compose/issues/4140) — closed WONTFIX; confirmed restart does not re-read env_file
+- Rate limiting for brute force: [How to Handle Rate Limiting and Brute-Force Attacks in Node.js APIs](https://www.ionicframeworks.com/2025/09/how-to-handle-rate-limiting-and-brute.html)
+- JWT token pitfalls: [JWT Token Lifecycle Management](https://skycloak.io/blog/jwt-token-lifecycle-management-expiration-refresh-revocation-strategies/)
+- Tailscale HTTP security: [Tailscale serve HTTP vs HTTPS issue](https://github.com/tailscale/tailscale/issues/18381)
+- Setup endpoint security: [Unauthenticated endpoint exposure patterns](https://www.secpod.com/blog/cve-2025-61884-unauthenticated-data-exposure-in-oracle-e-business-suite/)
+- Codebase analysis: `objetiva-sync-gateway/src/routes/setup.ts` — existing .env write pattern
+- Codebase analysis: `objetiva-sync-gateway/src/routes/auth.ts` — existing regex replace on .env (ENV-04 exposure confirmed at line 271)
+- Codebase analysis: `objetiva-sync-gateway/docker-compose.yml` — `restart: unless-stopped` confirms PC-02 scenario
+- Node.js dotenv: [dotenv does not update running process.env](https://github.com/motdotla/dotenv) — confirmed ENV-02
 
 ---
 
-## PRESERVED: v1.0 Schema-Driven Validation Pitfalls
+## PRESERVED: v1.1-rc2 Pitfall Index
 
-*The following pitfalls from v1.0 research remain relevant:*
+The following pitfall IDs from v1.1-rc2 remain relevant to the broader project and are archived for reference. Full text in the v1.1-rc2 PITFALLS document.
 
-### 1. CODEGEN PITFALLS
-
-- **1.1 Stale Generated Code After Schema Changes** - Never commit generated code; use staleness detection
-- **1.2 Type Mismatches Between Layers** - Single source of truth from PostgreSQL introspection
-- **1.3 Ignoring Database Constraints During Generation** - Capture all constraint types
-
-### 2. INTROSPECTION RELIABILITY
-
-- **2.1 Connection Failures in Distributed Systems** - Never introspect in production builds
-- **2.2 Permission and Access Issues** - Dedicated introspection user with proper grants
-- **2.3 Schema Introspection Race Conditions** - Lock schema during introspection
-
-### 3. QUERY VALIDATION EDGE CASES
-
-- **3.1 Dynamic SQL Not Analyzable at Save Time** - Classify static vs dynamic queries
-- **3.2 Parameterized Query Type Mismatches** - Cross-reference placeholder types with schemas
-- **3.3 Schema Version Skew in Distributed System** - Version schema snapshots
-
-### 4. SCHEMA CACHING STRATEGIES
-
-- **4.1 Naive Cache Invalidation** - Event-driven cache invalidation
-- **4.2 Cold Cache Performance Impact** - Pre-warm cache during startup
-- **4.3 Memory Bloat from Cached Schemas** - Cache only necessary subset
-
-### 5. DISTRIBUTED SYSTEM SPECIFIC
-
-- **5.1 Network Partition Handling** - Circuit breaker pattern with fallback
-- **5.2 Schema Migration Coordination** - Expand-contract pattern for breaking changes
-
-### 6. TESTING AND OBSERVABILITY
-
-- **6.1 Inadequate Introspection Testing** - Test with edge cases and various permissions
-- **6.2 Missing Observability for Schema Operations** - Structured logging for all schema ops
+| ID | Pitfall | Still Relevant In v1.2? |
+|----|---------|------------------------|
+| AS-01 | Removing security while simplifying | YES — pairing must not weaken JWT |
+| AS-04 | Setup complexity from hash generation | YES — plain text password is the existing workaround |
+| AS-05 | JWT secret mismatch | YES — core pairing problem this feature solves |
+| CC-01 | Breaking existing tests | YES — all phases |
+| CC-05 | Documentation lags implementation | YES — wizard instructions must be accurate |
 
 ---
 
-**Document Version**: 2.0 (v1.1-rc2)
-**Last Updated**: 2026-02-11
-**Research Type**: Project Research - Pitfalls Dimension (v1.1-rc2 features)
+**Document Version**: 3.0 (v1.2 Setup & Pairing)
+**Last Updated**: 2026-03-04
+**Research Type**: Project Research — Pitfalls Dimension (v1.2 features)
+**Confidence**: HIGH for ENV-01 through ENV-05 (codebase-confirmed); HIGH for INT-02, INT-04; MEDIUM for PC-01 through PC-04 (ecosystem-verified patterns)

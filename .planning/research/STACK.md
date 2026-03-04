@@ -1,322 +1,389 @@
-# Stack Research: v1.1-rc2 Multi-Source & Hardening
+# Technology Stack
 
 **Project:** objetiva-sync-monorepo
-**Researched:** 2026-02-11
-**Focus:** Multi-source sync, dashboard modernization, auth simplification, observability
+**Milestone:** v1.2 Setup & Pairing
+**Researched:** 2026-03-04
+**Focus:** Pairing code exchange, setup wizard with .env generation, Docker pre-flight validation
 
 ---
 
-## Executive Summary
+## Context
 
-This research covers stack additions for v1.1-rc2 features. The existing codebase has solid foundations (Fastify 5/4, Prisma, Drizzle, Zod, HTMX+EJS, React). New capabilities require targeted additions rather than replacements.
+This file covers NEW stack decisions for v1.2 only. The following are validated and unchanged from prior milestones — do not re-research:
 
-**Key findings:**
-- PostgreSQL source adapter: Use existing `pg` v8.17.2 already in gateway — minimal new dependency
-- Dashboard modernization: shadcn/ui requires Radix UI primitives (gateway dashboard already has Tailwind)
-- Observability: `@fastify/otel` is the future-proof choice (official Fastify instrumentation)
-- Auth simplification: Existing `@fastify/jwt` is sufficient, add diagnostics middleware
+| Technology | Version | Location | Status |
+|------------|---------|----------|--------|
+| TypeScript | 5.7.2 | Both modules | Validated |
+| Fastify | 5.7.4 | Both modules | Validated |
+| Prisma ORM | 6.19.2 | Gateway | Validated |
+| Drizzle ORM | 0.36.4 | Sync | Validated |
+| `@fastify/jwt` | 10.0.0 | Both modules | Validated |
+| Zod | 3.23.8 | Both modules | Validated |
+| Node.js `fs/promises` | built-in | Both modules | Validated (used in existing setup.ts) |
+| HTMX + EJS | existing | Sync dashboard | Validated |
 
 ---
 
-## Recommended Additions
+## Recommended Stack for v1.2
 
-### 1. PostgreSQL Source Adapter
+### Feature 1: Pairing Code Exchange
 
-**Context:** Need to extract data FROM PostgreSQL (as source), not just write TO it (Prisma handles destination).
+**What it is:** Gateway generates a short-lived alphanumeric code (~8 chars, 5-10 minute TTL). The sync operator enters it in the sync dashboard. Sync calls a gateway endpoint with the code and receives back a set of credentials (JWT secret, gateway URL, username/password). Both sides are then configured.
 
-**Recommendation: Use `pg` v8.18.0**
+**Key insight:** No pairing library is needed. The entire pairing flow is three things:
+1. Secure short code generation — Node.js built-in `crypto`
+2. Short-lived in-memory store with TTL — a plain `Map` with `setTimeout` cleanup or a tiny `node-cache` instance
+3. One new Fastify route on the gateway that validates the code and returns credentials
 
-The gateway already has `pg` installed for Prisma's underlying PostgreSQL connection. For the sync module's adapter pattern, use the same library.
+#### 1a. Code Generation
 
-| Library | Version | Purpose | Integration |
-|---------|---------|---------|-------------|
-| `pg` | ^8.18.0 | PostgreSQL client for source adapter | Sync module adapter pattern |
-| `@types/pg` | ^8.16.0 | TypeScript types | Already in gateway devDeps |
+**Recommendation: Node.js built-in `crypto` module — zero new dependencies**
 
-**Rationale:**
-- `pg` is mature with 12,605+ dependent packages
-- Compatible with Node.js 18.x, 20.x, 22.x, 24.x
-- Gateway already uses it (no new dependency tree)
-- Follows same pattern as existing SQL Server adapter (mssql)
-- Type parsers supported per-query (important for ERP data variance)
+```typescript
+import { randomBytes } from 'crypto';
 
-**NOT recommended: postgres.js (Postgres.js)**
-- Different API from `pg` — would require learning new patterns
-- Prepared statements by default can cause issues in AWS environments
-- Smaller ecosystem (643 dependent projects vs 12,605)
-- No advantage for simple query-based sync extraction
-
-**Installation (objetiva-sync only):**
-```bash
-npm install pg@^8.18.0
-npm install -D @types/pg@^8.16.0
+function generatePairingCode(): string {
+  // 4 bytes = 8 hex chars — short, unambiguous, human-transcribable
+  return randomBytes(4).toString('hex').toUpperCase(); // e.g. "A3F8C21D"
+}
 ```
 
-**Implementation notes:**
-- Create `PostgreSQLAdapter` extending `AbstractAdapter`
-- Use connection pooling like SQL Server adapter
-- Query INFORMATION_SCHEMA for getTables/getColumns methods
+`crypto.randomBytes()` is cryptographically secure (CSPRNG). 8 uppercase hex characters give 4.3 billion combinations — sufficient to prevent brute-force within a 5-minute TTL window on a non-public endpoint.
 
----
+**Why not a library:**
+- `otp-generator`, `otplib`, `otpauth` are for TOTP/HOTP (time-based OTP with shared secrets) — designed for user login, not service pairing. Wrong abstraction.
+- `crypto-random-string` is a thin wrapper over `crypto.randomBytes` with no meaningful advantage.
+- `uuid` generates 36-char strings — too long to transcribe manually.
 
-### 2. Dashboard Modernization (shadcn/ui)
+#### 1b. TTL Store (In-Memory)
 
-**Context:** Migrate gateway React dashboard to shadcn/ui components. Sync module HTMX+EJS dashboard remains unchanged (different use case).
+**Recommendation: Plain `Map` with `setTimeout` — zero new dependencies**
 
-**Existing foundation (gateway dashboard):**
-- React 18.3.1
-- Tailwind CSS 3.4.1
-- Vite 5.1.0
-- lucide-react 0.263.1
-- clsx, tailwind-merge, class-variance-authority (already installed)
+The gateway already runs as a single-process Docker container (PM2 fork mode). A simple in-memory Map is sufficient:
 
-**Recommended additions:**
+```typescript
+interface PairingEntry {
+  code: string;
+  gatewayUrl: string;
+  jwtSecret: string;
+  username: string;
+  password: string;
+  expiresAt: number;
+}
 
-| Library | Version | Purpose | Notes |
-|---------|---------|---------|-------|
-| `radix-ui` | ^1.4.3 | Unified Radix primitives | New unified package (Feb 2026) |
-| `@radix-ui/react-slot` | ^1.1.0 | Slot composition | Required by shadcn Button |
+const pairingCodes = new Map<string, PairingEntry>();
 
-**NOT individual @radix-ui/react-* packages** — shadcn/ui now recommends unified `radix-ui` package (cleaner package.json).
+function storePairingCode(entry: PairingEntry, ttlMs = 5 * 60 * 1000): void {
+  pairingCodes.set(entry.code, entry);
+  setTimeout(() => pairingCodes.delete(entry.code), ttlMs);
+}
 
-**Installation:**
-```bash
-cd objetiva-sync-gateway/dashboard
-npx shadcn@latest init
+function consumePairingCode(code: string): PairingEntry | null {
+  const entry = pairingCodes.get(code);
+  if (!entry || Date.now() > entry.expiresAt) {
+    pairingCodes.delete(code);
+    return null;
+  }
+  pairingCodes.delete(code); // one-time use
+  return entry;
+}
 ```
 
-The CLI will:
-1. Create `components.json` configuration
-2. Set up `@/components/ui` directory structure
-3. Configure Tailwind for shadcn
+**Why not Redis or node-cache:**
+- Redis adds a new service dependency — overkill for a single-instance gateway
+- `node-cache` adds a package for what is 10 lines of native code
+- Gateway restarts are fine: pairing codes are ephemeral by design, not persisted
 
-**Adding components:**
-```bash
-npx shadcn@latest add button card table dialog alert toast
-```
+**Confidence: HIGH** — This pattern is used in production by Fastify session plugins themselves (the default `@fastify/session` store is in-memory Map).
 
-**Key components for dashboard:**
-- `table` — Data grids for entities
-- `card` — Metric cards, activity feed
-- `dialog` — Confirmations, forms
-- `alert` — Error/success messages
-- `badge` — Status indicators
-- `tabs` — Navigation
-- `toast` — Notifications
+#### 1c. Pairing API Routes
 
-**Migration strategy:**
-1. Initialize shadcn in gateway dashboard
-2. Add components incrementally (one at a time)
-3. Replace custom components with shadcn equivalents
-4. Leave HTMX+EJS dashboard in sync module untouched
+No new libraries needed. New Fastify routes in gateway:
 
----
+| Route | Method | Auth | Description |
+|-------|--------|------|-------------|
+| `/api/pairing/generate` | POST | Session/JWT | Generate code, return it for display |
+| `/api/pairing/exchange` | POST | None (code is the auth) | Sync calls this with code, receives credentials |
 
-### 3. Observability Stack
+The exchange endpoint must be rate-limited. The gateway already has no rate limiting — add `@fastify/rate-limit` specifically for this endpoint.
 
-**Context:** Add structured observability (traces, metrics) to both Fastify services.
-
-**CRITICAL:** `@opentelemetry/instrumentation-fastify` is deprecated (EOL: June 30, 2025). Use official `@fastify/otel` instead.
-
-**Recommended stack:**
+**Recommendation: `@fastify/rate-limit` ^9.1.0**
 
 | Library | Version | Purpose | Module |
 |---------|---------|---------|--------|
-| `@fastify/otel` | ^0.1.x | Fastify instrumentation | Both |
-| `@opentelemetry/sdk-node` | ^0.211.0 | OTel SDK bootstrap | Both |
-| `@opentelemetry/api` | ^1.9.0 | Tracing/metrics API | Both |
-| `@opentelemetry/instrumentation-http` | ^0.57.0 | HTTP instrumentation | Both |
-| `@opentelemetry/exporter-trace-otlp-http` | ^0.57.0 | OTLP trace export | Both |
-| `pino-opentelemetry-transport` | ^0.4.0 | Pino logs to OTel | Both |
+| `@fastify/rate-limit` | ^9.1.0 | Rate limit `/api/pairing/exchange` | Gateway only |
 
-**Rationale:**
-- `@fastify/otel` is the official Fastify team's instrumentation (future-proof)
-- Integrates with existing Pino logging via `pino-opentelemetry-transport`
-- OTLP export allows backend flexibility (Grafana, Datadog, Jaeger, etc.)
-- Log correlation with traces via instrumentation-pino
-
-**Installation:**
 ```bash
 # Gateway
-npm install @fastify/otel @opentelemetry/sdk-node @opentelemetry/api \
-  @opentelemetry/instrumentation-http @opentelemetry/exporter-trace-otlp-http \
-  pino-opentelemetry-transport
-
-# Sync module (same)
-npm install @fastify/otel @opentelemetry/sdk-node @opentelemetry/api \
-  @opentelemetry/instrumentation-http @opentelemetry/exporter-trace-otlp-http \
-  pino-opentelemetry-transport
+npm install @fastify/rate-limit
 ```
 
-**Configuration pattern:**
-```typescript
-// instrumentation.ts (loaded before app)
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+The exchange endpoint should allow max 5 attempts per IP per 10 minutes to prevent brute-force against active pairing codes.
 
-const sdk = new NodeSDK({
-  traceExporter: new OTLPTraceExporter({
-    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
-  }),
-  instrumentations: [new HttpInstrumentation()],
+**Confidence: HIGH** — `@fastify/rate-limit` is official Fastify team package, well-documented, works with Fastify 5.x.
+
+---
+
+### Feature 2: Setup Wizard with .env Generation
+
+**What it is:** Rework the existing `/setup` page in the gateway from a 4-step form into a multi-step wizard. New capability: the wizard generates a complete `.env` file that can be downloaded or copied, rather than just patching individual variables into an existing `.env`.
+
+**Key insight:** The existing `setup.ts` already uses `fs/promises` to read and patch `.env` directly. That pattern continues. The new need is:
+1. Collecting all variables across wizard steps in one pass
+2. Generating the complete `.env` content as a formatted string
+3. Offering download + clipboard copy in the browser
+
+#### 2a. .env File Writing
+
+**Recommendation: Node.js built-in `fs/promises` — zero new dependencies**
+
+The existing gateway `setup.ts` already does:
+```typescript
+import fs from 'fs/promises';
+const envContent = await fs.readFile(envPath, 'utf-8');
+await fs.writeFile(envPath, newContent, 'utf-8');
+```
+
+This pattern is correct and sufficient. The v1.2 wizard extends it by generating the complete file from a template string rather than patching line by line.
+
+**Why not dotenv-flow or dotenv-safe:**
+- These are for reading `.env` files, not writing them
+- Writing is pure string manipulation + `fs.writeFile` — no library adds value
+- `dotenv` itself has no `writeFile` API
+
+**Template generation pattern:**
+```typescript
+function generateEnvContent(params: SetupParams): string {
+  return [
+    `# Objetiva Sync Gateway - Generated ${new Date().toISOString()}`,
+    `PORT=${params.port}`,
+    `NODE_ENV=production`,
+    `HOST=0.0.0.0`,
+    ``,
+    `# Database`,
+    `DATABASE_URL="${params.databaseUrl}"`,
+    ``,
+    `# Authentication`,
+    `JWT_SECRET=${params.jwtSecret}`,
+    `SYNC_USERNAME=${params.username}`,
+    `SYNC_PASSWORD=${params.password}`,
+    ``,
+    `# Traefik`,
+    `TRAEFIK_DOMAIN=${params.domain}`,
+    ``,
+    `APP_NAME=Objetiva Sync Gateway`,
+  ].join('\n');
+}
+```
+
+**Confidence: HIGH** — Already used in codebase, no new dependency.
+
+#### 2b. Wizard UI (Browser Side)
+
+**Recommendation: Plain HTML + vanilla JS — no new frontend dependency**
+
+The existing setup page is already inline HTML+CSS+JS served by Fastify. The wizard steps are shown/hidden via CSS (`display: none` / `display: block`). The browser's built-in `navigator.clipboard.writeText()` handles copy-to-clipboard. The `<a download>` attribute handles file download.
+
+**Why not Alpine.js, htmx, or React:**
+- Alpine.js adds a JS framework dependency just for wizard step visibility — overkill
+- HTMX is for server-round-trips — wizard state is all client-side
+- React is not on the gateway server (only in the dashboard sub-package which is a separate build)
+- Vanilla JS `currentStep++` and `document.querySelectorAll('.step')` is 10 lines
+
+**Download pattern (browser):**
+```javascript
+function downloadEnv(content) {
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '.env';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+```
+
+**Confidence: HIGH** — `Blob`, `URL.createObjectURL`, `<a download>`, and `navigator.clipboard` are supported in all modern browsers (Chrome 86+, Firefox 82+, Safari 13.1+).
+
+---
+
+### Feature 3: Docker Pre-Flight Validation
+
+**What it is:** Before the gateway Docker container is considered healthy, validate that all required environment variables are set and the database connection is reachable. Expose this as both a startup check (fails fast with clear error) and a checklist UI in the setup wizard.
+
+**Key insight:** Two distinct layers:
+1. **Startup validation** — synchronous check at boot before registering routes, exits if invalid
+2. **Setup wizard checklist** — browser polls `/api/setup/preflight` to show green/red status per parameter
+
+#### 3a. Startup Validation
+
+**Recommendation: Zod schema validation on `process.env` — already in stack**
+
+```typescript
+import { z } from 'zod';
+
+const EnvSchema = z.object({
+  PORT: z.string().regex(/^\d+$/).default('3335'),
+  NODE_ENV: z.enum(['development', 'production', 'test']),
+  DATABASE_URL: z.string().url().startsWith('postgresql://'),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 chars'),
+  SYNC_USERNAME: z.string().min(1),
+  SYNC_PASSWORD: z.string().min(6),
 });
 
-sdk.start();
+const env = EnvSchema.safeParse(process.env);
+if (!env.success) {
+  console.error('Invalid environment configuration:');
+  env.error.issues.forEach(issue => {
+    console.error(`  ${issue.path.join('.')}: ${issue.message}`);
+  });
+  process.exit(1);
+}
 ```
 
-**@fastify/otel registration:**
-```typescript
-import fastifyOtel from '@fastify/otel';
+This provides per-variable error messages at startup. No library needed — Zod is already in the stack.
 
-// Must register BEFORE routes
-await fastify.register(fastifyOtel, {
-  // Options
-});
+**Why not `envalid` or `env-var`:**
+- These are popular env validation libraries
+- Zod already used throughout the codebase for schema validation
+- Adding a second validation library creates inconsistency
+- Zod provides identical functionality with better TypeScript integration
+
+**Confidence: HIGH** — Zod is already used in both modules.
+
+#### 3b. Pre-Flight API Endpoint
+
+**Recommendation: New Fastify route `/api/setup/preflight` — no new dependencies**
+
+Returns a structured checklist:
+
+```json
+{
+  "checks": {
+    "env_database_url": { "ok": true, "message": "Set" },
+    "env_jwt_secret": { "ok": true, "message": "32+ chars" },
+    "env_credentials": { "ok": false, "message": "SYNC_PASSWORD is default value" },
+    "db_connection": { "ok": true, "message": "Connected (2ms)" },
+    "db_tables": { "ok": true, "message": "4/4 required tables exist" }
+  },
+  "ready": false
+}
 ```
 
-**NOT recommended:**
-- `@opentelemetry/instrumentation-fastify` — deprecated, EOL June 2025
-- `@opentelemetry/auto-instrumentations-node` — too heavy, instruments everything
+The setup wizard polls this endpoint and renders a visual checklist. Implementation uses existing Prisma for DB check + `process.env` inspection.
+
+#### 3c. Docker Healthcheck
+
+**Recommendation: Existing `/health` endpoint + Node.js inline script — no new dependencies**
+
+The gateway already has `/health` endpoint (implemented in v1.1-rc2). The docker-compose already uses it:
+
+```yaml
+healthcheck:
+  test: ["CMD", "node", "-e",
+    "fetch('http://localhost:3335/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+  interval: 30s
+  timeout: 5s
+  start_period: 10s
+  retries: 3
+```
+
+This is sufficient. The pre-flight validation complements this by providing human-readable status in the wizard, not by replacing the Docker healthcheck.
+
+**Confidence: HIGH** — Pattern already implemented and working in the codebase.
 
 ---
 
-### 4. Auth Simplification
+## Complete Additions for v1.2
 
-**Context:** Simplify token setup and add diagnostics. NOT replacing auth system.
+| Library | Version | Purpose | Module | New? |
+|---------|---------|---------|--------|------|
+| `@fastify/rate-limit` | ^9.1.0 | Rate limit pairing exchange endpoint | Gateway | YES |
+| `node:crypto` | built-in | Pairing code generation | Gateway | No (built-in) |
+| `node:fs/promises` | built-in | .env file write/read | Gateway | No (already used) |
+| `zod` | ^3.23.8 | Env startup validation | Gateway | No (already installed) |
 
-**Existing stack is sufficient:**
-- `@fastify/jwt` v7.2.4 (gateway) — JWT verification
-- `bcryptjs` v2.4.3 (gateway) — password hashing
-- Session auth (sync dashboard) — unchanged
-
-**Recommended additions: None**
-
-Auth simplification is a workflow/UX improvement, not a library change:
-
-1. **Token diagnostics endpoint** — Use existing @fastify/jwt to decode and validate
-2. **Setup wizard** — UI flow in dashboard (shadcn components)
-3. **Token rotation** — Extend existing JWT implementation
-
-**Implementation notes:**
-- Add `/api/auth/diagnostics` endpoint for token validation/debugging
-- Add clear error messages for common auth failures
-- Consider adding `@fastify/rate-limit` (^10.0.0) for auth endpoint protection
-
-**Optional addition:**
-
-| Library | Version | Purpose | Notes |
-|---------|---------|---------|-------|
-| `@fastify/rate-limit` | ^10.0.0 | Rate limiting auth endpoints | Prevent brute force |
+**Total new npm dependencies: 1** (`@fastify/rate-limit`)
 
 ---
 
-## Integration Notes
+## Installation
 
-### How New Stack Integrates with Existing
-
-**PostgreSQL Adapter:**
-```
-objetiva-sync/
-  src/adapters/
-    sqlserver/           # Existing
-    postgresql/          # NEW - mirrors sqlserver structure
-      index.ts
-      postgresql-adapter.ts
-    index.ts             # Export both adapters
+```bash
+# Gateway only
+cd objetiva-sync-gateway
+npm install @fastify/rate-limit
 ```
 
-**shadcn/ui in Gateway Dashboard:**
-```
-objetiva-sync-gateway/dashboard/
-  src/
-    components/
-      ui/                # NEW - shadcn components
-        button.tsx
-        card.tsx
-        table.tsx
-      existing/          # Preserve existing components initially
-    lib/
-      utils.ts           # Already has cn() helper
-```
-
-**OpenTelemetry Setup:**
-```
-objetiva-sync/
-  src/
-    instrumentation.ts   # NEW - OTel bootstrap
-    server.ts            # Import instrumentation first
-
-objetiva-sync-gateway/
-  src/
-    instrumentation.ts   # NEW - OTel bootstrap
-    server.ts            # Import instrumentation first
-```
-
-### Version Compatibility Matrix
-
-| Dependency | objetiva-sync | objetiva-sync-gateway | Notes |
-|------------|---------------|----------------------|-------|
-| Node.js | >=20.0.0 | >=20.0.0 | Both aligned |
-| Fastify | 5.2.0 | 4.28.1 | Version mismatch OK for now |
-| `pg` | NEW ^8.18.0 | ^8.17.2 | Align to ^8.18.0 |
-| Pino | 9.5.0 | 9.5.0 | Aligned |
-| Zod | 3.23.8 | 3.23.8 | Aligned |
-| React | N/A | 18.3.1 | Gateway only |
-| Tailwind | N/A | 3.4.1 | Gateway dashboard only |
+No changes to `objetiva-sync` (sync module) package.json.
 
 ---
 
-## Not Recommended
-
-### Libraries to Avoid
+## What NOT to Add
 
 | Library | Why Not |
 |---------|---------|
-| `postgres` (Postgres.js) | Different API, prepared statement issues in AWS, smaller ecosystem |
-| `@opentelemetry/instrumentation-fastify` | Deprecated, EOL June 2025 |
-| `@opentelemetry/auto-instrumentations-node` | Too heavy, instruments unnecessary modules |
-| `better-auth` | Overkill for existing JWT setup, adds complexity |
-| `passport` | Express-centric, unnecessary for Fastify with @fastify/jwt |
-| `prisma` (for sync source) | Already using Drizzle for SQLite, raw pg fits adapter pattern better |
-
-### Approaches to Avoid
-
-| Approach | Why Not |
-|----------|---------|
-| Full HTMX->React rewrite of sync dashboard | Different purpose, HTMX is appropriate for sync module |
-| New auth library | Existing @fastify/jwt is sufficient, problem is UX not tooling |
-| GraphQL for schema endpoint | REST is simpler, already working |
-| Automatic schema sync (CDC) | Too complex, manual control is preferred per PROJECT.md |
+| `otplib` / `otp-generator` | TOTP/HOTP for user login — wrong abstraction for service pairing |
+| `node-cache` | 10 lines of Map+setTimeout replaces it without adding a dependency |
+| Redis | Single-instance container, no multi-process — overkill for ephemeral codes |
+| `dotenv-flow` / `dotenv-safe` | These read .env, not write it. Writing is fs.writeFile + template string |
+| `envalid` / `env-var` | Zod already in stack and provides identical env validation |
+| Alpine.js / htmx (for wizard) | Vanilla JS is sufficient for step visibility + form collection |
+| `@fastify/multipart` | No file uploads in wizard — .env download is client-side Blob |
+| `jsonwebtoken` | Gateway already uses `@fastify/jwt` — do not duplicate JWT handling |
 
 ---
 
-## Summary: Installation Commands
+## Integration Points
 
-**objetiva-sync (sync module):**
-```bash
-# PostgreSQL adapter
-npm install pg@^8.18.0
-npm install -D @types/pg@^8.16.0
+### Pairing Flow Integration
 
-# Observability
-npm install @fastify/otel @opentelemetry/sdk-node @opentelemetry/api \
-  @opentelemetry/instrumentation-http @opentelemetry/exporter-trace-otlp-http \
-  pino-opentelemetry-transport
+```
+Gateway (VPS/Docker)                    Sync (Windows)
+─────────────────────                   ──────────────
+/setup wizard (step 5)
+  → POST /api/pairing/generate
+  ← { code: "A3F8C21D", expiresIn: 300 }
+
+  Operator reads code on screen
+  Operator types code into sync dashboard
+
+                                        POST /api/pairing/exchange
+                                          { code: "A3F8C21D" }
+                                        ← { jwtSecret, username, password, gatewayUrl }
+
+                                        Sync writes to its own SQLite config
+                                        Sync auto-configures itself
 ```
 
-**objetiva-sync-gateway:**
-```bash
-# Observability
-npm install @fastify/otel @opentelemetry/sdk-node @opentelemetry/api \
-  @opentelemetry/instrumentation-http @opentelemetry/exporter-trace-otlp-http \
-  pino-opentelemetry-transport
+### .env Generation Integration
 
-# Dashboard (in dashboard/ subdirectory)
-cd dashboard
-npx shadcn@latest init
-npx shadcn@latest add button card table dialog alert badge tabs toast
 ```
+Gateway /setup wizard                   Gateway filesystem
+─────────────────────                   ──────────────────
+Step 1: PostgreSQL URL → validated
+Step 2: JWT secret → generated/entered
+Step 3: Admin password → entered
+Step 4: Traefik domain → entered
+Step 5: Preview complete .env
+
+[Download .env] → client Blob download → user uploads to VPS
+[Save to disk]  → POST /api/setup/save-env → fs.writeFile(.env)
+[Generate code] → POST /api/pairing/generate → { code, expiresIn }
+```
+
+### Drizzle Migration for Sync Side
+
+The sync module stores gateway credentials in its SQLite `config` table (key-value store with AES-256-GCM encryption, already implemented). No schema migration needed — pairing result is stored as encrypted config values using the existing `config` table pattern:
+
+```
+config: { key: 'gateway.url', value: '<encrypted>', encrypted: true }
+config: { key: 'gateway.jwtSecret', value: '<encrypted>', encrypted: true }
+config: { key: 'gateway.username', value: 'admin', encrypted: false }
+config: { key: 'gateway.password', value: '<encrypted>', encrypted: true }
+```
+
+This reuses the existing `config-repo.ts` encrypted storage pattern — no new code structure needed.
 
 ---
 
@@ -324,52 +391,36 @@ npx shadcn@latest add button card table dialog alert badge tabs toast
 
 | Area | Confidence | Rationale |
 |------|------------|-----------|
-| PostgreSQL adapter (pg) | HIGH | Library already in use, well-documented, matches existing pattern |
-| shadcn/ui setup | HIGH | Official docs verified, unified radix-ui package confirmed Feb 2026 |
-| @fastify/otel | HIGH | Official Fastify team package, replaces deprecated instrumentation |
-| OpenTelemetry SDK | MEDIUM | SDK versions change rapidly, verify latest before implementing |
-| Auth simplification | HIGH | No new libraries needed, workflow improvement only |
+| Pairing code generation (`crypto`) | HIGH | Built-in Node.js, CSPRNG, already used in codebase |
+| In-memory TTL store (Map) | HIGH | Sufficient for single-instance; matches session plugin internals |
+| `@fastify/rate-limit` | HIGH | Official Fastify package, same team, Fastify 5.x compatible |
+| .env generation (fs/promises) | HIGH | Already used in existing setup.ts |
+| Env startup validation (Zod) | HIGH | Already installed, same validation patterns used throughout |
+| Docker healthcheck (existing /health) | HIGH | Already implemented and working |
+| Wizard UI (vanilla JS) | HIGH | No framework needed, browser APIs sufficient |
 
 ---
 
 ## Sources
 
-**PostgreSQL Client:**
-- [pg - npm](https://www.npmjs.com/package/pg) - v8.18.0 latest
-- [node-postgres documentation](https://node-postgres.com/)
-- [node-postgres vs postgres.js comparison](https://github.com/brianc/node-postgres/issues/3391)
-
-**shadcn/ui:**
-- [shadcn/ui Installation](https://ui.shadcn.com/docs/installation)
-- [February 2026 - Unified Radix UI Package](https://ui.shadcn.com/docs/changelog/2026-02-radix-ui)
-- [radix-ui npm](https://www.npmjs.com/package/radix-ui) - v1.4.3 latest
-
-**OpenTelemetry:**
-- [OpenTelemetry Node.js](https://opentelemetry.io/docs/languages/js/getting-started/nodejs/)
-- [@fastify/otel GitHub](https://github.com/fastify/otel)
-- [@opentelemetry/sdk-node npm](https://www.npmjs.com/package/@opentelemetry/sdk-node) - v0.211.0 latest
-- [pino-opentelemetry-transport GitHub](https://github.com/pinojs/pino-opentelemetry-transport)
-
-**Fastify Auth:**
-- [@fastify/jwt GitHub](https://github.com/fastify/fastify-jwt)
-- [Fastify Ecosystem](https://fastify.dev/ecosystem/)
+- [Node.js crypto.randomBytes documentation](https://nodejs.org/api/crypto.html#cryptorandombytessize-callback) — official Node.js docs
+- [@fastify/rate-limit GitHub](https://github.com/fastify/fastify-rate-limit) — official Fastify team
+- [Fastify Ecosystem](https://fastify.dev/ecosystem/) — verified package compatibility
+- [Zod docs](https://zod.dev/) — env validation patterns
+- [MDN Blob API](https://developer.mozilla.org/en-US/docs/Web/API/Blob) — client-side download
+- [MDN Clipboard API](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText) — copy to clipboard
 
 ---
 
-## Previous Research (v1.0)
+## Previous Milestone Research (Preserved for Reference)
 
-The following research from v1.0 milestone remains valid and is preserved for reference:
-
-### PostgreSQL Schema Introspection & TypeScript Codegen
-
-For schema-driven synchronization, the stack uses:
-- **Introspection**: Prisma `db pull` (95% confidence)
-- **Zod Generation**: `zod-prisma-types` generator (90% confidence)
-- **Query Building**: Prisma Client (85% confidence)
-- **Drift Detection**: Prisma `migrate diff` in CI (85% confidence)
-
-This architecture is already implemented in v1.0/v1.1-rc and continues unchanged for v1.1-rc2.
+For v1.1-rc2 stack decisions (PostgreSQL adapter, shadcn/ui, OpenTelemetry, auth), see git history.
+The following remain valid and unchanged:
+- `pg` ^8.18.0 in sync module for PostgreSQL source adapter
+- `@fastify/otel` for observability (if implemented)
+- `radix-ui` ^1.4.3 for gateway dashboard (if dashboard modernization proceeds)
 
 ---
-*Researched: 2026-02-11 (v1.1-rc2)*
-*Previous research: 2026-01-26 (v1.0)*
+
+*Researched: 2026-03-04 (v1.2 Setup & Pairing milestone)*
+*Previous research: 2026-02-11 (v1.1-rc2)*
