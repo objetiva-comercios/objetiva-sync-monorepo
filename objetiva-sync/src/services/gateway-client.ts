@@ -11,16 +11,26 @@
 import { createSigner } from 'fast-jwt';
 import { logger } from '../utils/logger.js';
 import { getCorrelationId } from '../lib/correlation.js';
+import { getConfig } from '../store/repositories/config-repo.js';
+import { decrypt } from '../utils/crypto.js';
 
 /**
- * Gateway configuration from environment variables
- * Read lazily to ensure dotenv has loaded
+ * Gateway configuration: SQLite-first, falls back to environment variables.
+ * Read lazily to ensure dotenv has loaded.
  */
-function getGatewayUrl(): string {
+async function getGatewayUrl(): Promise<string> {
+  const record = await getConfig('REMOTE_API_URL');
+  if (record?.value) {
+    return record.value;
+  }
   return process.env.GATEWAY_URL || 'http://localhost:3335';
 }
 
-function getGatewayJwtSecret(): string | undefined {
+async function getGatewayJwtSecret(): Promise<string | undefined> {
+  const record = await getConfig('JWT_SECRET');
+  if (record) {
+    return record.encrypted ? decrypt(record.value) : record.value;
+  }
   return process.env.JWT_SECRET;
 }
 
@@ -33,8 +43,8 @@ function getGatewayJwtSecret(): string | undefined {
  * @returns JWT token string
  * @throws Error if JWT_SECRET is not configured
  */
-export function getJwtToken(): string {
-  const secret = getGatewayJwtSecret();
+export async function getJwtToken(): Promise<string> {
+  const secret = await getGatewayJwtSecret();
   if (!secret) {
     throw new Error(
       'JWT_SECRET environment variable is required for gateway authentication'
@@ -67,7 +77,7 @@ export function getJwtToken(): string {
  * @param syncId - The sync job ID to cancel
  */
 export async function notifyGatewayCancellation(syncId: string): Promise<void> {
-  const gatewayUrl = getGatewayUrl();
+  const gatewayUrl = await getGatewayUrl();
   const url = `${gatewayUrl}/api/sync/${syncId}/cancel`;
   const correlationId = getCorrelationId();
 

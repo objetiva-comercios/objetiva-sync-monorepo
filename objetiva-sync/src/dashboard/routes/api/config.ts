@@ -277,6 +277,105 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
   );
 
   /**
+   * POST /api/config/pairing/claim - Reclamar código de emparejamiento del gateway
+   */
+  app.post(
+    '/api/config/pairing/claim',
+    { preHandler: requireNoPasswordChange },
+    async (request, reply) => {
+      try {
+        const body = request.body as {
+          gatewayUrl?: string;
+          code?: string;
+        };
+
+        if (!body.gatewayUrl || !body.code) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Faltan campos requeridos (gatewayUrl, code)',
+          });
+        }
+
+        // Normalize: remove trailing slashes
+        const baseUrl = body.gatewayUrl.replace(/\/+$/, '');
+
+        let response: Response;
+        try {
+          response = await fetch(`${baseUrl}/api/pairing/claim`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: body.code }),
+            signal: AbortSignal.timeout(10000),
+          });
+        } catch {
+          return reply.status(502).send({
+            success: false,
+            error: 'No se pudo conectar al gateway',
+          });
+        }
+
+        if (response.status === 404) {
+          return reply.status(404).send({
+            success: false,
+            error: 'Codigo invalido o expirado',
+          });
+        }
+
+        if (response.status === 410) {
+          return reply.status(410).send({
+            success: false,
+            error: 'Codigo ya fue utilizado',
+          });
+        }
+
+        if (!response.ok) {
+          return reply.status(502).send({
+            success: false,
+            error: `Error del gateway: HTTP ${response.status}`,
+          });
+        }
+
+        const data = (await response.json()) as {
+          success: boolean;
+          gatewayUrl: string | null;
+          jwtSecret: string | null;
+          syncPassword: string | null;
+        };
+
+        if (!data.jwtSecret || !data.syncPassword) {
+          return reply.status(502).send({
+            success: false,
+            error: 'El gateway no tiene configurada la contrasena de sync (SYNC_PASSWORD)',
+          });
+        }
+
+        const resolvedUrl = data.gatewayUrl ?? baseUrl;
+
+        // Save 4 config keys: URL (plain), USERNAME (plain), PASSWORD (encrypted), JWT_SECRET (encrypted)
+        await Promise.all([
+          setConfig('REMOTE_API_URL', resolvedUrl),
+          setConfig('REMOTE_API_USERNAME', 'sync'),
+          setConfig('REMOTE_API_PASSWORD', encrypt(data.syncPassword), true),
+          setConfig('JWT_SECRET', encrypt(data.jwtSecret), true),
+        ]);
+
+        logger.info({ resolvedUrl }, 'Pairing claim exitoso — configuración guardada');
+
+        return reply.send({
+          success: true,
+          gatewayUrl: resolvedUrl,
+        });
+      } catch (error) {
+        logger.error({ error }, 'Error al procesar claim de emparejamiento');
+        return reply.status(502).send({
+          success: false,
+          error: 'No se pudo conectar al gateway',
+        });
+      }
+    }
+  );
+
+  /**
    * POST /api/config/api/test - Probar conexión a API
    */
   app.post(
