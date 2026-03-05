@@ -28,7 +28,7 @@
       <p class="text-sm text-gray-500 mb-4">Ingresa el codigo de 6 caracteres del gateway</p>
       <div class="flex flex-col sm:flex-row gap-3 items-start">
         <div class="flex-1 w-full">
-          <input id="pairing-gateway-url" type="text" placeholder="https://gateway.ejemplo.com"
+          <input id="pairing-gateway-url" type="text" placeholder="http://localhost:3335" value="http://localhost:3335"
             class="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
         </div>
         <div class="w-full sm:w-32">
@@ -476,14 +476,17 @@
         try {
           const testResponse = await fetch('/api/config/api/test', { method: 'POST' });
           const testResult = await testResponse.json();
+          console.log('DEBUG pairing auto-test result:', testResult);
           if (!testResult.success) {
-            showPairingResult('warning', 'Enlazado pero sin conexion -- verificar que el gateway este corriendo', true,
-              '<span>Enlazado pero sin conexion -- verificar que el gateway este corriendo.</span> ' +
+            const errMsg = testResult.error || 'Error de conexion desconocido';
+            showPairingResult('warning', errMsg, true,
+              '<span>Enlazado pero la prueba de conexion fallo: ' + errMsg + '</span> ' +
               '<button onclick="testApiConnection()" class="ml-2 underline font-medium">Reintentar</button>');
           } else {
             loadApiStatus();
           }
-        } catch {
+        } catch (testErr) {
+          console.error('DEBUG pairing auto-test error:', testErr);
           showPairingResult('warning', 'Enlazado pero sin conexion -- verificar que el gateway este corriendo', true,
             '<span>Enlazado pero sin conexion -- verificar que el gateway este corriendo.</span> ' +
             '<button onclick="testApiConnection()" class="ml-2 underline font-medium">Reintentar</button>');

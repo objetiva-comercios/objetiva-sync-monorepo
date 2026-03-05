@@ -1085,7 +1085,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         navigator.clipboard.writeText(code).then(function() {
           const btn = document.getElementById('pairing-copy-btn');
           btn.textContent = 'Copied!';
-          setTimeout(function() { btn.textContent = 'Copy Code'; }, 3000);
+          setTimeout(function() { btn.textContent = 'Copy Code'; }, 1000);
         });
       }
     }
