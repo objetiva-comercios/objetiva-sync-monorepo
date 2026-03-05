@@ -505,6 +505,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         <div class="btn-group">
           <button class="btn btn-secondary" onclick="goBack()">Back</button>
           <button class="btn btn-primary" onclick="downloadEnv()" id="download-btn">Download .env</button>
+          <button class="btn btn-secondary" onclick="copyEnvToClipboard()" id="copy-env-btn">Copy .env</button>
         </div>
 
         <p style="margin-top: 20px; font-size: 13px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;">
@@ -630,9 +631,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
             user: document.getElementById('db-user').value.trim(),
             dbName: document.getElementById('db-name').value.trim()
           };
-          // Clear password from DOM
-          document.getElementById('db-password').value = '';
-
           let infoMsg = 'Connection successful.';
           if (data.tables && data.tables.length > 0) {
             infoMsg += ' Tables found: ' + data.tables.join(', ') + '.';
@@ -779,7 +777,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         const data = await res.json();
 
         if (data.success) {
-          document.getElementById('admin-password').value = '';
           advanceStep();
         } else {
           showAlert('password-alert', 'error', data.error || 'Failed to set password.');
@@ -883,6 +880,23 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       window.location.href = '/api/setup/generate-env';
     }
 
+    async function copyEnvToClipboard() {
+      var btn = document.getElementById('copy-env-btn');
+      btn.disabled = true;
+      btn.textContent = 'Copying...';
+      try {
+        var res = await fetch('/api/setup/generate-env');
+        var text = await res.text();
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy .env'; btn.disabled = false; }, 2000);
+      } catch (err) {
+        showAlert('download-alert', 'error', 'Could not copy to clipboard: ' + err.message);
+        btn.textContent = 'Copy .env';
+        btn.disabled = false;
+      }
+    }
+
     // ── Pre-fill on load ──────────────────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', async function() {
       try {
@@ -953,6 +967,8 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         await tempPrisma.$connect()
         await tempPrisma.$queryRaw`SELECT 1`
 
+        // Persist DATABASE_URL so the summary step reads the current value
+        await writeEnvVar('DATABASE_URL', databaseUrl)
         logger.info({ databaseUrl: databaseUrl.replace(/:[^:@]+@/, ':***@') }, 'Conexión a DB exitosa')
 
         return reply.send({ success: true })
