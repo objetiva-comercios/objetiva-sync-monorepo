@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
 status: verifying
-stopped_at: Phase 21 context gathered
-last_updated: "2026-03-05T18:48:14.476Z"
+stopped_at: Completed 21-01-PLAN.md
+last_updated: "2026-03-05T19:28:02.654Z"
 last_activity: 2026-03-05 — 20-02 wizard step 6 Link Sync Client implemented and human-verified
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
   percent: 91
 ---
 
@@ -69,6 +69,8 @@ See: .planning/MILESTONES.md for full details
 - [Phase 20-gateway-pairing-routes]: 20-02: JWT token acquired in savePasswordAndNext() via /auth/login immediately after password save — password still in memory, stored in state.token for step 6 use
 - [Phase Phase 20]: Step 5 apply-config replaces download-only: writes .env in-place with .env.bak backup and hot-reloads process.env without Windows service restart
 - [Phase Phase 20]: POST /api/pairing/generate fetch sends no body and no Content-Type header — Fastify body parser rejects Content-Type: application/json with empty body
+- [Phase 21]: POST /api/config/pairing/claim validates null jwtSecret/syncPassword before saving — 502 with descriptive error, no partial saves
+- [Phase 21]: gateway-client.ts: getGatewayUrl and getGatewayJwtSecret made async reading REMOTE_API_URL/JWT_SECRET from SQLite first before env fallback
 
 ### Pending Todos
 
@@ -82,9 +84,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T18:48:14.471Z
-Stopped at: Phase 21 context gathered
-Resume file: .planning/phases/21-sync-pairing-client/21-CONTEXT.md
+Last session: 2026-03-05T19:28:02.649Z
+Stopped at: Completed 21-01-PLAN.md
+Resume file: None
 Next action: Phase 20 complete — ready for next phase
 
 ---
