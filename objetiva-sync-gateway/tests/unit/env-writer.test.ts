@@ -45,12 +45,16 @@ describe('env-writer — writeEnvVar', () => {
   }
 
   it('creates .env with header comment when file does not exist', async () => {
+    vi.resetModules()
+    const { writeEnvVar } = await import('../../src/utils/env-writer.js')
+
     const cwd = process.cwd
     process.cwd = () => tmpDir
-    const { writeEnvVar } = await import('../../src/utils/env-writer.js')
-    process.cwd = cwd
-
-    await writeEnvVar('TEST_KEY', 'simple')
+    try {
+      await writeEnvVar('TEST_KEY', 'simple')
+    } finally {
+      process.cwd = cwd
+    }
 
     const content = await fs.readFile(envPath, 'utf-8')
     expect(content).toContain('# .env')
