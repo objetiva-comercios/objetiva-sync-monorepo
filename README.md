@@ -1,6 +1,6 @@
 # Objetiva Sync Monorepo
 
-Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde sistemas ERP (SQL Server, PostgreSQL, MySQL, Excel) y los centraliza en una base de datos PostgreSQL a traves de un API Gateway REST. Diseñado para empresas que necesitan consolidar informacion de articulos, comprobantes y pagos desde multiples origenes hacia un unico repositorio de datos confiable. El sistema incluye un dashboard web para configuracion de consultas, monitoreo en tiempo real, gestion de sincronizaciones y soporte multi-origen con tracking de procedencia.
+Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde sistemas ERP (SQL Server, PostgreSQL, MySQL, Excel) y los centraliza en una base de datos PostgreSQL a traves de un API Gateway REST. Diseñado para empresas que necesitan consolidar informacion de articulos, comprobantes y pagos desde multiples origenes hacia un unico repositorio de datos confiable. Incluye un dashboard web para configuracion, monitoreo en tiempo real, un wizard de setup guiado para el gateway y enlace automatico sync-gateway via codigos de pairing.
 
 ## Tecnologias
 
@@ -8,20 +8,20 @@ Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde si
 |---|---|
 | Lenguaje | TypeScript 5.7 |
 | Runtime | Node.js >= 20 |
-| Framework HTTP | Fastify 5 (Sync), Fastify 4 (Gateway) |
+| Framework HTTP | Fastify 5 |
 | ORM (Sync) | Drizzle ORM + SQLite (better-sqlite3) |
 | ORM (Gateway) | Prisma 6 + PostgreSQL |
 | Validacion | Zod 3.23 |
 | Autenticacion | JWT (@fastify/jwt) + bcrypt |
 | Frontend (Sync) | HTMX + EJS + Tailwind CSS |
-| Frontend (Gateway) | React 18 + Vite + Tailwind CSS |
 | Logging | Pino |
 | Metricas | prom-client (Prometheus) |
 | Scheduling | node-cron |
-| Drivers ERP | mssql, msnodesqlv8, pg, mysql2 |
+| Drivers ERP | mssql, msnodesqlv8, pg |
 | Testing | Vitest |
 | Contenedores | Docker (multi-stage build) |
 | Reverse Proxy | Traefik |
+| Rate Limiting | @fastify/rate-limit |
 | Monorepo | npm workspaces |
 
 ## Requisitos previos
@@ -112,7 +112,7 @@ ADMIN_PASSWORD=cambiar123
 LOG_LEVEL=info
 LOG_FILE=./logs/sync.log
 
-# Conexion al Gateway
+# Conexion al Gateway (configurable via dashboard o pairing)
 REMOTE_API_URL=http://localhost:3335
 REMOTE_API_USERNAME=admin
 REMOTE_API_PASSWORD=tu_password_aqui
@@ -149,6 +149,9 @@ SYNC_PASSWORD=tu_password_aqui
 # Logging
 LOG_LEVEL=info
 
+# URL publica del gateway (requerida para pairing)
+GATEWAY_PUBLIC_URL=https://sync-gateway.tu-dominio.com
+
 # Aplicacion
 APP_NAME=Objetiva Sync Gateway
 
@@ -156,9 +159,12 @@ APP_NAME=Objetiva Sync Gateway
 SYNC_ENTITIES=
 ```
 
-> **Nota:** El `JWT_SECRET` debe ser identico en ambos servicios. Generarlo con: `openssl rand -hex 32`
-
-> **Docker:** Si el Gateway corre en Docker, el `DATABASE_URL` debe usar el hostname del contenedor PostgreSQL (no `localhost`). El `HOST` debe ser `0.0.0.0`.
+| Variable | Modulo | Descripcion |
+|---|---|---|
+| `JWT_SECRET` | Ambos | Debe ser identico en sync y gateway. Generar con: `openssl rand -hex 32` |
+| `DATABASE_URL` | Gateway | En Docker, usar el hostname del contenedor PostgreSQL (no `localhost`) |
+| `GATEWAY_PUBLIC_URL` | Gateway | URL publica accesible desde sync. Requerida para el flujo de pairing |
+| `ENCRYPTION_KEY` | Sync | Se auto-genera en el primer arranque. Encripta datos sensibles en SQLite |
 
 ## Uso
 
@@ -170,13 +176,10 @@ SYNC_ENTITIES=
 | `npm run build` | Compila para produccion |
 | `npm start` | Ejecuta la build de produccion |
 | `npm test` | Ejecuta tests con Vitest |
-| `npm run test:coverage` | Tests con reporte de cobertura |
 | `npm run test:e2e` | Tests end-to-end contra ERP real |
 | `npm run db:generate` | Genera migraciones de Drizzle |
 | `npm run db:migrate` | Ejecuta migraciones de SQLite |
 | `npm run db:studio` | Abre Drizzle Studio (inspector de BD) |
-| `npm run lint` | Ejecuta ESLint |
-| `npm run format` | Formatea codigo con Prettier |
 
 ### objetiva-sync-gateway (API Gateway)
 
@@ -186,7 +189,6 @@ SYNC_ENTITIES=
 | `npm run build` | Compila TypeScript |
 | `npm start` | Ejecuta la build de produccion |
 | `npm test` | Ejecuta tests con Vitest |
-| `npm run test:coverage` | Tests con reporte de cobertura |
 | `npm run prisma:generate` | Genera el cliente Prisma |
 | `npm run prisma:push` | Aplica el schema a PostgreSQL |
 | `npm run prisma:migrate` | Crea una migracion de Prisma |
@@ -201,7 +203,6 @@ SYNC_ENTITIES=
 | `docker compose build --no-cache` | Construir imagen desde cero |
 | `docker compose up -d` | Iniciar en background |
 | `docker compose logs -f sync-gateway` | Ver logs en tiempo real |
-| `docker compose ps` | Estado del contenedor |
 | `docker compose restart sync-gateway` | Reiniciar servicio |
 | `curl http://localhost:3335/health` | Verificar salud |
 | `curl http://localhost:3335/metrics` | Metricas Prometheus |
@@ -241,12 +242,13 @@ SYNC_ENTITIES=
 ├── objetiva-sync-gateway/            # API Gateway + persistencia PostgreSQL
 │   ├── src/
 │   │   ├── codegen/                  # Introspection PostgreSQL -> Zod/Prisma
+│   │   ├── config/                   # Entidades y configuracion
 │   │   ├── lib/                      # Utilidades (logger, Prisma, metricas)
 │   │   ├── middleware/               # JWT auth, manejo de errores
-│   │   ├── routes/                   # Endpoints de ingesta, auth, schemas y salud
-│   │   ├── services/                 # Logica de ingesta (upserts con origin tracking)
+│   │   ├── routes/                   # Endpoints (ingesta, auth, schemas, setup, pairing)
+│   │   ├── services/                 # Logica de ingesta y pairing
+│   │   ├── utils/                    # Env writer, system state
 │   │   └── app.ts / server.ts        # Setup y arranque de Fastify
-│   ├── dashboard/                    # Dashboard React (Vite + Tailwind)
 │   ├── prisma/
 │   │   ├── schema.prisma             # Modelos PostgreSQL
 │   │   └── migrations/               # Historial de migraciones
@@ -287,6 +289,21 @@ El Gateway expone los siguientes endpoints en el puerto `3335`:
 | GET | `/api/schemas` | Obtiene los schemas de validacion vigentes |
 | GET | `/api/schemas/:entityType` | Schema de validacion para una entidad especifica |
 
+### Setup y pairing
+
+| Metodo | Ruta | Descripcion |
+|---|---|---|
+| GET | `/setup` | Wizard de configuracion inicial (6 pasos) |
+| GET | `/api/setup/preflight` | Checklist de validacion pre-vuelo |
+| GET | `/api/setup/status` | Estado actual de la configuracion |
+| POST | `/api/setup/test-db` | Prueba conexion a PostgreSQL |
+| POST | `/api/setup/save-domain` | Guarda URL publica del gateway |
+| POST | `/api/setup/save-jwt` | Guarda JWT secret |
+| POST | `/api/setup/set-password` | Establece contraseña del admin |
+| POST | `/api/setup/apply-config` | Aplica configuracion al .env |
+| POST | `/api/pairing/generate` | Genera codigo de pairing (6 chars, 10 min TTL) |
+| POST | `/api/pairing/claim` | Consume codigo y devuelve credenciales (rate-limited) |
+
 ### Monitoreo
 
 | Metodo | Ruta | Descripcion |
@@ -295,13 +312,6 @@ El Gateway expone los siguientes endpoints en el puerto `3335`:
 | GET | `/metrics` | Metricas en formato Prometheus |
 | GET | `/api/stats` | Estadisticas de sincronizacion |
 | GET | `/api/logs` | Logs recientes en formato JSON |
-
-### Dashboard
-
-| Metodo | Ruta | Descripcion |
-|---|---|---|
-| GET | `/` | Dashboard de monitoreo (React) |
-| GET | `/setup` | Wizard de configuracion inicial |
 
 ## Scripts y automatizacion
 
@@ -354,6 +364,25 @@ Ver `objetiva-sync-gateway/DEPLOY.md` para la guia completa de despliegue, confi
 6. El **Gateway** valida con Zod e inserta/actualiza con Prisma (origin tracking)
 7. La **RetryQueue** reintenta automaticamente los lotes fallidos
 
+## Flujo de setup y pairing
+
+```
+┌──────────────────┐                          ┌──────────────────┐
+│  Gateway /setup  │                          │  Sync Dashboard  │
+│  (wizard 6 pasos)│                          │  Config > API    │
+└────────┬─────────┘                          └────────┬─────────┘
+         │                                             │
+         │  1. Configura DB, dominio, JWT, password    │
+         │  2. Aplica .env                             │
+         │  3. Genera codigo de 6 chars ──────────────►│
+         │                                             │  4. Ingresa codigo + URL
+         │      5. POST /api/pairing/claim ◄───────────│
+         │      6. Devuelve JWT + credenciales ────────►│
+         │                                             │  7. Guarda config en SQLite
+         │                                             │  8. Test de conexion automatico
+         └─────────────────────────────────────────────┘
+```
+
 ## Entidades sincronizadas
 
 | Entidad | Clave primaria | Descripcion |
@@ -367,8 +396,8 @@ Todas las entidades incluyen campos de auditoria (`erp_creado`, `erp_actualizado
 
 ## Estado del proyecto
 
-Milestone actual: **v1.1-rc2** completado (16 de 16 fases finalizadas, 43 planes ejecutados).
+Milestone actual: **v1.2 Setup & Pairing** — 4 de 4 fases completadas, 8 planes ejecutados.
 
 Milestones anteriores: v1.0 (2026-02-03), v1.1-rc (2026-02-05), v1.1-rc2 (2026-02-18).
 
-Pendiente: verificacion humana con datos de produccion (sync de 100K+ registros, multi-origen, token refresh) para el release de v1.1 estable.
+Pendiente: verificacion humana con datos de produccion para el release de v1.1 estable, y despliegue del gateway v1.2 en VPS.

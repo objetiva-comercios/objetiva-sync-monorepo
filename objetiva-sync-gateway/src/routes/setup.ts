@@ -66,12 +66,17 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     .header {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 28px 32px 20px;
+      padding: 16px 32px;
       text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
     }
 
-    .header h1 { font-size: 24px; margin-bottom: 6px; }
-    .header p { opacity: 0.85; font-size: 13px; }
+    .header h1 { font-size: 20px; }
+    .header .sep { opacity: 0.5; font-size: 18px; font-weight: 300; }
+    .header p { opacity: 0.85; font-size: 14px; }
 
     /* Progress stepper */
     .stepper {
@@ -231,6 +236,16 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
     .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; align-items: center; }
 
+    /* Persistent nav bar below stepper */
+    .wizard-nav {
+      padding: 10px 32px;
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .wizard-nav .nav-step { display: none; }
+    .wizard-nav .nav-step.active { display: flex; justify-content: space-between; align-items: center; }
+    .wizard-nav .btn { padding: 8px 16px; font-size: 13px; }
+
     .alert {
       padding: 12px 16px;
       border-radius: 8px;
@@ -336,6 +351,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
   <div class="container">
     <div class="header">
       <h1>${process.env.APP_NAME || 'Objetiva Sync Gateway'}</h1>
+      <span class="sep">/</span>
       <p>Setup Wizard</p>
     </div>
 
@@ -364,6 +380,34 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       <div class="stepper-item upcoming" id="step-indicator-5">
         <div class="stepper-dot">6</div>
         <div class="stepper-label">Link Sync</div>
+      </div>
+    </div>
+
+    <!-- Persistent navigation below stepper -->
+    <div class="wizard-nav" id="wizard-nav">
+      <div class="nav-step active" id="nav-step-0">
+        <span></span>
+        <button class="btn btn-primary" onclick="testDbAndNext()" id="test-db-btn">Test Connection &amp; Next &rarr;</button>
+      </div>
+      <div class="nav-step" id="nav-step-1">
+        <button class="btn btn-secondary" onclick="goBack()" id="domain-back-btn">&larr; Back</button>
+        <button class="btn btn-primary" onclick="saveDomainAndNext()" id="save-domain-btn">Save &amp; Next &rarr;</button>
+      </div>
+      <div class="nav-step" id="nav-step-2">
+        <button class="btn btn-secondary" onclick="goBack()">&larr; Back</button>
+        <button class="btn btn-primary" onclick="saveJwtAndNext()" id="save-jwt-btn">Save &amp; Next &rarr;</button>
+      </div>
+      <div class="nav-step" id="nav-step-3">
+        <button class="btn btn-secondary" onclick="goBack()">&larr; Back</button>
+        <button class="btn btn-primary" onclick="savePasswordAndNext()" id="save-password-btn">Save &amp; Next &rarr;</button>
+      </div>
+      <div class="nav-step" id="nav-step-4">
+        <button class="btn btn-secondary" onclick="goBack()">&larr; Back</button>
+        <button class="btn btn-primary" onclick="applyConfig()" id="apply-btn">Apply &amp; Continue &rarr;</button>
+      </div>
+      <div class="nav-step" id="nav-step-5">
+        <button class="btn btn-secondary" onclick="goBack()">&larr; Back</button>
+        <span></span>
       </div>
     </div>
 
@@ -403,11 +447,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
         <div id="db-alert" class="alert"></div>
 
-        <div class="btn-group">
-          <button class="btn btn-primary" onclick="testDbAndNext()" id="test-db-btn">
-            Test Connection &amp; Next
-          </button>
-        </div>
       </div>
 
       <!-- Step 1: Domain -->
@@ -439,11 +478,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
         <div id="domain-alert" class="alert"></div>
 
-        <div class="btn-group">
-          <button class="btn btn-secondary" onclick="goBack()" id="domain-back-btn">Back</button>
-          <button class="btn btn-primary" onclick="saveDomainAndNext()" id="save-domain-btn">Save &amp; Next</button>
-          <button class="btn btn-warning" onclick="skipDomain()" id="skip-domain-btn">Skip (not recommended)</button>
-        </div>
       </div>
 
       <!-- Step 2: JWT Secret -->
@@ -453,18 +487,16 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
         <div class="form-group">
           <label for="jwt-secret">JWT Secret</label>
-          <input type="text" id="jwt-secret" placeholder="64-character hex string">
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="jwt-secret" placeholder="64-character hex string" style="flex:1;">
+            <button class="btn btn-secondary" onclick="generateJwtSecret()" style="white-space:nowrap;flex-shrink:0;">Generate</button>
+          </div>
           <div id="jwt-configured" class="configured-indicator"></div>
           <div class="input-hint">Minimum 32 characters. Use "Generate" to create a secure random value.</div>
         </div>
 
         <div id="jwt-alert" class="alert"></div>
 
-        <div class="btn-group">
-          <button class="btn btn-secondary" onclick="goBack()">Back</button>
-          <button class="btn btn-secondary" onclick="generateJwtSecret()">Generate JWT Secret</button>
-          <button class="btn btn-primary" onclick="saveJwtAndNext()" id="save-jwt-btn">Save &amp; Next</button>
-        </div>
       </div>
 
       <!-- Step 3: Password -->
@@ -484,10 +516,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
         <div id="password-alert" class="alert"></div>
 
-        <div class="btn-group">
-          <button class="btn btn-secondary" onclick="goBack()">Back</button>
-          <button class="btn btn-primary" onclick="savePasswordAndNext()" id="save-password-btn">Save &amp; Next</button>
-        </div>
       </div>
 
       <!-- Step 4: Apply Configuration -->
@@ -500,10 +528,9 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
         <div id="summary-container" style="display: none;">
           <div class="summary-grid" id="summary-grid"></div>
-        </div>
-
-        <div id="domain-skip-warning" class="alert alert-warning" style="display: none;">
-          Warning: Gateway public URL is not configured. Pairing with the sync client will not work until a domain is set.
+          <div style="text-align:right;margin-top:12px;">
+            <button class="btn btn-secondary" onclick="copyEnvToClipboard()" id="copy-env-btn" style="font-size:12px;padding:6px 12px;">Copy .env</button>
+          </div>
         </div>
 
         <!-- Apply status indicator (hidden by default) -->
@@ -519,11 +546,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           </div>
         </div>
 
-        <div class="btn-group" id="apply-btn-group">
-          <button class="btn btn-secondary" onclick="goBack()">Back</button>
-          <button class="btn btn-primary" onclick="applyConfig()" id="apply-btn">Apply Configuration &amp; Continue</button>
-          <button class="btn btn-secondary" onclick="copyEnvToClipboard()" id="copy-env-btn">Copy .env</button>
-        </div>
       </div>
 
       <!-- Step 5: Link Sync Client -->
@@ -542,7 +564,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         <!-- Code display (hidden until generated) -->
         <div id="pairing-code-container" style="display:none;">
           <div style="text-align:center;margin:24px 0;">
-            <div id="pairing-code-display" style="font-family:monospace;font-size:2.5rem;font-weight:700;letter-spacing:0.3em;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:20px 32px;display:inline-block;user-select:all;"></div>
+            <div id="pairing-code-display" style="font-family:monospace;font-size:2.5rem;font-weight:700;letter-spacing:0.3em;background:#fde5be;border:3px solid #f59e0b;border-radius:12px;padding:20px 32px;display:inline-block;user-select:all;color:#067b54;"></div>
           </div>
           <div style="text-align:center;margin:12px 0;">
             <button type="button" id="pairing-copy-btn" class="btn btn-secondary" onclick="copyPairingCode()" style="margin-right:12px;">Copy Code</button>
@@ -552,9 +574,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           <div id="pairing-error" style="display:none;color:#ef4444;text-align:center;margin:8px 0;"></div>
         </div>
 
-        <div class="btn-group" style="margin-top:24px;">
-          <button class="btn btn-secondary" onclick="goBack()">Back</button>
-        </div>
       </div>
 
     </div>
@@ -591,8 +610,13 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       document.querySelectorAll('.wizard-step').forEach(function(el) {
         el.classList.remove('active');
       });
+      document.querySelectorAll('.nav-step').forEach(function(el) {
+        el.classList.remove('active');
+      });
       const target = document.getElementById('wizard-step-' + index);
       if (target) target.classList.add('active');
+      const nav = document.getElementById('nav-step-' + index);
+      if (nav) nav.classList.add('active');
       state.currentStep = index;
       updateStepper();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -739,7 +763,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         const data = await res.json();
 
         if (res.ok && data.success) {
-          state.stepData.domainSkipped = false;
           state.stepData.gatewayUrl = data.url;
           advanceStep();
         } else {
@@ -751,12 +774,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         btn.disabled = false;
         btn.textContent = 'Save & Next';
       }
-    }
-
-    function skipDomain() {
-      showAlert('domain-alert', 'warning', 'Without a public URL, pairing will not work. You can configure this later by re-running the wizard.');
-      state.stepData.domainSkipped = true;
-      setTimeout(function() { advanceStep(); }, 1200);
     }
 
     // ── Step 2: JWT Secret ────────────────────────────────────────────────────
@@ -857,8 +874,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     async function loadDownloadSummary() {
       const loadingEl = document.getElementById('summary-loading');
       const containerEl = document.getElementById('summary-container');
-      const skipWarningEl = document.getElementById('domain-skip-warning');
-
       loadingEl.style.display = 'block';
       containerEl.style.display = 'none';
 
@@ -895,12 +910,8 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         // Gateway URL
         if (data.gatewayUrl) {
           addSummaryItem('Gateway URL', data.gatewayUrl, false);
-          skipWarningEl.style.display = 'none';
         } else {
           addSummaryItem('Gateway URL', 'Not configured', true);
-          if (state.stepData.domainSkipped) {
-            skipWarningEl.style.display = 'block';
-          }
         }
 
         // JWT
@@ -964,7 +975,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     // ── Step 4: Apply Configuration ────────────────────────────────────────────
     async function applyConfig() {
       const btn = document.getElementById('apply-btn');
-      const btnGroup = document.getElementById('apply-btn-group');
+      const btnGroup = document.getElementById('nav-step-4');
       const statusEl = document.getElementById('apply-status');
       const spinnerEl = document.getElementById('apply-spinner');
       const successEl = document.getElementById('apply-success');
@@ -1012,7 +1023,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       const errorEl = document.getElementById('pairing-error');
 
       // Check if domain was configured
-      const hasDomain = state.stepData.gatewayUrl && !state.stepData.domainSkipped;
+      const hasDomain = !!state.stepData.gatewayUrl;
 
       if (!hasDomain) {
         warningEl.style.display = 'block';

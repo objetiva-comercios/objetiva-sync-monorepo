@@ -31,3 +31,7 @@ logs/
 
 # Prisma
 .prisma/
+
+# Env backups
+*.env.bak
+.env.bak

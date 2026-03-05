@@ -26,18 +26,19 @@
     <div class="bg-white border border-gray-200 rounded-lg mb-6 px-4 py-5 sm:p-6">
       <h3 class="text-base font-medium text-gray-900 mb-1">Enlazar via codigo</h3>
       <p class="text-sm text-gray-500 mb-4">Ingresa el codigo de 6 caracteres del gateway</p>
-      <div class="flex flex-col sm:flex-row gap-3 items-start">
+      <div class="flex flex-col sm:flex-row gap-3 items-stretch">
         <div class="flex-1 w-full">
           <input id="pairing-gateway-url" type="text" placeholder="http://localhost:3335" value="http://localhost:3335"
-            class="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+            class="block w-full border border-gray-300 rounded-lg py-2.5 px-3 text-base font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-full" />
         </div>
-        <div class="w-full sm:w-32">
+        <div class="w-full sm:w-40">
           <input id="pairing-code" type="text" maxlength="6" placeholder="ABC123"
             oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6)"
-            class="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+            class="block w-full rounded-lg py-2.5 px-3 text-base font-mono font-bold uppercase focus:outline-none focus:ring-2 focus:ring-amber-400 h-full"
+            style="background:#fde5be;border:3px solid #f59e0b;color:#067b54;letter-spacing:0.2em;text-align:center;" />
         </div>
         <button id="pairing-btn" onclick="claimPairingCode()"
-          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap">
+          class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap">
           <i data-lucide="link" class="w-4 h-4 mr-2"></i>
           Conectar
         </button>
