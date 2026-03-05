@@ -522,7 +522,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         <div class="btn-group" id="apply-btn-group">
           <button class="btn btn-secondary" onclick="goBack()">Back</button>
           <button class="btn btn-primary" onclick="applyConfig()" id="apply-btn">Apply Configuration &amp; Continue</button>
-          <button class="btn btn-secondary" onclick="downloadEnv()" id="download-btn">Download .env</button>
           <button class="btn btn-secondary" onclick="copyEnvToClipboard()" id="copy-env-btn">Copy .env</button>
         </div>
       </div>
@@ -980,7 +979,8 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       try {
         const res = await fetch('/api/setup/apply-config', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
         });
         const data = await res.json();
 
