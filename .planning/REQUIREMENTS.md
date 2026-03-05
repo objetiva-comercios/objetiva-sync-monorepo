@@ -32,7 +32,7 @@
 
 ### Sync Pairing Client
 
-- [ ] **SPC-01**: Campo de entrada de código de pairing en la configuración de API del sync dashboard
+- [x] **SPC-01**: Campo de entrada de código de pairing en la configuración de API del sync dashboard
 - [x] **SPC-02**: Botón de claim que ejecuta el intercambio y muestra resultado (éxito/error)
 - [x] **SPC-03**: Verificación automática de conexión después de pairing exitoso
 
@@ -79,7 +79,7 @@
 | PAIR-03 | Phase 20 | Complete |
 | PAIR-04 | Phase 20 | Complete |
 | PAIR-05 | Phase 20 | Complete |
-| SPC-01 | Phase 21 | Pending |
+| SPC-01 | Phase 21 | Complete |
 | SPC-02 | Phase 21 | Complete |
 | SPC-03 | Phase 21 | Complete |
 

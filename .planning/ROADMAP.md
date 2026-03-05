@@ -44,7 +44,7 @@ Note: Phase 17 (Dashboard Modernization with shadcn/React) was implemented but r
 - [x] **Phase 18: Pre-Flight Validator** - Gateway validates all startup requirements before accepting traffic (completed 2026-03-05)
 - [x] **Phase 19: Setup Wizard Enhancement** - Wizard guides operator through complete gateway configuration with .env generation (completed 2026-03-05)
 - [x] **Phase 20: Gateway Pairing Routes** - Gateway generates short-lived pairing codes; claim endpoint transfers credentials to sync (completed 2026-03-05)
-- [ ] **Phase 21: Sync Pairing Client** - Sync dashboard lets operator enter pairing code and link to gateway automatically
+- [x] **Phase 21: Sync Pairing Client** - Sync dashboard lets operator enter pairing code and link to gateway automatically (completed 2026-03-05)
 
 ## Phase Details
 
@@ -101,7 +101,7 @@ Plans:
   1. The API configuration section of the sync dashboard contains a "Link via code" input field and a "Connect" button
   2. Entering a valid pairing code and clicking "Connect" shows a success message and the sync's SQLite config is updated with the received gateway URL and credentials — without restarting the sync service
   3. After a successful pairing, the sync automatically runs a connection test and shows the result (connected / failed) in the same UI section
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 21-01-PLAN.md — Backend: claim proxy route + gateway-client SQLite-first config update (TDD)
 - [ ] 21-02-PLAN.md — Frontend: pairing card UI in api.ejs with claim flow + human verify
@@ -119,7 +119,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21
 | 18. Pre-Flight Validator | 2/2 | Complete    | 2026-03-05 | - |
 | 19. Setup Wizard Enhancement | 2/2 | Complete    | 2026-03-05 | - |
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
-| 21. Sync Pairing Client | 1/2 | In Progress|  | - |
+| 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
 
 ---
 *Last updated: 2026-03-05 — Phase 21 planned (2 plans)*
