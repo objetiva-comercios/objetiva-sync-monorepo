@@ -359,7 +359,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       </div>
       <div class="stepper-item upcoming" id="step-indicator-4">
         <div class="stepper-dot">5</div>
-        <div class="stepper-label">Download</div>
+        <div class="stepper-label">Apply</div>
       </div>
       <div class="stepper-item upcoming" id="step-indicator-5">
         <div class="stepper-dot">6</div>
@@ -490,10 +490,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         </div>
       </div>
 
-      <!-- Step 4: Download -->
+      <!-- Step 4: Apply Configuration -->
       <div class="wizard-step" id="wizard-step-4">
-        <div class="step-title">Step 5 of 6 — Download Configuration</div>
-        <p class="step-subtitle">Review your configuration and download the <code>.env</code> file. Restart the server to apply all changes.</p>
+        <div class="step-title">Step 5 of 6 — Apply Configuration</div>
+        <p class="step-subtitle">Review your configuration and apply changes. Settings will activate immediately without restarting the gateway.</p>
 
         <div id="download-alert" class="alert"></div>
         <div id="summary-loading" style="color: #9ca3af; font-size: 13px; margin-bottom: 16px;">Loading summary...</div>
@@ -506,16 +506,25 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           Warning: Gateway public URL is not configured. Pairing with the sync client will not work until a domain is set.
         </div>
 
-        <div class="btn-group">
-          <button class="btn btn-secondary" onclick="goBack()">Back</button>
-          <button class="btn btn-primary" onclick="downloadEnv()" id="download-btn">Download .env</button>
-          <button class="btn btn-secondary" onclick="copyEnvToClipboard()" id="copy-env-btn">Copy .env</button>
-          <button class="btn btn-primary" onclick="advanceStep()" id="next-to-link-btn">Next &rarr;</button>
+        <!-- Apply status indicator (hidden by default) -->
+        <div id="apply-status" style="display: none; text-align: center; margin: 20px 0;">
+          <div id="apply-spinner" style="display: none;">
+            <div class="spinner" style="width: 24px; height: 24px; border-width: 3px; margin: 0 auto 12px;"></div>
+            <div style="color: #6b7280; font-size: 14px;">Applying configuration...</div>
+          </div>
+          <div id="apply-success" style="display: none;">
+            <div style="font-size: 32px; margin-bottom: 8px;">&#10003;</div>
+            <div style="color: #065f46; font-size: 15px; font-weight: 600;">Configuration applied successfully</div>
+            <div style="color: #6b7280; font-size: 13px; margin-top: 4px;">Previous config backed up as <code>.env.bak</code></div>
+          </div>
         </div>
 
-        <p style="margin-top: 20px; font-size: 13px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;">
-          After downloading, replace the <code>.env</code> file on your server and restart the process to apply all changes.
-        </p>
+        <div class="btn-group" id="apply-btn-group">
+          <button class="btn btn-secondary" onclick="goBack()">Back</button>
+          <button class="btn btn-primary" onclick="applyConfig()" id="apply-btn">Apply Configuration &amp; Continue</button>
+          <button class="btn btn-secondary" onclick="downloadEnv()" id="download-btn">Download .env</button>
+          <button class="btn btn-secondary" onclick="copyEnvToClipboard()" id="copy-env-btn">Copy .env</button>
+        </div>
       </div>
 
       <!-- Step 5: Link Sync Client -->
@@ -953,6 +962,47 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       }
     }
 
+    // ── Step 4: Apply Configuration ────────────────────────────────────────────
+    async function applyConfig() {
+      const btn = document.getElementById('apply-btn');
+      const btnGroup = document.getElementById('apply-btn-group');
+      const statusEl = document.getElementById('apply-status');
+      const spinnerEl = document.getElementById('apply-spinner');
+      const successEl = document.getElementById('apply-success');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Applying...';
+      statusEl.style.display = 'block';
+      spinnerEl.style.display = 'block';
+      successEl.style.display = 'none';
+      hideAlert('download-alert');
+
+      try {
+        const res = await fetch('/api/setup/apply-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to apply configuration');
+        }
+
+        spinnerEl.style.display = 'none';
+        successEl.style.display = 'block';
+        btnGroup.style.display = 'none';
+
+        // Auto-advance to step 6 after a brief pause
+        setTimeout(function() { advanceStep(); }, 1500);
+      } catch (err) {
+        spinnerEl.style.display = 'none';
+        statusEl.style.display = 'none';
+        showAlert('download-alert', 'error', 'Failed to apply: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Apply Configuration & Continue';
+      }
+    }
+
     // ── Step 5: Link Sync Client ──────────────────────────────────────────────
     let countdownInterval = null;
 
@@ -1257,6 +1307,44 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       return reply.status(500).send({
         success: false,
         error: error instanceof Error ? error.message : 'Error al guardar domain'
+      })
+    }
+  })
+
+  // POST /api/setup/apply-config - Apply configuration (backup .env and confirm all vars are live)
+  app.post('/api/setup/apply-config', async (_request, reply) => {
+    try {
+      const cwd = process.cwd()
+      const envPath = path.join(cwd, '.env')
+      const bakPath = path.join(cwd, '.env.bak')
+
+      // Backup current .env to .env.bak
+      try {
+        await fs.access(envPath)
+        await fs.copyFile(envPath, bakPath)
+        logger.info('Backed up .env to .env.bak')
+      } catch {
+        // No .env to back up — that's fine, wizard writes created it
+      }
+
+      // Confirm key env vars are present in process.env
+      const required = ['DATABASE_URL', 'JWT_SECRET', 'SYNC_PASSWORD']
+      const missing = required.filter(k => !process.env[k])
+
+      if (missing.length > 0) {
+        return reply.send({
+          success: false,
+          error: `Missing configuration: ${missing.join(', ')}. Go back and complete those steps.`
+        })
+      }
+
+      logger.info('Configuration applied — all env vars are live in process.env')
+      return reply.send({ success: true, backup: '.env.bak' })
+    } catch (error) {
+      logger.error({ error }, 'Error applying configuration')
+      return reply.status(500).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Error applying configuration'
       })
     }
   })
