@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
 status: executing
-stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-03-05T12:18:02.484Z"
+stopped_at: "Checkpoint reached in 19-02-PLAN.md (Task 2: human-verify)"
+last_updated: "2026-03-05T12:25:25.932Z"
 last_activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 91
 ---
 
@@ -60,6 +60,8 @@ See: .planning/MILESTONES.md for full details
 - [Phase 19]: assembleGatewayUrl omits port when it matches protocol default (443/https, 80/http)
 - [Phase 19]: save-domain uses safeParse (not .parse()) for clean 400 responses on Zod validation errors
 - [Phase 19]: generate-env merges .env.example template with current .env values, keeps comments from example
+- [Phase 19-setup-wizard-enhancement]: 19-02: Password cleared from DOM after DB test, never in stepData (security)
+- [Phase 19-setup-wizard-enhancement]: 19-02: Download step re-fetches /api/setup/status on enter for current values
 
 ### Pending Todos
 
@@ -73,8 +75,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T12:17:49.003Z
-Stopped at: Completed 19-01-PLAN.md
+Last session: 2026-03-05T12:25:25.927Z
+Stopped at: Checkpoint reached in 19-02-PLAN.md (Task 2: human-verify)
 Resume file: None
 Next action: Execute next plan in Phase 18
 
