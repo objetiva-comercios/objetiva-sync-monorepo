@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
 status: executing
-stopped_at: "Checkpoint reached in 19-02-PLAN.md (Task 2: human-verify)"
-last_updated: "2026-03-05T12:25:25.932Z"
+stopped_at: Completed 19-02-PLAN.md — Phase 19 fully done, human-verified
+last_updated: "2026-03-05T13:36:00.265Z"
 last_activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
 progress:
   total_phases: 4
@@ -62,6 +62,7 @@ See: .planning/MILESTONES.md for full details
 - [Phase 19]: generate-env merges .env.example template with current .env values, keeps comments from example
 - [Phase 19-setup-wizard-enhancement]: 19-02: Password cleared from DOM after DB test, never in stepData (security)
 - [Phase 19-setup-wizard-enhancement]: 19-02: Download step re-fetches /api/setup/status on enter for current values
+- [Phase 19-setup-wizard-enhancement]: test-db endpoint persists DATABASE_URL to .env on success so summary step always shows current value
 
 ### Pending Todos
 
@@ -75,8 +76,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T12:25:25.927Z
-Stopped at: Checkpoint reached in 19-02-PLAN.md (Task 2: human-verify)
+Last session: 2026-03-05T13:35:52.451Z
+Stopped at: Completed 19-02-PLAN.md — Phase 19 fully done, human-verified
 Resume file: None
 Next action: Execute next plan in Phase 18
 
