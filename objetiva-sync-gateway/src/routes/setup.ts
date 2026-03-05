@@ -1040,7 +1040,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         const res = await fetch('/api/pairing/generate', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': 'Bearer ' + state.token
           }
         });
