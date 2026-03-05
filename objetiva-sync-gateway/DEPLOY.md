@@ -23,23 +23,17 @@ git sparse-checkout set --skip-checks \
 
 ## 2. Configurar Entorno
 
-```bash
-cd objetiva-sync-gateway
-cp .env.example .env
-```
+La configuracion se realiza a traves del **wizard de setup** integrado. No es necesario crear ni editar el `.env` manualmente.
 
-Editar `.env` y configurar todas las variables. Las mas importantes para Docker:
+1. Construir e iniciar el contenedor (ver Paso 4)
+2. Acceder a `http://<host>:3335/setup`
+3. Seguir el asistente de 6 pasos: base de datos, dominio, JWT, contraseña, aplicar, enlazar sync
 
-| Variable | Valor Docker | Notas |
-|----------|-------------|-------|
-| `DATABASE_URL` | `postgresql://user:pass@postgres:5432/db` | Usar hostname del contenedor PostgreSQL, NO `localhost` |
-| `JWT_SECRET` | resultado de `openssl rand -hex 32` | Debe coincidir con el del sincronizador |
-| `SYNC_USERNAME` | `admin` | Usuario para autenticacion del sincronizador |
-| `SYNC_PASSWORD` | tu contraseña | Contraseña en texto plano para el sincronizador |
-| `HOST` | `0.0.0.0` | Escuchar en todas las interfaces dentro del contenedor |
-| `NODE_ENV` | `production` | |
+El wizard genera el `.env` automaticamente y recarga la configuracion sin reiniciar el contenedor.
 
-Ver `.env.example` para la documentacion completa de cada variable.
+> **Nota Docker:** En el paso de base de datos, usar el hostname del contenedor PostgreSQL (ej: `postgres`), NO `localhost`. Ambos contenedores deben estar en la misma red Docker.
+
+Ver `.env.example` como referencia de todas las variables disponibles.
 
 ## 3. Crear la red Docker (si no existe)
 

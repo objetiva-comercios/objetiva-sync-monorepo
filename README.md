@@ -47,22 +47,13 @@ Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde si
    npm install
    ```
 
-3. Copiar los archivos de configuracion:
+3. Configurar objetiva-sync:
    ```bash
    cp objetiva-sync/.env.example objetiva-sync/.env
-   cp objetiva-sync-gateway/.env.example objetiva-sync-gateway/.env
    ```
+   Editar `objetiva-sync/.env` con los valores del entorno (ver seccion [Configuracion](#configuracion)).
 
-4. Configurar las variables de entorno en cada `.env` (ver seccion [Configuracion](#configuracion)).
-
-5. Preparar la base de datos del Gateway:
-   ```bash
-   cd objetiva-sync-gateway
-   npx prisma db push
-   npm run prisma:generate
-   ```
-
-6. Iniciar los servicios:
+4. Iniciar los servicios:
    ```bash
    # Terminal 1 - Gateway (debe arrancar primero)
    cd objetiva-sync-gateway
@@ -73,7 +64,9 @@ Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde si
    npm run dev
    ```
 
-7. Acceder al wizard de configuracion del Gateway en `http://localhost:3335/setup` y al dashboard del Sync en `http://localhost:3000`.
+5. Acceder al **wizard de configuracion** del Gateway en `http://localhost:3335/setup`. El asistente guia paso a paso la configuracion de base de datos, dominio, JWT y contraseña, generando el `.env` del gateway automaticamente. No es necesario crear ni editar el `.env` del gateway manualmente.
+
+6. Acceder al dashboard de Sync en `http://localhost:3000`. La conexion al gateway se configura desde **Configuracion > API Remota > Enlazar via codigo** usando el codigo de pairing generado en el paso anterior.
 
 ### Despliegue con Docker (Gateway)
 
@@ -81,12 +74,10 @@ El Gateway incluye un Dockerfile multi-stage optimizado para produccion. Se pued
 
 ```bash
 cd objetiva-sync-gateway
-cp .env.example .env
-# Editar .env con valores de produccion
 docker compose build --no-cache && docker compose up -d
 ```
 
-El contenedor ejecuta migraciones de Prisma automaticamente en cada inicio (idempotente).
+El contenedor ejecuta migraciones de Prisma automaticamente en cada inicio (idempotente). Al iniciar por primera vez, acceder a `http://<host>:3335/setup` para configurar la base de datos, dominio, JWT y contraseña mediante el wizard interactivo, que genera el `.env` automaticamente.
 
 Ver `objetiva-sync-gateway/DEPLOY.md` para la guia completa de instalacion en VPS con sparse checkout, Traefik, Tailscale y troubleshooting.
 
@@ -127,37 +118,32 @@ JWT_SECRET=tu_jwt_secret_64_hex_chars
 SCHEMA_CACHE_TTL_MS=3600000
 ```
 
-### objetiva-sync-gateway/.env
+### objetiva-sync-gateway (wizard interactivo)
 
-```env
-# Servidor
-PORT=3335
-NODE_ENV=production
-HOST=0.0.0.0
+La configuracion del gateway se realiza a traves del **wizard de setup** accesible en `/setup`. El asistente de 6 pasos configura:
 
-# Base de datos PostgreSQL
-DATABASE_URL=postgresql://sync_user:tu_password_aqui@localhost:5432/objetiva_sync_gateway
+1. **Base de datos** — Conexion a PostgreSQL (host, port, user, password, database)
+2. **Dominio** — URL publica del gateway (protocolo + dominio + puerto opcional)
+3. **JWT Secret** — Generacion automatica de clave de 64 caracteres hex
+4. **Contraseña admin** — Credenciales para autenticacion del sync client
+5. **Aplicar configuracion** — Escribe el `.env` y recarga la configuracion en caliente
+6. **Enlazar Sync** — Genera un codigo de pairing de 6 caracteres para vincular el sync client
 
-# JWT (debe coincidir con objetiva-sync)
-JWT_SECRET=tu_jwt_secret_64_hex_chars
-JWT_EXPIRES_IN=86400
+No es necesario crear ni editar el `.env` manualmente. El archivo `.env.example` del gateway sirve como referencia de las variables disponibles:
 
-# Autenticacion del cliente sync
-SYNC_USERNAME=admin
-SYNC_PASSWORD=tu_password_aqui
-
-# Logging
-LOG_LEVEL=info
-
-# URL publica del gateway (requerida para pairing)
-GATEWAY_PUBLIC_URL=https://sync-gateway.tu-dominio.com
-
-# Aplicacion
-APP_NAME=Objetiva Sync Gateway
-
-# Entidades a sincronizar (vacio = todas las predeterminadas)
-SYNC_ENTITIES=
-```
+| Variable | Default | Descripcion |
+|---|---|---|
+| `PORT` | `3335` | Puerto del servidor |
+| `HOST` | `0.0.0.0` | Direccion de escucha |
+| `NODE_ENV` | `production` | Entorno de ejecucion |
+| `DATABASE_URL` | — | URL de conexion PostgreSQL |
+| `JWT_SECRET` | — | Secret para firmar tokens JWT (generado por el wizard) |
+| `JWT_EXPIRES_IN` | `86400` | Expiracion de tokens en segundos |
+| `SYNC_USERNAME` | `admin` | Usuario fijo para autenticacion |
+| `SYNC_PASSWORD` | — | Contraseña del sync client |
+| `GATEWAY_PUBLIC_URL` | — | URL publica del gateway (requerida para pairing) |
+| `LOG_LEVEL` | `info` | Nivel de logging |
+| `APP_NAME` | `Objetiva Sync Gateway` | Nombre mostrado en el wizard |
 
 | Variable | Modulo | Descripcion |
 |---|---|---|
