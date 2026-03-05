@@ -101,7 +101,10 @@ Plans:
   1. The API configuration section of the sync dashboard contains a "Link via code" input field and a "Connect" button
   2. Entering a valid pairing code and clicking "Connect" shows a success message and the sync's SQLite config is updated with the received gateway URL and credentials — without restarting the sync service
   3. After a successful pairing, the sync automatically runs a connection test and shows the result (connected / failed) in the same UI section
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 21-01-PLAN.md — Backend: claim proxy route + gateway-client SQLite-first config update (TDD)
+- [ ] 21-02-PLAN.md — Frontend: pairing card UI in api.ejs with claim flow + human verify
 
 ## Progress
 
@@ -116,7 +119,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21
 | 18. Pre-Flight Validator | 2/2 | Complete    | 2026-03-05 | - |
 | 19. Setup Wizard Enhancement | 2/2 | Complete    | 2026-03-05 | - |
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
-| 21. Sync Pairing Client | v1.2 | 0/TBD | Not started | - |
+| 21. Sync Pairing Client | v1.2 | 0/2 | Not started | - |
 
 ---
-*Last updated: 2026-03-05 — Phase 20 planned (2 plans)*
+*Last updated: 2026-03-05 — Phase 21 planned (2 plans)*
