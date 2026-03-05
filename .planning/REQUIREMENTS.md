@@ -7,10 +7,10 @@
 
 ### Pre-Flight Validation
 
-- [ ] **PF-01**: Gateway valida todas las variables de entorno requeridas al arrancar y muestra errores específicos por cada variable faltante
-- [ ] **PF-02**: Gateway verifica conectividad a PostgreSQL antes de aceptar requests
-- [ ] **PF-03**: Gateway verifica existencia de las 4 tablas requeridas al arrancar
-- [ ] **PF-04**: Gateway expone `GET /api/setup/preflight` con checklist agregada de todas las validaciones (pass/fail + remediación por item)
+- [x] **PF-01**: Gateway valida todas las variables de entorno requeridas al arrancar y muestra errores específicos por cada variable faltante
+- [x] **PF-02**: Gateway verifica conectividad a PostgreSQL antes de aceptar requests
+- [x] **PF-03**: Gateway verifica existencia de las 4 tablas requeridas al arrancar
+- [x] **PF-04**: Gateway expone `GET /api/setup/preflight` con checklist agregada de todas las validaciones (pass/fail + remediación por item)
 - [x] **PF-05**: Escritura centralizada de .env con mutex y escape correcto de caracteres especiales (`$`, `#`, etc.)
 
 ### Setup Wizard
@@ -63,10 +63,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PF-01 | Phase 18 | Pending |
-| PF-02 | Phase 18 | Pending |
-| PF-03 | Phase 18 | Pending |
-| PF-04 | Phase 18 | Pending |
+| PF-01 | Phase 18 | Complete |
+| PF-02 | Phase 18 | Complete |
+| PF-03 | Phase 18 | Complete |
+| PF-04 | Phase 18 | Complete |
 | PF-05 | Phase 18 | Complete |
 | WIZ-01 | Phase 19 | Pending |
 | WIZ-02 | Phase 19 | Pending |

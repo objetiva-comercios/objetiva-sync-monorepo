@@ -1,3 +1,19 @@
+---
+gsd_state_version: 1.0
+milestone: v1.2
+milestone_name: Setup & Pairing
+status: executing
+stopped_at: Completed 18-02-PLAN.md (preflight endpoint + setup-only mode + env-writer refactor)
+last_updated: "2026-03-05T05:05:43.666Z"
+last_activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
+progress:
+  total_phases: 4
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
+  percent: 91
+---
+
 # Project State
 
 ## Project Reference
@@ -14,7 +30,7 @@ Plan: 1 of TBD in current phase
 Status: In progress — Plan 01 complete
 Last activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
 
-Progress: [█░░░░░░░░░] 5% (v1.2 milestone)
+Progress: [█████████░] 91%
 
 ## Completed Milestones
 
@@ -38,6 +54,9 @@ See: .planning/MILESTONES.md for full details
 - 18-01: Promise-chain mutex chosen for env-writer (8 lines, zero deps, resets on error)
 - 18-01: Always double-quote .env values — $, # safe inside double quotes; only \" and \\ need escaping
 - 18-01: Anchored regex ^KEY= with m flag prevents prefix collision (APP_KEY= vs KEY=)
+- [Phase 18]: Extracted systemState to system-state.ts singleton to break circular dependency between app.ts and server.ts
+- [Phase 18]: GATEWAY_PUBLIC_URL is optional in preflight env_vars check — triggers warn not fail
+- [Phase 18]: Startup mode: env_vars fail -> setup-only, db_connectivity fail -> degraded, both pass -> normal
 
 ### Pending Todos
 
@@ -51,9 +70,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05
-Stopped at: Completed 18-01-PLAN.md (env-writer TDD)
-Resume file: .planning/phases/18-pre-flight-validator/18-01-SUMMARY.md
+Last session: 2026-03-05T05:05:43.661Z
+Stopped at: Completed 18-02-PLAN.md (preflight endpoint + setup-only mode + env-writer refactor)
+Resume file: None
 Next action: Execute next plan in Phase 18
 
 ---
