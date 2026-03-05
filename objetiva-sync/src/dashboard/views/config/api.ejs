@@ -22,6 +22,36 @@
       <!-- Loaded via HTMX -->
     </div>
 
+    <!-- Pairing Card -->
+    <div class="bg-white border border-gray-200 rounded-lg mb-6 px-4 py-5 sm:p-6">
+      <h3 class="text-base font-medium text-gray-900 mb-1">Enlazar via codigo</h3>
+      <p class="text-sm text-gray-500 mb-4">Ingresa el codigo de 6 caracteres del gateway</p>
+      <div class="flex flex-col sm:flex-row gap-3 items-start">
+        <div class="flex-1 w-full">
+          <input id="pairing-gateway-url" type="text" placeholder="https://gateway.ejemplo.com"
+            class="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+        </div>
+        <div class="w-full sm:w-32">
+          <input id="pairing-code" type="text" maxlength="6" placeholder="ABC123"
+            oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6)"
+            class="block w-full border border-gray-300 rounded-md py-2 px-3 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+        </div>
+        <button id="pairing-btn" onclick="claimPairingCode()"
+          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap">
+          <i data-lucide="link" class="w-4 h-4 mr-2"></i>
+          Conectar
+        </button>
+      </div>
+      <div id="pairing-result" class="mt-3 hidden"></div>
+    </div>
+
+    <!-- Divider -->
+    <div class="flex items-center my-6">
+      <div class="flex-1 border-t border-gray-200"></div>
+      <span class="px-3 text-xs text-gray-400">-- o configurar manualmente --</span>
+      <div class="flex-1 border-t border-gray-200"></div>
+    </div>
+
     <!-- API Configuration Form -->
     <div class="bg-white shadow sm:rounded-lg">
       <div class="px-4 py-5 sm:p-6">
@@ -256,6 +286,15 @@
     }
   });
 
+  // Auto-prepend https:// to pairing gateway URL field
+  document.getElementById('pairing-gateway-url').addEventListener('blur', function(e) {
+    const input = e.target;
+    const value = input.value.trim();
+    if (value && !value.match(/^https?:\/\//i)) {
+      input.value = 'https://' + value;
+    }
+  });
+
   async function loadApiConfig() {
     try {
       const response = await fetch('/api/config/api');
@@ -275,6 +314,14 @@
         if (config.endpointArticulos) document.getElementById('api-endpoint-articulos').value = config.endpointArticulos;
         if (config.endpointComprobantes) document.getElementById('api-endpoint-comprobantes').value = config.endpointComprobantes;
         if (config.endpointPagos) document.getElementById('api-endpoint-pagos').value = config.endpointPagos;
+
+        // Pre-fill pairing gateway URL if API URL is already configured
+        if (config.url) {
+          const pairingUrl = document.getElementById('pairing-gateway-url');
+          if (pairingUrl && !pairingUrl.value) {
+            pairingUrl.value = config.url;
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading API config:', error);
@@ -394,6 +441,84 @@
     }
   }
 
+  async function claimPairingCode() {
+    const gatewayUrl = document.getElementById('pairing-gateway-url').value.trim();
+    const code = document.getElementById('pairing-code').value.trim().toUpperCase();
+    const btn = document.getElementById('pairing-btn');
+
+    if (!gatewayUrl || code.length !== 6) {
+      showPairingResult('error', 'Ingresa la URL del gateway y el codigo de 6 caracteres');
+      return;
+    }
+
+    // Loading state
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i>Enlazando...';
+    document.getElementById('pairing-gateway-url').readOnly = true;
+    document.getElementById('pairing-code').readOnly = true;
+    if (window.lucide) lucide.createIcons();
+
+    try {
+      const response = await fetch('/api/config/pairing/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gatewayUrl, code }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showPairingResult('success', '\u2713 Enlazado exitosamente con ' + result.gatewayUrl);
+        document.getElementById('pairing-code').value = '';
+        // Reload manual form with new config
+        loadApiConfig();
+        // Auto-test connection
+        try {
+          const testResponse = await fetch('/api/config/api/test', { method: 'POST' });
+          const testResult = await testResponse.json();
+          if (!testResult.success) {
+            showPairingResult('warning', 'Enlazado pero sin conexion -- verificar que el gateway este corriendo', true,
+              '<span>Enlazado pero sin conexion -- verificar que el gateway este corriendo.</span> ' +
+              '<button onclick="testApiConnection()" class="ml-2 underline font-medium">Reintentar</button>');
+          } else {
+            loadApiStatus();
+          }
+        } catch {
+          showPairingResult('warning', 'Enlazado pero sin conexion -- verificar que el gateway este corriendo', true,
+            '<span>Enlazado pero sin conexion -- verificar que el gateway este corriendo.</span> ' +
+            '<button onclick="testApiConnection()" class="ml-2 underline font-medium">Reintentar</button>');
+        }
+      } else {
+        showPairingResult('error', result.error || 'Error desconocido');
+      }
+    } catch {
+      showPairingResult('error', 'No se pudo conectar al gateway');
+    } finally {
+      // Reset button
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="link" class="w-4 h-4 mr-2"></i>Conectar';
+      document.getElementById('pairing-gateway-url').readOnly = false;
+      document.getElementById('pairing-code').readOnly = false;
+      if (window.lucide) lucide.createIcons();
+    }
+  }
+
+  function showPairingResult(type, message, isHtml, htmlContent) {
+    const div = document.getElementById('pairing-result');
+    const classes = {
+      success: 'text-green-700 bg-green-50 border border-green-200',
+      error: 'text-red-700 bg-red-50 border border-red-200',
+      warning: 'text-yellow-700 bg-yellow-50 border border-yellow-200',
+    };
+    div.className = 'mt-3 rounded-md px-3 py-2 text-sm ' + (classes[type] || classes.error);
+    if (isHtml && htmlContent) {
+      div.innerHTML = htmlContent;
+    } else {
+      div.textContent = message;
+    }
+    div.classList.remove('hidden');
+  }
+
   // Refresh lucide icons after HTMX swaps
   document.body.addEventListener('htmx:afterSwap', function(event) {
     if (window.lucide) {
@@ -408,4 +533,6 @@
   window.testApiConnection = testApiConnection;
   window.togglePasswordVisibility = togglePasswordVisibility;
   window.toggleEndpoints = toggleEndpoints;
+  window.claimPairingCode = claimPairingCode;
+  window.showPairingResult = showPairingResult;
 </script>
