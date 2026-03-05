@@ -1,11 +1,10 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import crypto from 'crypto'
-import fs from 'fs/promises'
-import path from 'path'
 import { logger } from '../lib/logger.js'
 import { metrics } from '../lib/metrics.js'
 import { authenticate } from '../middleware/auth.js'
+import { writeEnvVar } from '../utils/env-writer.js'
 
 const LoginSchema = z.object({
   username: z.string().min(1, 'Username es requerido'),
@@ -253,29 +252,9 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         })
       }
 
-      // Update .env file with new plain password
-      const envPath = path.join(process.cwd(), '.env')
-      let envContent: string
+      // Update .env file using centralized env-writer (serialized, correct escaping)
       try {
-        envContent = await fs.readFile(envPath, 'utf-8')
-      } catch (err) {
-        logger.error({ err }, 'Failed to read .env file')
-        return reply.status(500).send({
-          success: false,
-          error: 'ENV_READ_ERROR',
-          message: 'Failed to read configuration file'
-        })
-      }
-
-      // Replace SYNC_PASSWORD line
-      if (envContent.includes('SYNC_PASSWORD=')) {
-        envContent = envContent.replace(/SYNC_PASSWORD=.*/g, `SYNC_PASSWORD=${newPassword}`)
-      } else {
-        envContent += `\nSYNC_PASSWORD=${newPassword}\n`
-      }
-
-      try {
-        await fs.writeFile(envPath, envContent, 'utf-8')
+        await writeEnvVar('SYNC_PASSWORD', newPassword)
       } catch (err) {
         logger.error({ err }, 'Failed to write .env file')
         return reply.status(500).send({

@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client'
 import { logger } from '../lib/logger.js'
 import fs from 'fs/promises'
 import path from 'path'
+import { writeEnvVar } from '../utils/env-writer.js'
 
 const TestDbSchema = z.object({
   databaseUrl: z.string().url('URL de base de datos inválida')
@@ -761,17 +762,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     try {
       const { jwtSecret } = z.object({ jwtSecret: z.string().min(32) }).parse(request.body)
 
-      const envPath = path.join(process.cwd(), '.env')
-      let envContent = await fs.readFile(envPath, 'utf-8')
-
-      // Reemplazar JWT_SECRET
-      if (envContent.includes('JWT_SECRET=')) {
-        envContent = envContent.replace(/JWT_SECRET=.*/g, `JWT_SECRET=${jwtSecret}`)
-      } else {
-        envContent += `\nJWT_SECRET=${jwtSecret}\n`
-      }
-
-      await fs.writeFile(envPath, envContent, 'utf-8')
+      await writeEnvVar('JWT_SECRET', jwtSecret)
 
       logger.info('JWT Secret guardado en .env')
 
@@ -791,16 +782,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       const { databaseUrl } = TestDbSchema.parse(request.body)
 
       // Actualizar DATABASE_URL en .env
-      const envPath = path.join(process.cwd(), '.env')
-      let envContent = await fs.readFile(envPath, 'utf-8')
-
-      if (envContent.includes('DATABASE_URL=')) {
-        envContent = envContent.replace(/DATABASE_URL=.*/g, `DATABASE_URL="${databaseUrl}"`)
-      } else {
-        envContent += `\nDATABASE_URL="${databaseUrl}"\n`
-      }
-
-      await fs.writeFile(envPath, envContent, 'utf-8')
+      await writeEnvVar('DATABASE_URL', databaseUrl)
 
       // Crear cliente temporal de Prisma
       const tempPrisma = new PrismaClient({
@@ -863,25 +845,9 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     try {
       const { password } = SetPasswordSchema.parse(request.body)
 
-      // Guardar en .env (texto plano, sin bcrypt hash)
-      const envPath = path.join(process.cwd(), '.env')
-      let envContent = await fs.readFile(envPath, 'utf-8')
-
-      // Actualizar SYNC_USERNAME
-      if (envContent.includes('SYNC_USERNAME=')) {
-        envContent = envContent.replace(/SYNC_USERNAME=.*/g, 'SYNC_USERNAME=admin')
-      } else {
-        envContent += '\nSYNC_USERNAME=admin\n'
-      }
-
-      // Actualizar SYNC_PASSWORD
-      if (envContent.includes('SYNC_PASSWORD=')) {
-        envContent = envContent.replace(/SYNC_PASSWORD=.*/g, `SYNC_PASSWORD=${password}`)
-      } else {
-        envContent += `SYNC_PASSWORD=${password}\n`
-      }
-
-      await fs.writeFile(envPath, envContent, 'utf-8')
+      // Guardar en .env usando env-writer centralizado (serializado y con escape correcto)
+      await writeEnvVar('SYNC_USERNAME', 'admin')
+      await writeEnvVar('SYNC_PASSWORD', password)
 
       logger.info('Credenciales de autenticación configuradas')
 
