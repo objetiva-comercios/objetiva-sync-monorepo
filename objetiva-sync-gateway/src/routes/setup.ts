@@ -361,13 +361,17 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         <div class="stepper-dot">5</div>
         <div class="stepper-label">Download</div>
       </div>
+      <div class="stepper-item upcoming" id="step-indicator-5">
+        <div class="stepper-dot">6</div>
+        <div class="stepper-label">Link Sync</div>
+      </div>
     </div>
 
     <div class="content">
 
       <!-- Step 0: Database -->
       <div class="wizard-step active" id="wizard-step-0">
-        <div class="step-title">Step 1 of 5 — Database</div>
+        <div class="step-title">Step 1 of 6 — Database</div>
         <p class="step-subtitle">Configure the connection to your PostgreSQL database. The system will test the connection before proceeding.</p>
 
         <div class="form-row">
@@ -408,7 +412,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       <!-- Step 1: Domain -->
       <div class="wizard-step" id="wizard-step-1">
-        <div class="step-title">Step 2 of 5 — Domain</div>
+        <div class="step-title">Step 2 of 6 — Domain</div>
         <p class="step-subtitle">Configure the public URL where this gateway will be reachable. This is required for pairing with the sync client.</p>
 
         <div class="form-row">
@@ -444,7 +448,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       <!-- Step 2: JWT Secret -->
       <div class="wizard-step" id="wizard-step-2">
-        <div class="step-title">Step 3 of 5 — JWT Secret</div>
+        <div class="step-title">Step 3 of 6 — JWT Secret</div>
         <p class="step-subtitle">Set the JWT signing secret. It must match the value configured in your Objetiva Sync client for tokens to be valid.</p>
 
         <div class="form-group">
@@ -465,7 +469,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       <!-- Step 3: Password -->
       <div class="wizard-step" id="wizard-step-3">
-        <div class="step-title">Step 4 of 5 — Admin Password</div>
+        <div class="step-title">Step 4 of 6 — Admin Password</div>
         <p class="step-subtitle">Configure the password for the <strong>admin</strong> user. This will be used to authenticate from the sync client.</p>
 
         <div class="alert alert-info show" style="margin-bottom: 18px;">
@@ -488,7 +492,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       <!-- Step 4: Download -->
       <div class="wizard-step" id="wizard-step-4">
-        <div class="step-title">Step 5 of 5 — Download Configuration</div>
+        <div class="step-title">Step 5 of 6 — Download Configuration</div>
         <p class="step-subtitle">Review your configuration and download the <code>.env</code> file. Restart the server to apply all changes.</p>
 
         <div id="download-alert" class="alert"></div>
@@ -506,11 +510,43 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           <button class="btn btn-secondary" onclick="goBack()">Back</button>
           <button class="btn btn-primary" onclick="downloadEnv()" id="download-btn">Download .env</button>
           <button class="btn btn-secondary" onclick="copyEnvToClipboard()" id="copy-env-btn">Copy .env</button>
+          <button class="btn btn-primary" onclick="advanceStep()" id="next-to-link-btn">Next &rarr;</button>
         </div>
 
         <p style="margin-top: 20px; font-size: 13px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;">
           After downloading, replace the <code>.env</code> file on your server and restart the process to apply all changes.
         </p>
+      </div>
+
+      <!-- Step 5: Link Sync Client -->
+      <div class="wizard-step" id="wizard-step-5">
+        <h2 class="step-title">Step 6 of 6 — Link Sync Client</h2>
+        <p class="step-subtitle">Enter this code in your Objetiva Sync dashboard to automatically configure the connection.</p>
+
+        <!-- Domain gating warning (hidden by default) -->
+        <div id="pairing-no-domain-warning" style="display:none;">
+          <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:16px 0;">
+            <strong>Domain Required</strong>
+            <p style="margin-top:8px;">GATEWAY_PUBLIC_URL must be configured before generating a pairing code. Go back to Step 2 (Domain) to set it.</p>
+          </div>
+        </div>
+
+        <!-- Code display (hidden until generated) -->
+        <div id="pairing-code-container" style="display:none;">
+          <div style="text-align:center;margin:24px 0;">
+            <div id="pairing-code-display" style="font-family:monospace;font-size:2.5rem;font-weight:700;letter-spacing:0.3em;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:20px 32px;display:inline-block;user-select:all;"></div>
+          </div>
+          <div style="text-align:center;margin:12px 0;">
+            <button type="button" id="pairing-copy-btn" class="btn btn-secondary" onclick="copyPairingCode()" style="margin-right:12px;">Copy Code</button>
+            <button type="button" id="pairing-regenerate-btn" class="btn btn-primary" onclick="regeneratePairingCode()">Generate New Code</button>
+          </div>
+          <div id="pairing-countdown" style="text-align:center;color:#64748b;font-size:0.9rem;margin:8px 0;"></div>
+          <div id="pairing-error" style="display:none;color:#ef4444;text-align:center;margin:8px 0;"></div>
+        </div>
+
+        <div class="btn-group" style="margin-top:24px;">
+          <button class="btn btn-secondary" onclick="goBack()">Back</button>
+        </div>
       </div>
 
     </div>
@@ -523,7 +559,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       stepData: {}
     };
 
-    const TOTAL_STEPS = 5;
+    const TOTAL_STEPS = 6;
 
     // ── Stepper UI ──────────────────────────────────────────────────────────
     function updateStepper() {
@@ -566,6 +602,9 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       showStep(next);
       if (next === 4) {
         loadDownloadSummary();
+      }
+      if (next === 5) {
+        enterPairingStep();
       }
     }
 
@@ -777,6 +816,23 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         const data = await res.json();
 
         if (data.success) {
+          // Obtain a JWT token now while we still have the password value.
+          // The token is needed by step 6 to call POST /api/pairing/generate.
+          try {
+            const loginRes = await fetch('/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: 'admin', password: password })
+            });
+            const loginData = await loginRes.json();
+            if (loginData.success && loginData.token) {
+              state.token = loginData.token;
+            }
+          } catch (_) {
+            // Token fetch is best-effort; step 6 will show an error if it fails
+          }
+          // Clear password from DOM (security — never store in stepData)
+          document.getElementById('admin-password').value = '';
           advanceStep();
         } else {
           showAlert('password-alert', 'error', data.error || 'Failed to set password.');
@@ -895,6 +951,99 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         btn.textContent = 'Copy .env';
         btn.disabled = false;
       }
+    }
+
+    // ── Step 5: Link Sync Client ──────────────────────────────────────────────
+    let countdownInterval = null;
+
+    async function enterPairingStep() {
+      const warningEl = document.getElementById('pairing-no-domain-warning');
+      const codeEl = document.getElementById('pairing-code-container');
+      const errorEl = document.getElementById('pairing-error');
+
+      // Check if domain was configured
+      const hasDomain = state.stepData.gatewayUrl && !state.stepData.domainSkipped;
+
+      if (!hasDomain) {
+        warningEl.style.display = 'block';
+        codeEl.style.display = 'none';
+        return;
+      }
+
+      warningEl.style.display = 'none';
+      codeEl.style.display = 'block';
+      if (errorEl) errorEl.style.display = 'none';
+
+      // Auto-generate on step enter
+      await fetchPairingCode();
+    }
+
+    async function fetchPairingCode() {
+      const displayEl = document.getElementById('pairing-code-display');
+      const errorEl = document.getElementById('pairing-error');
+      const countdownEl = document.getElementById('pairing-countdown');
+      const regenBtn = document.getElementById('pairing-regenerate-btn');
+
+      if (regenBtn) regenBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/pairing/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + state.token
+          }
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Failed to generate code');
+
+        displayEl.textContent = data.code;
+        if (errorEl) errorEl.style.display = 'none';
+        startCountdown(data.expiresAt);
+      } catch (err) {
+        displayEl.textContent = '------';
+        if (errorEl) {
+          errorEl.textContent = 'Error generating code: ' + err.message;
+          errorEl.style.display = 'block';
+        }
+        if (countdownEl) countdownEl.textContent = '';
+      } finally {
+        if (regenBtn) regenBtn.disabled = false;
+      }
+    }
+
+    function startCountdown(expiresAt) {
+      if (countdownInterval) clearInterval(countdownInterval);
+      function tick() {
+        const remaining = Math.max(0, Math.floor((new Date(expiresAt) - Date.now()) / 1000));
+        const mins = Math.floor(remaining / 60);
+        const secs = remaining % 60;
+        const el = document.getElementById('pairing-countdown');
+        if (el) {
+          el.textContent = remaining > 0
+            ? 'Expires in ' + mins + ':' + secs.toString().padStart(2, '0')
+            : 'Code expired \u2014 click Generate New Code';
+        }
+        if (remaining === 0) clearInterval(countdownInterval);
+      }
+      tick();
+      countdownInterval = setInterval(tick, 1000);
+    }
+
+    function copyPairingCode() {
+      const code = document.getElementById('pairing-code-display').textContent;
+      if (code && code !== '------') {
+        navigator.clipboard.writeText(code).then(function() {
+          const btn = document.getElementById('pairing-copy-btn');
+          const orig = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(function() { btn.textContent = orig; }, 2000);
+        });
+      }
+    }
+
+    async function regeneratePairingCode() {
+      await fetchPairingCode();
     }
 
     // ── Pre-fill on load ──────────────────────────────────────────────────────

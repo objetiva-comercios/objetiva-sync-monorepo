@@ -114,7 +114,9 @@ export async function buildApp() {
   // Setup-only mode — return 503 on all routes NOT in the allowlist
   // Checked after rate-limit and correlation hooks so those still work.
   // The hook runs on every request; systemState.startupMode is read live.
-  const SETUP_ONLY_ALLOWLIST = ['/health', '/metrics', '/setup', '/api/setup/', '/api/pairing/']
+  // /auth/login is included so the setup wizard (step 6) can obtain a JWT token
+  // after configuring the admin password, without leaving setup-only mode.
+  const SETUP_ONLY_ALLOWLIST = ['/health', '/metrics', '/setup', '/api/setup/', '/api/pairing/', '/auth/login']
   app.addHook('onRequest', async (request, reply) => {
     if (systemState.startupMode !== 'setup-only') return
     const url = request.url
