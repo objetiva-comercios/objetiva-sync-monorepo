@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
 status: executing
-stopped_at: Completed 20-01-PLAN.md (pairing backend routes + store)
-last_updated: "2026-03-05T15:37:31.260Z"
+stopped_at: "Completed 20-02-PLAN.md Task 1 — checkpoint:human-verify at Task 2"
+last_updated: "2026-03-05T15:47:38.518Z"
 last_activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 91
 ---
 
@@ -65,6 +65,8 @@ See: .planning/MILESTONES.md for full details
 - [Phase 19-setup-wizard-enhancement]: test-db endpoint persists DATABASE_URL to .env on success so summary step always shows current value
 - [Phase 20-01]: Test isolation for rate-limited claim endpoint: each describe block uses own buildApp() instance to prevent rate limit counter accumulation across tests
 - [Phase 20-01]: claimCode discriminated union ('ok'/'consumed'/'invalid') enables clean 200/410/404 HTTP status mapping without additional state queries
+- [Phase 20-gateway-pairing-routes]: 20-02: /auth/login added to SETUP_ONLY_ALLOWLIST — enables wizard step 6 to acquire JWT token in setup-only mode after password is configured
+- [Phase 20-gateway-pairing-routes]: 20-02: JWT token acquired in savePasswordAndNext() via /auth/login immediately after password save — password still in memory, stored in state.token for step 6 use
 
 ### Pending Todos
 
@@ -78,8 +80,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T15:37:31.255Z
-Stopped at: Completed 20-01-PLAN.md (pairing backend routes + store)
+Last session: 2026-03-05T15:47:38.513Z
+Stopped at: Completed 20-02-PLAN.md Task 1 — checkpoint:human-verify at Task 2
 Resume file: None
 Next action: Execute next plan in Phase 18
 
