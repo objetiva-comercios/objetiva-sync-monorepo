@@ -1084,9 +1084,8 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       if (code && code !== '------') {
         navigator.clipboard.writeText(code).then(function() {
           const btn = document.getElementById('pairing-copy-btn');
-          const orig = btn.textContent;
           btn.textContent = 'Copied!';
-          setTimeout(function() { btn.textContent = orig; }, 2000);
+          setTimeout(function() { btn.textContent = 'Copy Code'; }, 3000);
         });
       }
     }
@@ -1109,6 +1108,9 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           document.getElementById('db-port').value = status.database.port;
           document.getElementById('db-user').value = status.database.username;
           document.getElementById('db-name').value = status.database.database;
+          if (status.database.password) {
+            document.getElementById('db-password').value = status.database.password;
+          }
           // Show configured placeholder for password
           document.getElementById('db-password-configured').style.display = 'block';
         }
@@ -1127,11 +1129,19 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           } catch (_) {}
         }
 
-        // JWT configured indicator
+        // JWT configured indicator + pre-fill
         if (status.jwt) {
           const jwtIndicator = document.getElementById('jwt-configured');
           jwtIndicator.style.display = 'block';
           jwtIndicator.textContent = 'Currently configured (' + status.jwt.length + ' chars): ' + status.jwt.preview;
+          if (status.jwt.value) {
+            document.getElementById('jwt-secret').value = status.jwt.value;
+          }
+        }
+
+        // Pre-fill admin password
+        if (status.auth && status.auth.password) {
+          document.getElementById('admin-password').value = status.auth.password;
         }
 
         // Suppress unused preflight variable warning
@@ -1415,7 +1425,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       const SYNC_USERNAME = process.env.SYNC_USERNAME || ''
       const SYNC_PASSWORD = process.env.SYNC_PASSWORD || ''
 
-      // Parsear DATABASE_URL para mostrar info segura
+      // Parsear DATABASE_URL con password incluido para pre-fill
       let dbInfo = null
       if (DATABASE_URL && DATABASE_URL !== 'postgresql://user:password@localhost:5432/objetiva_db') {
         try {
@@ -1424,28 +1434,31 @@ export async function registerSetupRoutes(app: FastifyInstance) {
             host: url.hostname,
             port: url.port || '5432',
             database: url.pathname.substring(1),
-            username: url.username
+            username: url.username,
+            password: decodeURIComponent(url.password)
           }
         } catch {
           // URL inválida, ignorar
         }
       }
 
-      // Mostrar JWT_SECRET parcialmente
+      // JWT_SECRET completo para pre-fill
       let jwtInfo = null
       if (JWT_SECRET && JWT_SECRET !== 'change-this-secret-in-production-debe-ser-el-mismo-que-en-objetiva-sync') {
         jwtInfo = {
           length: JWT_SECRET.length,
-          preview: JWT_SECRET.substring(0, 8) + '...' + JWT_SECRET.substring(JWT_SECRET.length - 8)
+          preview: JWT_SECRET.substring(0, 8) + '...' + JWT_SECRET.substring(JWT_SECRET.length - 8),
+          value: JWT_SECRET
         }
       }
 
-      // Info de credenciales
+      // Info de credenciales con password para pre-fill
       let authInfo = null
       if (SYNC_USERNAME && SYNC_USERNAME !== 'admin' || SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me') {
         authInfo = {
           username: SYNC_USERNAME || 'admin',
-          passwordConfigured: SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me'
+          passwordConfigured: !!(SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me'),
+          password: SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me' ? SYNC_PASSWORD : null
         }
       }
 
