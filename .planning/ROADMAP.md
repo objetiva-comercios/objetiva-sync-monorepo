@@ -107,7 +107,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21
 | 1-7. Foundation through Monitoring | v1.0 | 14/14 | Complete | 2026-02-03 |
 | 8-12. Reliability & Deployment | v1.1-rc | 15/15 | Complete | 2026-02-05 |
 | 13-16. Multi-Source & Hardening | v1.1-rc2 | 14/14 | Complete | 2026-02-18 |
-| 18. Pre-Flight Validator | 2/2 | Complete   | 2026-03-05 | - |
+| 18. Pre-Flight Validator | 2/2 | Complete    | 2026-03-05 | - |
 | 19. Setup Wizard Enhancement | v1.2 | 0/TBD | Not started | - |
 | 20. Gateway Pairing Routes | v1.2 | 0/TBD | Not started | - |
 | 21. Sync Pairing Client | v1.2 | 0/TBD | Not started | - |
