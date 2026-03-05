@@ -709,7 +709,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
 
     function skipDomain() {
-      showAlert('domain-alert', 'warning', 'Without a public URL, pairing won\'t work. You can configure this later by re-running the wizard.');
+      showAlert('domain-alert', 'warning', 'Without a public URL, pairing will not work. You can configure this later by re-running the wizard.');
       state.stepData.domainSkipped = true;
       setTimeout(function() { advanceStep(); }, 1200);
     }
