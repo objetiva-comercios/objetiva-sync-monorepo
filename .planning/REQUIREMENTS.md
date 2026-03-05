@@ -15,10 +15,10 @@
 
 ### Setup Wizard
 
-- [ ] **WIZ-01**: Wizard paso a paso con gating (no avanza sin completar el paso anterior)
+- [x] **WIZ-01**: Wizard paso a paso con gating (no avanza sin completar el paso anterior)
 - [x] **WIZ-02**: Constructor visual de DATABASE_URL (host, port, user, password, database como campos separados)
 - [x] **WIZ-03**: Configuración de dominio/subdominio Traefik (GATEWAY_PUBLIC_URL)
-- [ ] **WIZ-04**: Generación automática de JWT_SECRET (64 chars hex)
+- [x] **WIZ-04**: Generación automática de JWT_SECRET (64 chars hex)
 - [x] **WIZ-05**: Generación completa del archivo .env desde la wizard
 - [x] **WIZ-06**: Download del .env generado como archivo
 
@@ -68,10 +68,10 @@
 | PF-03 | Phase 18 | Complete |
 | PF-04 | Phase 18 | Complete |
 | PF-05 | Phase 18 | Complete |
-| WIZ-01 | Phase 19 | Pending |
+| WIZ-01 | Phase 19 | Complete |
 | WIZ-02 | Phase 19 | Complete |
 | WIZ-03 | Phase 19 | Complete |
-| WIZ-04 | Phase 19 | Pending |
+| WIZ-04 | Phase 19 | Complete |
 | WIZ-05 | Phase 19 | Complete |
 | WIZ-06 | Phase 19 | Complete |
 | PAIR-01 | Phase 20 | Pending |
