@@ -58,7 +58,7 @@ Note: Phase 17 (Dashboard Modernization with shadcn/React) was implemented but r
   3. Starting gateway against a database missing any of the 4 required tables shows a migration hint message, not a runtime crash on first sync
   4. GET /api/setup/preflight returns a structured JSON checklist with pass/fail status and remediation text for each of the 5 checks
   5. Writing two env vars to .env simultaneously from two concurrent requests produces a valid .env file with both values, not a corrupted file
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 18-01-PLAN.md — Centralized .env writer with async mutex (TDD)
 - [ ] 18-02-PLAN.md — Startup validation, preflight endpoint, and .env write refactor
@@ -107,7 +107,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21
 | 1-7. Foundation through Monitoring | v1.0 | 14/14 | Complete | 2026-02-03 |
 | 8-12. Reliability & Deployment | v1.1-rc | 15/15 | Complete | 2026-02-05 |
 | 13-16. Multi-Source & Hardening | v1.1-rc2 | 14/14 | Complete | 2026-02-18 |
-| 18. Pre-Flight Validator | v1.2 | 0/2 | Planning complete | - |
+| 18. Pre-Flight Validator | 1/2 | In Progress|  | - |
 | 19. Setup Wizard Enhancement | v1.2 | 0/TBD | Not started | - |
 | 20. Gateway Pairing Routes | v1.2 | 0/TBD | Not started | - |
 | 21. Sync Pairing Client | v1.2 | 0/TBD | Not started | - |

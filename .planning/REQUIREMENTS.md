@@ -11,7 +11,7 @@
 - [ ] **PF-02**: Gateway verifica conectividad a PostgreSQL antes de aceptar requests
 - [ ] **PF-03**: Gateway verifica existencia de las 4 tablas requeridas al arrancar
 - [ ] **PF-04**: Gateway expone `GET /api/setup/preflight` con checklist agregada de todas las validaciones (pass/fail + remediación por item)
-- [ ] **PF-05**: Escritura centralizada de .env con mutex y escape correcto de caracteres especiales (`$`, `#`, etc.)
+- [x] **PF-05**: Escritura centralizada de .env con mutex y escape correcto de caracteres especiales (`$`, `#`, etc.)
 
 ### Setup Wizard
 
@@ -63,31 +63,31 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PF-01 | — | Pending |
-| PF-02 | — | Pending |
-| PF-03 | — | Pending |
-| PF-04 | — | Pending |
-| PF-05 | — | Pending |
-| WIZ-01 | — | Pending |
-| WIZ-02 | — | Pending |
-| WIZ-03 | — | Pending |
-| WIZ-04 | — | Pending |
-| WIZ-05 | — | Pending |
-| WIZ-06 | — | Pending |
-| PAIR-01 | — | Pending |
-| PAIR-02 | — | Pending |
-| PAIR-03 | — | Pending |
-| PAIR-04 | — | Pending |
-| PAIR-05 | — | Pending |
-| SPC-01 | — | Pending |
-| SPC-02 | — | Pending |
-| SPC-03 | — | Pending |
+| PF-01 | Phase 18 | Pending |
+| PF-02 | Phase 18 | Pending |
+| PF-03 | Phase 18 | Pending |
+| PF-04 | Phase 18 | Pending |
+| PF-05 | Phase 18 | Complete |
+| WIZ-01 | Phase 19 | Pending |
+| WIZ-02 | Phase 19 | Pending |
+| WIZ-03 | Phase 19 | Pending |
+| WIZ-04 | Phase 19 | Pending |
+| WIZ-05 | Phase 19 | Pending |
+| WIZ-06 | Phase 19 | Pending |
+| PAIR-01 | Phase 20 | Pending |
+| PAIR-02 | Phase 20 | Pending |
+| PAIR-03 | Phase 20 | Pending |
+| PAIR-04 | Phase 20 | Pending |
+| PAIR-05 | Phase 20 | Pending |
+| SPC-01 | Phase 21 | Pending |
+| SPC-02 | Phase 21 | Pending |
+| SPC-03 | Phase 21 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 ⚠️
+- Mapped to phases: 19
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after initial definition*
+*Last updated: 2026-03-04 after v1.2 roadmap created*

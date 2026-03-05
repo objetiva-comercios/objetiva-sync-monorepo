@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-03-04)
 ## Current Position
 
 Phase: 18 of 21 (Pre-Flight Validator)
-Plan: — of TBD in current phase
-Status: Context gathered, ready to plan
-Last activity: 2026-03-05 — Phase 18 context gathered (4 areas discussed)
+Plan: 1 of TBD in current phase
+Status: In progress — Plan 01 complete
+Last activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
 
-Progress: [░░░░░░░░░░] 0% (v1.2 milestone)
+Progress: [█░░░░░░░░░] 5% (v1.2 milestone)
 
 ## Completed Milestones
 
@@ -35,6 +35,9 @@ See: .planning/MILESTONES.md for full details
 - v1.2: In-memory Map + setTimeout for pairing TTL store (no Redis — container restart invalidating a pending code is acceptable)
 - v1.2: Sync stores pairing result in SQLite setConfig (not .env write) — takes effect immediately without Windows service restart
 - v1.2: Only 1 new npm dependency (@fastify/rate-limit) — everything else uses existing stack
+- 18-01: Promise-chain mutex chosen for env-writer (8 lines, zero deps, resets on error)
+- 18-01: Always double-quote .env values — $, # safe inside double quotes; only \" and \\ need escaping
+- 18-01: Anchored regex ^KEY= with m flag prevents prefix collision (APP_KEY= vs KEY=)
 
 ### Pending Todos
 
@@ -44,14 +47,14 @@ None yet.
 
 - PC-02: Pairing token persistence strategy (separate file vs. write into .env) — decide in Phase 20 planning
 - INT-04: Setup wizard access token strategy (log-only vs. Traefik IP restriction) — decide in Phase 19 planning
-- ENV-04: Special character escaping bug confirmed in auth.ts line 271 — must fix in Phase 18 (PF-05)
+- ENV-04: RESOLVED — env-writer.ts now handles special char escaping correctly (18-01)
 
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Phase 18 context gathered, ready to plan
-Resume file: .planning/phases/18-pre-flight-validator/18-CONTEXT.md
-Next action: /gsd:plan-phase 18
+Stopped at: Completed 18-01-PLAN.md (env-writer TDD)
+Resume file: .planning/phases/18-pre-flight-validator/18-01-SUMMARY.md
+Next action: Execute next plan in Phase 18
 
 ---
-*Last updated: 2026-03-04 after v1.2 roadmap created*
+*Last updated: 2026-03-05 after 18-01 env-writer completed*
