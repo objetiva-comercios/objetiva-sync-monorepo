@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { systemState } from '../server.js'
+import { systemState } from '../lib/system-state.js'
 import { metrics } from '../lib/metrics.js'
 import os from 'os'
 

@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import jwt from '@fastify/jwt'
 import fastifyStatic from '@fastify/static'
+import rateLimit from '@fastify/rate-limit'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { logger } from './lib/logger.js'
@@ -17,7 +18,9 @@ import { registerRegenerateRoutes } from './routes/regenerate-schemas.js'
 import { registerDashboardRoutes } from './routes/dashboard.js'
 import { registerHealthRoutes } from './routes/health.js'
 import { registerMetricsRoutes } from './routes/metrics.js'
+import { registerPreflightRoutes } from './routes/preflight.js'
 import { httpDuration, httpRequestsTotal } from './lib/prometheus.js'
+import { systemState } from './lib/system-state.js'
 
 // Augment Fastify request for timing
 declare module 'fastify' {
@@ -33,7 +36,11 @@ export async function buildApp() {
     disableRequestLogging: process.env.NODE_ENV === 'production'
   })
 
-  // Correlation ID tracking - MUST be registered FIRST
+  // Rate limiting — global: false means per-route opt-in via config.rateLimit
+  // MUST be registered BEFORE routes
+  await app.register(rateLimit as any, { global: false })
+
+  // Correlation ID tracking - MUST be registered FIRST before routes
   // Enables end-to-end request tracing via X-Correlation-ID header
   await app.register(rTracer.fastifyPlugin, {
     useHeader: true,
@@ -103,11 +110,31 @@ export async function buildApp() {
     prefix: '/'
   })
 
+  // Setup-only mode — return 503 on all routes NOT in the allowlist
+  // Checked after rate-limit and correlation hooks so those still work.
+  // The hook runs on every request; systemState.startupMode is read live.
+  const SETUP_ONLY_ALLOWLIST = ['/health', '/metrics', '/setup', '/api/setup/']
+  app.addHook('onRequest', async (request, reply) => {
+    if (systemState.startupMode !== 'setup-only') return
+    const url = request.url
+    const allowed = SETUP_ONLY_ALLOWLIST.some((prefix) => url.startsWith(prefix))
+    if (!allowed) {
+      return reply.code(503).send({
+        error: 'SERVICE_UNAVAILABLE',
+        message: 'Gateway is in setup-only mode. Complete configuration at /setup.',
+        setupUrl: '/setup'
+      })
+    }
+  })
+
   // Health check (before other routes, no auth required)
   await registerHealthRoutes(app)
 
   // Metrics endpoint (no auth required, Prometheus needs to scrape)
   await registerMetricsRoutes(app)
+
+  // Preflight endpoint (no auth required, used by setup wizard)
+  await registerPreflightRoutes(app)
 
   // Routes
   await registerStatusRoutes(app)
