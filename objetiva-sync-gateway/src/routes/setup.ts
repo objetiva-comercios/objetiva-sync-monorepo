@@ -31,7 +31,7 @@ export function assembleGatewayUrl(protocol: string, domain: string, port?: stri
 }
 
 export async function registerSetupRoutes(app: FastifyInstance) {
-  // GET /setup - Interfaz web de configuración
+  // GET /setup - Interfaz web de configuración (5-step gated wizard)
   app.get('/setup', async (_request, reply) => {
     return reply.type('text/html').send(`
 <!DOCTYPE html>
@@ -39,13 +39,9 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${process.env.APP_NAME || 'Objetiva Sync Gateway'} - Configuración Inicial</title>
+  <title>${process.env.APP_NAME || 'Objetiva Sync Gateway'} - Setup Wizard</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -53,118 +49,164 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       min-height: 100vh;
       padding: 20px;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
     }
 
     .container {
-      max-width: 800px;
+      max-width: 640px;
       width: 100%;
       background: white;
       border-radius: 12px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       overflow: hidden;
+      margin-top: 20px;
     }
 
     .header {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 30px;
+      padding: 28px 32px 20px;
       text-align: center;
     }
 
-    .header h1 {
-      font-size: 28px;
-      margin-bottom: 8px;
-    }
+    .header h1 { font-size: 24px; margin-bottom: 6px; }
+    .header p { opacity: 0.85; font-size: 13px; }
 
-    .header p {
-      opacity: 0.9;
-      font-size: 14px;
-    }
-
-    .content {
-      padding: 40px;
-    }
-
-    .step {
-      margin-bottom: 40px;
-      padding-bottom: 40px;
+    /* Progress stepper */
+    .stepper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 20px 32px 16px;
+      background: #f9fafb;
       border-bottom: 1px solid #e5e7eb;
     }
 
-    .step:last-child {
-      border-bottom: none;
-      margin-bottom: 0;
-      padding-bottom: 0;
-    }
-
-    .step-header {
+    .stepper-item {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      margin-bottom: 20px;
+      gap: 6px;
+      flex: 1;
+      position: relative;
     }
 
-    .step-number {
-      width: 36px;
-      height: 36px;
-      background: #667eea;
-      color: white;
+    .stepper-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: calc(50% + 16px);
+      right: calc(-50% + 16px);
+      height: 2px;
+      background: #e5e7eb;
+      z-index: 0;
+    }
+
+    .stepper-item.completed:not(:last-child)::after { background: #10b981; }
+
+    .stepper-dot {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: bold;
-      margin-right: 12px;
-      flex-shrink: 0;
+      font-size: 13px;
+      font-weight: 700;
+      z-index: 1;
+      transition: all 0.2s;
     }
+
+    .stepper-item.upcoming .stepper-dot {
+      background: #e5e7eb;
+      color: #9ca3af;
+      border: 2px solid #e5e7eb;
+    }
+
+    .stepper-item.current .stepper-dot {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+
+    .stepper-item.completed .stepper-dot {
+      background: #10b981;
+      color: white;
+      border: 2px solid #10b981;
+    }
+
+    .stepper-label {
+      font-size: 10px;
+      color: #9ca3af;
+      text-align: center;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+
+    .stepper-item.current .stepper-label { color: #667eea; font-weight: 600; }
+    .stepper-item.completed .stepper-label { color: #10b981; }
+
+    /* Wizard steps */
+    .content { padding: 32px; }
+
+    .wizard-step { display: none; }
+    .wizard-step.active { display: block; }
 
     .step-title {
       font-size: 20px;
-      font-weight: 600;
-      color: #1f2937;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 6px;
     }
 
-    .step-description {
+    .step-subtitle {
+      font-size: 14px;
       color: #6b7280;
-      margin-bottom: 20px;
-      line-height: 1.6;
+      margin-bottom: 24px;
+      line-height: 1.5;
     }
 
-    .form-group {
-      margin-bottom: 20px;
+    .form-group { margin-bottom: 18px; }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
     }
+
+    .form-row .form-group { flex: 1; }
+    .form-row .form-group.port-field { flex: 0 0 100px; }
 
     label {
       display: block;
       font-weight: 500;
       color: #374151;
-      margin-bottom: 8px;
-      font-size: 14px;
+      margin-bottom: 6px;
+      font-size: 13px;
     }
 
-    input, textarea {
+    input, select {
       width: 100%;
-      padding: 12px;
-      border: 2px solid #e5e7eb;
+      padding: 10px 12px;
+      border: 1.5px solid #e5e7eb;
       border-radius: 8px;
       font-size: 14px;
       transition: border-color 0.2s;
+      background: white;
+      color: #111827;
     }
 
-    input:focus, textarea:focus {
+    input:focus, select:focus {
       outline: none;
       border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
-    .input-hint {
-      font-size: 12px;
-      color: #6b7280;
-      margin-top: 4px;
-    }
+    .input-hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
 
     .btn {
-      padding: 12px 24px;
+      padding: 10px 20px;
       border: none;
       border-radius: 8px;
       font-size: 14px;
@@ -176,383 +218,401 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       gap: 8px;
     }
 
-    .btn-primary {
-      background: #667eea;
-      color: white;
-    }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5568d3; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
 
-    .btn-primary:hover {
-      background: #5568d3;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
+    .btn-secondary { background: #f3f4f6; color: #374151; }
+    .btn-secondary:hover { background: #e5e7eb; }
 
-    .btn-secondary {
-      background: #f3f4f6;
-      color: #374151;
-    }
+    .btn-warning { background: #f59e0b; color: white; }
+    .btn-warning:hover { background: #d97706; }
 
-    .btn-secondary:hover {
-      background: #e5e7eb;
-    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
 
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none !important;
-    }
-
-    .btn-group {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
+    .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; align-items: center; }
 
     .alert {
-      padding: 16px;
+      padding: 12px 16px;
       border-radius: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
+      font-size: 13px;
       display: none;
+      line-height: 1.5;
     }
 
-    .alert.show {
-      display: block;
-    }
+    .alert.show { display: block; }
 
-    .alert-success {
-      background: #d1fae5;
-      color: #065f46;
-      border: 1px solid #6ee7b7;
-    }
-
-    .alert-error {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #fca5a5;
-    }
-
-    .alert-info {
-      background: #dbeafe;
-      color: #1e40af;
-      border: 1px solid #93c5fd;
-    }
-
-    .alert-warning {
-      background: #fef3c7;
-      color: #92400e;
-      border: 1px solid #fde68a;
-    }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
 
     .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid #fff;
-      border-top-color: transparent;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.5);
+      border-top-color: white;
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    .status-badge {
+      animation: spin 0.7s linear infinite;
       display: inline-block;
-      padding: 4px 12px;
-      border-radius: 12px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .advanced-toggle {
       font-size: 12px;
+      color: #667eea;
+      cursor: pointer;
+      text-decoration: underline;
+      background: none;
+      border: none;
+      padding: 0;
+      margin-bottom: 12px;
+    }
+
+    .advanced-section { display: none; }
+    .advanced-section.show { display: block; }
+
+    /* Summary (download step) */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .summary-item {
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .summary-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .summary-value {
+      font-size: 13px;
+      color: #111827;
+      font-weight: 500;
+      word-break: break-all;
+    }
+
+    .summary-value.not-configured { color: #ef4444; font-style: italic; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
       font-weight: 600;
     }
 
-    .status-pending {
-      background: #fef3c7;
-      color: #92400e;
-    }
-
-    .status-success {
-      background: #d1fae5;
-      color: #065f46;
-    }
+    .badge-success { background: #d1fae5; color: #065f46; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
 
     code {
       background: #f3f4f6;
-      padding: 2px 6px;
+      padding: 1px 5px;
       border-radius: 4px;
       font-family: 'Courier New', monospace;
-      font-size: 13px;
+      font-size: 12px;
     }
 
-    .info-box {
-      background: #f9fafb;
-      border-left: 4px solid #667eea;
-      padding: 16px;
-      border-radius: 4px;
-      margin-bottom: 20px;
-    }
-
-    .info-box strong {
-      display: block;
-      margin-bottom: 8px;
-      color: #374151;
-    }
-
-    .info-box p {
-      font-size: 14px;
-      color: #6b7280;
-      line-height: 1.6;
+    .configured-indicator {
+      display: none;
+      font-size: 12px;
+      color: #10b981;
+      margin-top: 4px;
+      font-weight: 500;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>🚀 ${process.env.APP_NAME || 'Objetiva Sync Gateway'}</h1>
-      <p>Configuración inicial del servidor</p>
+      <h1>${process.env.APP_NAME || 'Objetiva Sync Gateway'}</h1>
+      <p>Setup Wizard</p>
+    </div>
+
+    <!-- Progress Stepper -->
+    <div class="stepper" id="stepper">
+      <div class="stepper-item current" id="step-indicator-0">
+        <div class="stepper-dot">1</div>
+        <div class="stepper-label">Database</div>
+      </div>
+      <div class="stepper-item upcoming" id="step-indicator-1">
+        <div class="stepper-dot">2</div>
+        <div class="stepper-label">Domain</div>
+      </div>
+      <div class="stepper-item upcoming" id="step-indicator-2">
+        <div class="stepper-dot">3</div>
+        <div class="stepper-label">JWT</div>
+      </div>
+      <div class="stepper-item upcoming" id="step-indicator-3">
+        <div class="stepper-dot">4</div>
+        <div class="stepper-label">Password</div>
+      </div>
+      <div class="stepper-item upcoming" id="step-indicator-4">
+        <div class="stepper-dot">5</div>
+        <div class="stepper-label">Download</div>
+      </div>
     </div>
 
     <div class="content">
-      <!-- Current Configuration Status -->
-      <div id="current-config" class="info-box" style="display: none; margin-bottom: 24px;">
-        <strong>📋 Configuración Actual</strong>
-        <div id="current-config-content" style="margin-top: 12px;">
-          <div style="font-size: 13px; color: #6b7280; line-height: 1.8;">
-            Cargando...
+
+      <!-- Step 0: Database -->
+      <div class="wizard-step active" id="wizard-step-0">
+        <div class="step-title">Step 1 of 5 — Database</div>
+        <p class="step-subtitle">Configure the connection to your PostgreSQL database. The system will test the connection before proceeding.</p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="db-host">Host</label>
+            <input type="text" id="db-host" placeholder="localhost">
+          </div>
+          <div class="form-group port-field">
+            <label for="db-port">Port</label>
+            <input type="text" id="db-port" placeholder="5432" value="5432">
           </div>
         </div>
-      </div>
-
-      <!-- PASO 1: PostgreSQL -->
-      <div class="step">
-        <div class="step-header">
-          <div class="step-number">1</div>
-          <div class="step-title">Configurar PostgreSQL</div>
-        </div>
-        <p class="step-description">
-          Configura la conexión a tu base de datos PostgreSQL existente. El sistema verificará que las tablas necesarias existan.
-        </p>
 
         <div class="form-group">
-          <label for="db-url">Database URL</label>
-          <input
-            type="text"
-            id="db-url"
-            placeholder="postgresql://user:password@localhost:5432/objetiva_db"
-            value="postgresql://user:password@localhost:5432/objetiva_db"
-          >
-          <div class="input-hint">Formato: postgresql://usuario:contraseña@host:puerto/nombre_db</div>
+          <label for="db-user">Username</label>
+          <input type="text" id="db-user" placeholder="postgres">
+        </div>
+
+        <div class="form-group">
+          <label for="db-password">Password</label>
+          <input type="password" id="db-password" placeholder="••••••••">
+          <div id="db-password-configured" class="configured-indicator">[configured — leave empty to keep current]</div>
+        </div>
+
+        <div class="form-group">
+          <label for="db-name">Database Name</label>
+          <input type="text" id="db-name" placeholder="objetiva_db">
         </div>
 
         <div id="db-alert" class="alert"></div>
 
         <div class="btn-group">
-          <button class="btn btn-primary" onclick="testDatabase()" id="test-db-btn">
-            Probar Conexión
+          <button class="btn btn-primary" onclick="testDbAndNext()" id="test-db-btn">
+            Test Connection &amp; Next
           </button>
         </div>
       </div>
 
-      <!-- PASO 2: JWT Secret -->
-      <div class="step">
-        <div class="step-header">
-          <div class="step-number">2</div>
-          <div class="step-title">Configurar JWT Secret</div>
+      <!-- Step 1: Domain -->
+      <div class="wizard-step" id="wizard-step-1">
+        <div class="step-title">Step 2 of 5 — Domain</div>
+        <p class="step-subtitle">Configure the public URL where this gateway will be reachable. This is required for pairing with the sync client.</p>
+
+        <div class="form-row">
+          <div class="form-group" style="flex: 0 0 110px;">
+            <label for="domain-protocol">Protocol</label>
+            <select id="domain-protocol">
+              <option value="https" selected>https</option>
+              <option value="http">http</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="domain-input">Domain</label>
+            <input type="text" id="domain-input" placeholder="gateway.example.com">
+          </div>
         </div>
-        <p class="step-description">
-          El JWT Secret debe ser <strong>el mismo</strong> que usas en Objetiva Sync para que los tokens sean válidos.
-        </p>
+
+        <button class="advanced-toggle" onclick="toggleAdvanced()" id="advanced-toggle-btn">+ Advanced (custom port)</button>
+        <div class="advanced-section" id="advanced-section">
+          <div class="form-group" style="max-width: 160px;">
+            <label for="domain-port">Port</label>
+            <input type="text" id="domain-port" placeholder="leave empty for default">
+          </div>
+        </div>
+
+        <div id="domain-alert" class="alert"></div>
+
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="goBack()" id="domain-back-btn">Back</button>
+          <button class="btn btn-primary" onclick="saveDomainAndNext()" id="save-domain-btn">Save &amp; Next</button>
+          <button class="btn btn-warning" onclick="skipDomain()" id="skip-domain-btn">Skip (not recommended)</button>
+        </div>
+      </div>
+
+      <!-- Step 2: JWT Secret -->
+      <div class="wizard-step" id="wizard-step-2">
+        <div class="step-title">Step 3 of 5 — JWT Secret</div>
+        <p class="step-subtitle">Set the JWT signing secret. It must match the value configured in your Objetiva Sync client for tokens to be valid.</p>
 
         <div class="form-group">
           <label for="jwt-secret">JWT Secret</label>
-          <input
-            type="text"
-            id="jwt-secret"
-            placeholder="tu-secret-super-seguro-aqui"
-          >
-          <div class="input-hint">Usa el mismo secret configurado en objetiva-sync</div>
+          <input type="text" id="jwt-secret" placeholder="64-character hex string">
+          <div id="jwt-configured" class="configured-indicator"></div>
+          <div class="input-hint">Minimum 32 characters. Use "Generate" to create a secure random value.</div>
         </div>
 
         <div id="jwt-alert" class="alert"></div>
 
         <div class="btn-group">
-          <button class="btn btn-secondary" onclick="generateSecret()">
-            🎲 Generar Automáticamente
-          </button>
-          <button class="btn btn-primary" onclick="saveJwtSecret()" id="save-jwt-btn">
-            Guardar Secret
-          </button>
+          <button class="btn btn-secondary" onclick="goBack()">Back</button>
+          <button class="btn btn-secondary" onclick="generateJwtSecret()">Generate JWT Secret</button>
+          <button class="btn btn-primary" onclick="saveJwtAndNext()" id="save-jwt-btn">Save &amp; Next</button>
         </div>
       </div>
 
-      <!-- PASO 3: Verificar Tablas -->
-      <div class="step">
-        <div class="step-header">
-          <div class="step-number">3</div>
-          <div class="step-title">Verificar Tablas Existentes</div>
-        </div>
-        <p class="step-description">
-          Verifica que las tablas necesarias existan en PostgreSQL: <code>articulos</code>, <code>comprobantes_cabecera</code>, <code>comprobantes_detalle</code>, <code>comprobantes_pagos</code>.
-        </p>
+      <!-- Step 3: Password -->
+      <div class="wizard-step" id="wizard-step-3">
+        <div class="step-title">Step 4 of 5 — Admin Password</div>
+        <p class="step-subtitle">Configure the password for the <strong>admin</strong> user. This will be used to authenticate from the sync client.</p>
 
-        <div id="verify-alert" class="alert"></div>
-
-        <div class="btn-group">
-          <button class="btn btn-primary" onclick="verifyTables()" id="verify-btn">
-            Verificar Tablas
-          </button>
-        </div>
-      </div>
-
-      <!-- PASO 4: Configurar Credenciales -->
-      <div class="step">
-        <div class="step-header">
-          <div class="step-number">4</div>
-          <div class="step-title">Configurar Credenciales de Autenticación</div>
-        </div>
-        <p class="step-description">
-          Configura la contraseña del usuario <strong>admin</strong> que se usará para autenticarse desde el sincronizador local.
-        </p>
-
-        <div class="info-box">
-          <strong>Usuario fijo:</strong>
-          <p>El sistema usa un usuario fijo <code>admin</code>. Solo necesitas configurar la contraseña.</p>
+        <div class="alert alert-info show" style="margin-bottom: 18px;">
+          Username: <strong>admin</strong> (fixed)
         </div>
 
         <div class="form-group">
-          <label for="admin-password">Password para usuario 'admin'</label>
-          <input type="password" id="admin-password" placeholder="Contraseña segura">
-          <div class="input-hint">Mínimo 6 caracteres. Esta contraseña se usará en objetiva-sync.</div>
+          <label for="admin-password">Password</label>
+          <input type="password" id="admin-password" placeholder="At least 6 characters">
+          <div class="input-hint">Minimum 6 characters.</div>
         </div>
 
         <div id="password-alert" class="alert"></div>
 
         <div class="btn-group">
-          <button class="btn btn-primary" onclick="setAdminPassword()" id="set-password-btn">
-            Configurar Contraseña
-          </button>
+          <button class="btn btn-secondary" onclick="goBack()">Back</button>
+          <button class="btn btn-primary" onclick="savePasswordAndNext()" id="save-password-btn">Save &amp; Next</button>
         </div>
       </div>
 
-      <!-- Estado Final -->
-      <div class="step" style="border-top: 2px solid #e5e7eb; padding-top: 30px;">
-        <div class="step-header">
-          <div class="step-number">✓</div>
-          <div class="step-title">Estado de Configuración</div>
+      <!-- Step 4: Download -->
+      <div class="wizard-step" id="wizard-step-4">
+        <div class="step-title">Step 5 of 5 — Download Configuration</div>
+        <p class="step-subtitle">Review your configuration and download the <code>.env</code> file. Restart the server to apply all changes.</p>
+
+        <div id="download-alert" class="alert"></div>
+        <div id="summary-loading" style="color: #9ca3af; font-size: 13px; margin-bottom: 16px;">Loading summary...</div>
+
+        <div id="summary-container" style="display: none;">
+          <div class="summary-grid" id="summary-grid"></div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-          <div>
-            <strong style="font-size: 13px; color: #6b7280;">Base de Datos</strong>
-            <div id="status-db" class="status-badge status-pending" style="margin-top: 8px;">Pendiente</div>
-          </div>
-          <div>
-            <strong style="font-size: 13px; color: #6b7280;">JWT Secret</strong>
-            <div id="status-jwt" class="status-badge status-pending" style="margin-top: 8px;">Pendiente</div>
-          </div>
-          <div>
-            <strong style="font-size: 13px; color: #6b7280;">Tablas DB</strong>
-            <div id="status-tables" class="status-badge status-pending" style="margin-top: 8px;">Pendiente</div>
-          </div>
-          <div>
-            <strong style="font-size: 13px; color: #6b7280;">Credenciales</strong>
-            <div id="status-password" class="status-badge status-pending" style="margin-top: 8px;">Pendiente</div>
-          </div>
+        <div id="domain-skip-warning" class="alert alert-warning" style="display: none;">
+          Warning: Gateway public URL is not configured. Pairing with the sync client will not work until a domain is set.
         </div>
 
-        <div style="margin-top: 24px; padding: 16px; background: #f9fafb; border-radius: 8px;">
-          <p style="font-size: 14px; color: #6b7280;">
-            Una vez completados todos los pasos, el servidor estará listo para recibir sincronizaciones con las credenciales: <strong>admin</strong> / <strong>[tu contraseña]</strong>
-          </p>
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="goBack()">Back</button>
+          <button class="btn btn-primary" onclick="downloadEnv()" id="download-btn">Download .env</button>
         </div>
+
+        <p style="margin-top: 20px; font-size: 13px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;">
+          After downloading, replace the <code>.env</code> file on your server and restart the process to apply all changes.
+        </p>
       </div>
+
     </div>
   </div>
 
   <script>
-    let currentDbUrl = '';
+    const state = {
+      currentStep: 0,
+      completedSteps: new Set(),
+      stepData: {}
+    };
 
-    // Load current configuration on page load
-    window.addEventListener('DOMContentLoaded', async () => {
-      await loadCurrentConfig();
-    });
+    const TOTAL_STEPS = 5;
 
-    async function loadCurrentConfig() {
-      try {
-        const res = await fetch('/api/setup/status');
-        const data = await res.json();
-
-        let hasConfig = false;
-        let html = '<div style="font-size: 13px; color: #6b7280; line-height: 1.8;">';
-
-        // Database configuration
-        if (data.database) {
-          hasConfig = true;
-          html += '<div style="margin-bottom: 8px;">';
-          html += '<strong style="color: #10b981;">✓ PostgreSQL:</strong> ';
-          html += \`\${data.database.username}@\${data.database.host}:\${data.database.port}/\${data.database.database}\`;
-          html += '</div>';
-          setStatus('status-db', 'success');
+    // ── Stepper UI ──────────────────────────────────────────────────────────
+    function updateStepper() {
+      for (let i = 0; i < TOTAL_STEPS; i++) {
+        const indicator = document.getElementById('step-indicator-' + i);
+        if (!indicator) continue;
+        if (state.completedSteps.has(i)) {
+          indicator.className = 'stepper-item completed';
+          indicator.querySelector('.stepper-dot').textContent = '✓';
+        } else if (i === state.currentStep) {
+          indicator.className = 'stepper-item current';
+          indicator.querySelector('.stepper-dot').textContent = String(i + 1);
+        } else {
+          indicator.className = 'stepper-item upcoming';
+          indicator.querySelector('.stepper-dot').textContent = String(i + 1);
         }
-
-        // JWT Secret
-        if (data.jwt) {
-          hasConfig = true;
-          html += '<div style="margin-bottom: 8px;">';
-          html += '<strong style="color: #10b981;">✓ JWT Secret:</strong> ';
-          html += \`Configurado (\${data.jwt.length} caracteres) - Preview: <code>\${data.jwt.preview}</code>\`;
-          html += '</div>';
-          setStatus('status-jwt', 'success');
-        }
-
-        // Auth credentials
-        if (data.auth && data.auth.passwordConfigured) {
-          hasConfig = true;
-          html += '<div style="margin-bottom: 8px;">';
-          html += '<strong style="color: #10b981;">✓ Credenciales:</strong> ';
-          html += \`Usuario: <code>\${data.auth.username}</code> / Contraseña configurada\`;
-          html += '</div>';
-          setStatus('status-password', 'success');
-        }
-
-        html += '</div>';
-
-        if (hasConfig) {
-          document.getElementById('current-config-content').innerHTML = html;
-          document.getElementById('current-config').style.display = 'block';
-        }
-      } catch (error) {
-        console.error('Error loading current config:', error);
-        // Silently fail - if there's no config, we just don't show the box
       }
     }
 
+    function showStep(index) {
+      document.querySelectorAll('.wizard-step').forEach(function(el) {
+        el.classList.remove('active');
+      });
+      const target = document.getElementById('wizard-step-' + index);
+      if (target) target.classList.add('active');
+      state.currentStep = index;
+      updateStepper();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function goBack() {
+      if (state.currentStep > 0) {
+        showStep(state.currentStep - 1);
+      }
+    }
+
+    function advanceStep() {
+      state.completedSteps.add(state.currentStep);
+      const next = state.currentStep + 1;
+      showStep(next);
+      if (next === 4) {
+        loadDownloadSummary();
+      }
+    }
+
+    // ── Alert helpers ────────────────────────────────────────────────────────
     function showAlert(id, type, message) {
-      const alert = document.getElementById(id);
-      alert.className = \`alert alert-\${type} show\`;
-      alert.innerHTML = message;
+      const el = document.getElementById(id);
+      el.className = 'alert alert-' + type + ' show';
+      el.textContent = message;
+    }
+
+    function showAlertHtml(id, type, html) {
+      const el = document.getElementById(id);
+      el.className = 'alert alert-' + type + ' show';
+      el.innerHTML = html;
     }
 
     function hideAlert(id) {
-      document.getElementById(id).className = 'alert';
-    }
-
-    function setStatus(id, status) {
       const el = document.getElementById(id);
-      el.className = \`status-badge status-\${status}\`;
-      el.textContent = status === 'success' ? 'Completado' : 'Pendiente';
+      el.className = 'alert';
+      el.textContent = '';
     }
 
-    async function testDatabase() {
-      const btn = document.getElementById('test-db-btn');
-      const dbUrl = document.getElementById('db-url').value.trim();
+    // ── Step 0: Database ─────────────────────────────────────────────────────
+    function assembleDbUrl() {
+      const host = document.getElementById('db-host').value.trim();
+      const port = document.getElementById('db-port').value.trim() || '5432';
+      const user = document.getElementById('db-user').value.trim();
+      const pass = document.getElementById('db-password').value;
+      const dbName = document.getElementById('db-name').value.trim();
+      return 'postgresql://' + encodeURIComponent(user) + ':' + encodeURIComponent(pass) + '@' + host + ':' + port + '/' + dbName;
+    }
 
-      if (!dbUrl) {
-        showAlert('db-alert', 'error', 'Por favor ingresa una Database URL');
+    async function testDbAndNext() {
+      const host = document.getElementById('db-host').value.trim();
+      const user = document.getElementById('db-user').value.trim();
+      const dbName = document.getElementById('db-name').value.trim();
+
+      if (!host || !user || !dbName) {
+        showAlert('db-alert', 'error', 'Please fill in host, username, and database name.');
         return;
       }
 
+      const btn = document.getElementById('test-db-btn');
       btn.disabled = true;
-      btn.innerHTML = '<div class="spinner"></div> Probando conexión...';
+      btn.innerHTML = '<span class="spinner"></span> Testing connection...';
       hideAlert('db-alert');
+
+      const dbUrl = assembleDbUrl();
 
       try {
         const res = await fetch('/api/setup/test-db', {
@@ -560,50 +620,119 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ databaseUrl: dbUrl })
         });
-
         const data = await res.json();
 
         if (data.success) {
-          showAlert('db-alert', 'success', '✓ Conexión exitosa a PostgreSQL');
-          setStatus('status-db', 'success');
-          currentDbUrl = dbUrl;
+          // Store connection info (no password)
+          state.stepData.db = {
+            host: document.getElementById('db-host').value.trim(),
+            port: document.getElementById('db-port').value.trim() || '5432',
+            user: document.getElementById('db-user').value.trim(),
+            dbName: document.getElementById('db-name').value.trim()
+          };
+          // Clear password from DOM
+          document.getElementById('db-password').value = '';
+
+          let infoMsg = 'Connection successful.';
+          if (data.tables && data.tables.length > 0) {
+            infoMsg += ' Tables found: ' + data.tables.join(', ') + '.';
+          }
+          showAlert('db-alert', 'success', infoMsg);
+          setTimeout(function() { advanceStep(); }, 800);
         } else {
-          showAlert('db-alert', 'error', \`Error: \${data.error}\`);
-          setStatus('status-db', 'pending');
+          showAlert('db-alert', 'error', 'Connection failed: ' + (data.error || 'Unknown error'));
         }
-      } catch (error) {
-        showAlert('db-alert', 'error', \`Error: \${error.message}\`);
-        setStatus('status-db', 'pending');
+      } catch (err) {
+        showAlert('db-alert', 'error', 'Connection failed: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Probar Conexión';
+        btn.textContent = 'Test Connection & Next';
       }
     }
 
-    function generateSecret() {
-      const secret = Array.from(crypto.getRandomValues(new Uint8Array(32)))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-      document.getElementById('jwt-secret').value = secret;
-      showAlert('jwt-alert', 'info', 'Secret generado. Recuerda usar este mismo valor en objetiva-sync');
+    // ── Step 1: Domain ────────────────────────────────────────────────────────
+    function toggleAdvanced() {
+      const section = document.getElementById('advanced-section');
+      const btn = document.getElementById('advanced-toggle-btn');
+      if (section.classList.contains('show')) {
+        section.classList.remove('show');
+        btn.textContent = '+ Advanced (custom port)';
+      } else {
+        section.classList.add('show');
+        btn.textContent = '- Advanced (custom port)';
+      }
     }
 
-    async function saveJwtSecret() {
-      const btn = document.getElementById('save-jwt-btn');
+    async function saveDomainAndNext() {
+      const protocol = document.getElementById('domain-protocol').value;
+      const domain = document.getElementById('domain-input').value.trim();
+      const portRaw = document.getElementById('domain-port').value.trim();
+
+      if (!domain) {
+        showAlert('domain-alert', 'error', 'Please enter a domain name.');
+        return;
+      }
+
+      // Omit port if it matches the protocol default
+      const defaultPorts = { http: '80', https: '443' };
+      const port = (portRaw && portRaw !== defaultPorts[protocol]) ? portRaw : undefined;
+
+      const btn = document.getElementById('save-domain-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving...';
+      hideAlert('domain-alert');
+
+      try {
+        const payload = { protocol, domain };
+        if (port) payload.port = port;
+
+        const res = await fetch('/api/setup/save-domain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          state.stepData.domainSkipped = false;
+          state.stepData.gatewayUrl = data.url;
+          advanceStep();
+        } else {
+          showAlert('domain-alert', 'error', data.error || 'Failed to save domain. Check the format.');
+        }
+      } catch (err) {
+        showAlert('domain-alert', 'error', 'Request failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save & Next';
+      }
+    }
+
+    function skipDomain() {
+      showAlert('domain-alert', 'warning', 'Without a public URL, pairing won\'t work. You can configure this later by re-running the wizard.');
+      state.stepData.domainSkipped = true;
+      setTimeout(function() { advanceStep(); }, 1200);
+    }
+
+    // ── Step 2: JWT Secret ────────────────────────────────────────────────────
+    function generateJwtSecret() {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const hex = Array.from(bytes).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+      document.getElementById('jwt-secret').value = hex;
+      hideAlert('jwt-alert');
+    }
+
+    async function saveJwtAndNext() {
       const secret = document.getElementById('jwt-secret').value.trim();
 
-      if (!secret) {
-        showAlert('jwt-alert', 'error', 'Por favor ingresa un JWT Secret');
-        return;
-      }
-
       if (secret.length < 32) {
-        showAlert('jwt-alert', 'error', 'El secret debe tener al menos 32 caracteres para ser seguro');
+        showAlert('jwt-alert', 'error', 'JWT secret must be at least 32 characters.');
         return;
       }
 
+      const btn = document.getElementById('save-jwt-btn');
       btn.disabled = true;
-      btn.innerHTML = '<div class="spinner"></div> Guardando...';
+      btn.innerHTML = '<span class="spinner"></span> Saving...';
       hideAlert('jwt-alert');
 
       try {
@@ -612,92 +741,33 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ jwtSecret: secret })
         });
-
         const data = await res.json();
 
         if (data.success) {
-          showAlert('jwt-alert', 'success', '✓ JWT Secret guardado en .env');
-          setStatus('status-jwt', 'success');
+          advanceStep();
         } else {
-          showAlert('jwt-alert', 'error', \`Error: \${data.error}\`);
+          showAlert('jwt-alert', 'error', data.error || 'Failed to save JWT secret.');
         }
-      } catch (error) {
-        showAlert('jwt-alert', 'error', \`Error: \${error.message}\`);
+      } catch (err) {
+        showAlert('jwt-alert', 'error', 'Request failed: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Guardar Secret';
+        btn.textContent = 'Save & Next';
       }
     }
 
-    async function verifyTables() {
-      const btn = document.getElementById('verify-btn');
-
-      if (!currentDbUrl) {
-        showAlert('verify-alert', 'error', 'Primero debes probar la conexión a la base de datos');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.innerHTML = '<div class="spinner"></div> Verificando tablas...';
-      hideAlert('verify-alert');
-
-      try {
-        const res = await fetch('/api/setup/verify-tables', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ databaseUrl: currentDbUrl })
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-          let message = '✓ Todas las tablas existen:<br>';
-          message += '<ul style="margin-top: 8px; margin-left: 20px;">';
-          data.tables.forEach(t => {
-            message += \`<li>\${t}</li>\`;
-          });
-          message += '</ul>';
-          message += '<div style="margin-top: 12px; padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px;">';
-          message += '<span style="color: #1565c0; font-size: 12px;">💡 <strong>Nota:</strong> La conexión a PostgreSQL se guardó. ';
-          message += 'Recuerda <strong>reiniciar el servidor</strong> al finalizar el setup.</span>';
-          message += '</div>';
-          showAlert('verify-alert', 'success', message);
-          setStatus('status-tables', 'success');
-        } else {
-          let message = \`❌ Faltan tablas:<br>\`;
-          message += '<ul style="margin-top: 8px; margin-left: 20px;">';
-          data.missing.forEach(t => {
-            message += \`<li><code>\${t}</code></li>\`;
-          });
-          message += '</ul>';
-          message += '<p style="margin-top: 8px;">Por favor crea estas tablas en PostgreSQL antes de continuar.</p>';
-          showAlert('verify-alert', 'error', message);
-          setStatus('status-tables', 'pending');
-        }
-      } catch (error) {
-        showAlert('verify-alert', 'error', \`Error: \${error.message}\`);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Verificar Tablas';
-      }
-    }
-
-    async function setAdminPassword() {
-      const btn = document.getElementById('set-password-btn');
+    // ── Step 3: Password ──────────────────────────────────────────────────────
+    async function savePasswordAndNext() {
       const password = document.getElementById('admin-password').value;
 
-      if (!password) {
-        showAlert('password-alert', 'error', 'Por favor ingresa una contraseña');
-        return;
-      }
-
       if (password.length < 6) {
-        showAlert('password-alert', 'error', 'La contraseña debe tener al menos 6 caracteres');
+        showAlert('password-alert', 'error', 'Password must be at least 6 characters.');
         return;
       }
 
+      const btn = document.getElementById('save-password-btn');
       btn.disabled = true;
-      btn.innerHTML = '<div class="spinner"></div> Configurando...';
+      btn.innerHTML = '<span class="spinner"></span> Saving...';
       hideAlert('password-alert');
 
       try {
@@ -706,33 +776,158 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password })
         });
-
         const data = await res.json();
 
         if (data.success) {
-          showAlert('password-alert', 'success',
-            '✓ Credenciales configuradas:<br>' +
-            '<strong>Usuario:</strong> admin<br>' +
-            '<strong>Password:</strong> [la que acabas de ingresar]<br>' +
-            '<div style="margin-top: 16px; padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">' +
-            '<strong style="color: #856404;">⚠️ IMPORTANTE:</strong><br>' +
-            '<span style="color: #856404; font-size: 13px;">Debes <strong>reiniciar el servidor</strong> para que los cambios surtan efecto.<br>' +
-            'Presiona Ctrl+C y ejecuta <code style="background: #f5f5f5; padding: 2px 6px;">npm run dev</code> nuevamente.</span>' +
-            '</div>' +
-            '<em style="font-size: 12px; margin-top: 8px; display: block;">Usa estas credenciales en objetiva-sync</em>'
-          );
-          setStatus('status-password', 'success');
           document.getElementById('admin-password').value = '';
+          advanceStep();
         } else {
-          showAlert('password-alert', 'error', \`Error: \${data.error}\`);
+          showAlert('password-alert', 'error', data.error || 'Failed to set password.');
         }
-      } catch (error) {
-        showAlert('password-alert', 'error', \`Error: \${error.message}\`);
+      } catch (err) {
+        showAlert('password-alert', 'error', 'Request failed: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Configurar Contraseña';
+        btn.textContent = 'Save & Next';
       }
     }
+
+    // ── Step 4: Download ──────────────────────────────────────────────────────
+    async function loadDownloadSummary() {
+      const loadingEl = document.getElementById('summary-loading');
+      const containerEl = document.getElementById('summary-container');
+      const skipWarningEl = document.getElementById('domain-skip-warning');
+
+      loadingEl.style.display = 'block';
+      containerEl.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/setup/status');
+        const data = await res.json();
+
+        const grid = document.getElementById('summary-grid');
+        grid.innerHTML = '';
+
+        function addSummaryItem(label, value, isWarning) {
+          const item = document.createElement('div');
+          item.className = 'summary-item';
+          const labelEl = document.createElement('div');
+          labelEl.className = 'summary-label';
+          labelEl.textContent = label;
+          const valueEl = document.createElement('div');
+          valueEl.className = 'summary-value' + (isWarning ? ' not-configured' : '');
+          valueEl.textContent = value;
+          item.appendChild(labelEl);
+          item.appendChild(valueEl);
+          grid.appendChild(item);
+        }
+
+        // Database
+        if (data.database) {
+          addSummaryItem('Database Host', data.database.host + ':' + data.database.port, false);
+          addSummaryItem('Database Name', data.database.database, false);
+          addSummaryItem('DB Username', data.database.username, false);
+        } else {
+          addSummaryItem('Database', 'Not configured', true);
+        }
+
+        // Gateway URL
+        if (data.gatewayUrl) {
+          addSummaryItem('Gateway URL', data.gatewayUrl, false);
+          skipWarningEl.style.display = 'none';
+        } else {
+          addSummaryItem('Gateway URL', 'Not configured', true);
+          if (state.stepData.domainSkipped) {
+            skipWarningEl.style.display = 'block';
+          }
+        }
+
+        // JWT
+        if (data.jwt) {
+          addSummaryItem('JWT Secret', data.jwt.length + ' chars: ' + data.jwt.preview, false);
+        } else {
+          addSummaryItem('JWT Secret', 'Not configured', true);
+        }
+
+        // Auth
+        if (data.auth) {
+          const badge = document.createElement('div');
+          badge.className = 'summary-item';
+          const labelEl = document.createElement('div');
+          labelEl.className = 'summary-label';
+          labelEl.textContent = 'Auth Username';
+          const valueEl = document.createElement('div');
+          valueEl.className = 'summary-value';
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = data.auth.username + ' ';
+          const configuredBadge = document.createElement('span');
+          configuredBadge.className = 'badge badge-success';
+          configuredBadge.textContent = 'configured';
+          valueEl.appendChild(nameSpan);
+          valueEl.appendChild(configuredBadge);
+          badge.appendChild(labelEl);
+          badge.appendChild(valueEl);
+          grid.appendChild(badge);
+        } else {
+          addSummaryItem('Auth', 'Not configured', true);
+        }
+
+        loadingEl.style.display = 'none';
+        containerEl.style.display = 'block';
+      } catch (err) {
+        loadingEl.textContent = 'Could not load configuration summary.';
+      }
+    }
+
+    function downloadEnv() {
+      window.location.href = '/api/setup/generate-env';
+    }
+
+    // ── Pre-fill on load ──────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', async function() {
+      try {
+        const [preflight, status] = await Promise.all([
+          fetch('/api/setup/preflight').then(function(r) { return r.json(); }),
+          fetch('/api/setup/status').then(function(r) { return r.json(); })
+        ]);
+
+        // Pre-fill DB fields
+        if (status.database) {
+          document.getElementById('db-host').value = status.database.host;
+          document.getElementById('db-port').value = status.database.port;
+          document.getElementById('db-user').value = status.database.username;
+          document.getElementById('db-name').value = status.database.database;
+          // Show configured placeholder for password
+          document.getElementById('db-password-configured').style.display = 'block';
+        }
+
+        // Pre-fill domain
+        if (status.gatewayUrl) {
+          try {
+            const url = new URL(status.gatewayUrl);
+            document.getElementById('domain-protocol').value = url.protocol.replace(':', '');
+            document.getElementById('domain-input').value = url.hostname;
+            if (url.port) {
+              document.getElementById('domain-port').value = url.port;
+              document.getElementById('advanced-section').classList.add('show');
+              document.getElementById('advanced-toggle-btn').textContent = '- Advanced (custom port)';
+            }
+          } catch (_) {}
+        }
+
+        // JWT configured indicator
+        if (status.jwt) {
+          const jwtIndicator = document.getElementById('jwt-configured');
+          jwtIndicator.style.display = 'block';
+          jwtIndicator.textContent = 'Currently configured (' + status.jwt.length + ' chars): ' + status.jwt.preview;
+        }
+
+        // Suppress unused preflight variable warning
+        void preflight;
+      } catch (_) {
+        // Silently continue — pre-fill is best-effort
+      }
+    });
   </script>
 </body>
 </html>
