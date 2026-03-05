@@ -88,7 +88,7 @@ Plans:
   3. POST /api/pairing/claim with the same code a second time returns 410 Gone — the code is consumed on first use
   4. POST /api/pairing/claim from the same IP more than 5 times per minute returns 429 Too Many Requests
   5. A pairing code generated before a container restart is no longer valid after the restart (code not persisted incorrectly across restarts)
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 20-01-PLAN.md — Pairing store module + routes with TDD (generate, claim, rate limit)
 - [ ] 20-02-PLAN.md — Wizard step 6: Link Sync Client (code display, countdown, copy)
@@ -115,7 +115,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21
 | 13-16. Multi-Source & Hardening | v1.1-rc2 | 14/14 | Complete | 2026-02-18 |
 | 18. Pre-Flight Validator | 2/2 | Complete    | 2026-03-05 | - |
 | 19. Setup Wizard Enhancement | 2/2 | Complete    | 2026-03-05 | - |
-| 20. Gateway Pairing Routes | v1.2 | 0/2 | Planned | - |
+| 20. Gateway Pairing Routes | 1/2 | In Progress|  | - |
 | 21. Sync Pairing Client | v1.2 | 0/TBD | Not started | - |
 
 ---

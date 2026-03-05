@@ -24,11 +24,11 @@
 
 ### Pairing
 
-- [ ] **PAIR-01**: Gateway genera código de enlace corto (6 caracteres, alfanumérico) con expiración de 10 minutos
-- [ ] **PAIR-02**: Sync consume código via `POST /api/pairing/claim` y recibe URL, JWT secret y credenciales
-- [ ] **PAIR-03**: Sync almacena automáticamente la configuración recibida en su config encriptada (SQLite)
-- [ ] **PAIR-04**: Código se invalida inmediatamente después de ser consumido (single-use)
-- [ ] **PAIR-05**: Rate limiting en endpoint de claim (unauthenticated) para prevenir brute force
+- [x] **PAIR-01**: Gateway genera código de enlace corto (6 caracteres, alfanumérico) con expiración de 10 minutos
+- [x] **PAIR-02**: Sync consume código via `POST /api/pairing/claim` y recibe URL, JWT secret y credenciales
+- [x] **PAIR-03**: Sync almacena automáticamente la configuración recibida en su config encriptada (SQLite)
+- [x] **PAIR-04**: Código se invalida inmediatamente después de ser consumido (single-use)
+- [x] **PAIR-05**: Rate limiting en endpoint de claim (unauthenticated) para prevenir brute force
 
 ### Sync Pairing Client
 
@@ -74,11 +74,11 @@
 | WIZ-04 | Phase 19 | Complete |
 | WIZ-05 | Phase 19 | Complete |
 | WIZ-06 | Phase 19 | Complete |
-| PAIR-01 | Phase 20 | Pending |
-| PAIR-02 | Phase 20 | Pending |
-| PAIR-03 | Phase 20 | Pending |
-| PAIR-04 | Phase 20 | Pending |
-| PAIR-05 | Phase 20 | Pending |
+| PAIR-01 | Phase 20 | Complete |
+| PAIR-02 | Phase 20 | Complete |
+| PAIR-03 | Phase 20 | Complete |
+| PAIR-04 | Phase 20 | Complete |
+| PAIR-05 | Phase 20 | Complete |
 | SPC-01 | Phase 21 | Pending |
 | SPC-02 | Phase 21 | Pending |
 | SPC-03 | Phase 21 | Pending |

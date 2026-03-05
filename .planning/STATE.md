@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
 status: executing
-stopped_at: Phase 20 context gathered
-last_updated: "2026-03-05T14:10:12.451Z"
+stopped_at: Completed 20-01-PLAN.md (pairing backend routes + store)
+last_updated: "2026-03-05T15:37:31.260Z"
 last_activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
   percent: 91
 ---
 
@@ -63,6 +63,8 @@ See: .planning/MILESTONES.md for full details
 - [Phase 19-setup-wizard-enhancement]: 19-02: Password cleared from DOM after DB test, never in stepData (security)
 - [Phase 19-setup-wizard-enhancement]: 19-02: Download step re-fetches /api/setup/status on enter for current values
 - [Phase 19-setup-wizard-enhancement]: test-db endpoint persists DATABASE_URL to .env on success so summary step always shows current value
+- [Phase 20-01]: Test isolation for rate-limited claim endpoint: each describe block uses own buildApp() instance to prevent rate limit counter accumulation across tests
+- [Phase 20-01]: claimCode discriminated union ('ok'/'consumed'/'invalid') enables clean 200/410/404 HTTP status mapping without additional state queries
 
 ### Pending Todos
 
@@ -76,9 +78,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T14:10:12.444Z
-Stopped at: Phase 20 context gathered
-Resume file: .planning/phases/20-gateway-pairing-routes/20-CONTEXT.md
+Last session: 2026-03-05T15:37:31.255Z
+Stopped at: Completed 20-01-PLAN.md (pairing backend routes + store)
+Resume file: None
 Next action: Execute next plan in Phase 18
 
 ---
