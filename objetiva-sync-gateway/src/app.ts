@@ -16,6 +16,7 @@ import { registerStatusRoutes } from './routes/status.js'
 import { registerSchemaRoutes } from './routes/schemas.js'
 import { registerRegenerateRoutes } from './routes/regenerate-schemas.js'
 import { registerDashboardRoutes } from './routes/dashboard.js'
+import { registerPairingRoutes } from './routes/pairing.js'
 import { registerHealthRoutes } from './routes/health.js'
 import { registerMetricsRoutes } from './routes/metrics.js'
 import { registerPreflightRoutes } from './routes/preflight.js'
@@ -113,7 +114,7 @@ export async function buildApp() {
   // Setup-only mode — return 503 on all routes NOT in the allowlist
   // Checked after rate-limit and correlation hooks so those still work.
   // The hook runs on every request; systemState.startupMode is read live.
-  const SETUP_ONLY_ALLOWLIST = ['/health', '/metrics', '/setup', '/api/setup/']
+  const SETUP_ONLY_ALLOWLIST = ['/health', '/metrics', '/setup', '/api/setup/', '/api/pairing/']
   app.addHook('onRequest', async (request, reply) => {
     if (systemState.startupMode !== 'setup-only') return
     const url = request.url
@@ -145,6 +146,7 @@ export async function buildApp() {
   await registerSchemaRoutes(app)
   await registerRegenerateRoutes(app)
   await registerDashboardRoutes(app)
+  await registerPairingRoutes(app)
 
   // SPA fallback - todas las rutas no encontradas sirven el dashboard
   app.setNotFoundHandler(async (request, reply) => {
