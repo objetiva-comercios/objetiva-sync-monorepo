@@ -354,7 +354,7 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
         // Save 4 config keys: URL (plain), USERNAME (plain), PASSWORD (encrypted), JWT_SECRET (encrypted)
         await Promise.all([
           setConfig('REMOTE_API_URL', resolvedUrl),
-          setConfig('REMOTE_API_USERNAME', 'sync'),
+          setConfig('REMOTE_API_USERNAME', 'admin'),
           setConfig('REMOTE_API_PASSWORD', encrypt(data.syncPassword), true),
           setConfig('JWT_SECRET', encrypt(data.jwtSecret), true),
         ]);

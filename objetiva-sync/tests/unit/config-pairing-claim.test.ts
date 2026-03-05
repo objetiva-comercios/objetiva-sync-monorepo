@@ -154,7 +154,7 @@ describe('POST /api/config/pairing/claim', () => {
       // Verify 4 keys were saved
       expect(setConfig).toHaveBeenCalledTimes(4)
       expect(setConfig).toHaveBeenCalledWith('REMOTE_API_URL', 'https://gateway.example.com')
-      expect(setConfig).toHaveBeenCalledWith('REMOTE_API_USERNAME', 'sync')
+      expect(setConfig).toHaveBeenCalledWith('REMOTE_API_USERNAME', 'admin')
       expect(setConfig).toHaveBeenCalledWith('REMOTE_API_PASSWORD', 'encrypted:sync-pass-123', true)
       expect(setConfig).toHaveBeenCalledWith('JWT_SECRET', 'encrypted:super-secret-jwt', true)
     })
