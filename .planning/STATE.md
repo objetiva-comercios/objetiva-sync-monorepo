@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
 status: executing
-stopped_at: Phase 19 context gathered
-last_updated: "2026-03-05T11:39:10.562Z"
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-03-05T12:18:02.484Z"
 last_activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
   percent: 91
 ---
 
@@ -57,6 +57,9 @@ See: .planning/MILESTONES.md for full details
 - [Phase 18]: Extracted systemState to system-state.ts singleton to break circular dependency between app.ts and server.ts
 - [Phase 18]: GATEWAY_PUBLIC_URL is optional in preflight env_vars check — triggers warn not fail
 - [Phase 18]: Startup mode: env_vars fail -> setup-only, db_connectivity fail -> degraded, both pass -> normal
+- [Phase 19]: assembleGatewayUrl omits port when it matches protocol default (443/https, 80/http)
+- [Phase 19]: save-domain uses safeParse (not .parse()) for clean 400 responses on Zod validation errors
+- [Phase 19]: generate-env merges .env.example template with current .env values, keeps comments from example
 
 ### Pending Todos
 
@@ -70,9 +73,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T11:39:10.556Z
-Stopped at: Phase 19 context gathered
-Resume file: .planning/phases/19-setup-wizard-enhancement/19-CONTEXT.md
+Last session: 2026-03-05T12:17:49.003Z
+Stopped at: Completed 19-01-PLAN.md
+Resume file: None
 Next action: Execute next plan in Phase 18
 
 ---

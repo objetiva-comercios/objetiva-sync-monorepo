@@ -73,7 +73,7 @@ Plans:
   3. The domain step has an input for subdomain/FQDN that becomes the GATEWAY_PUBLIC_URL value in the generated .env
   4. Clicking "Generate JWT Secret" fills the JWT_SECRET field with a 64-character hex string without requiring the operator to leave the page
   5. Completing all wizard steps produces a downloadable .env file containing all required variables with correct values and properly escaped special characters
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 19-01-PLAN.md — Backend endpoints: save-domain, generate-env, status extension (TDD)
 - [ ] 19-02-PLAN.md — Frontend wizard rewrite: 5-step gated flow with split DB fields and .env download
@@ -111,7 +111,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21
 | 8-12. Reliability & Deployment | v1.1-rc | 15/15 | Complete | 2026-02-05 |
 | 13-16. Multi-Source & Hardening | v1.1-rc2 | 14/14 | Complete | 2026-02-18 |
 | 18. Pre-Flight Validator | 2/2 | Complete    | 2026-03-05 | - |
-| 19. Setup Wizard Enhancement | v1.2 | 0/2 | Planned | - |
+| 19. Setup Wizard Enhancement | 1/2 | In Progress|  | - |
 | 20. Gateway Pairing Routes | v1.2 | 0/TBD | Not started | - |
 | 21. Sync Pairing Client | v1.2 | 0/TBD | Not started | - |
 
