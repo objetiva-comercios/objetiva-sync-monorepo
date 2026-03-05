@@ -14,6 +14,22 @@ const SetPasswordSchema = z.object({
   password: z.string().min(6, 'Password debe tener al menos 6 caracteres')
 })
 
+const SaveDomainSchema = z.object({
+  protocol: z.enum(['http', 'https']),
+  domain: z.string().min(1, 'Domain is required').regex(/^[a-zA-Z0-9.-]+$/, 'Domain must be a valid hostname'),
+  port: z.string().regex(/^\d+$/, 'Port must be numeric').optional().or(z.literal(''))
+})
+
+/**
+ * Assembles a gateway public URL from its parts.
+ * Default ports (80 for http, 443 for https) are omitted from the URL.
+ */
+export function assembleGatewayUrl(protocol: string, domain: string, port?: string): string {
+  const defaultPorts: Record<string, string> = { http: '80', https: '443' }
+  const includePort = port && port !== '' && port !== defaultPorts[protocol]
+  return includePort ? `${protocol}://${domain}:${port}` : `${protocol}://${domain}`
+}
+
 export async function registerSetupRoutes(app: FastifyInstance) {
   // GET /setup - Interfaz web de configuración
   app.get('/setup', async (_request, reply) => {
@@ -861,6 +877,89 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
   })
 
+  // POST /api/setup/save-domain - Guardar URL pública del gateway en .env
+  app.post('/api/setup/save-domain', async (request, reply) => {
+    try {
+      const parsed = SaveDomainSchema.safeParse(request.body)
+      if (!parsed.success) {
+        return reply.status(400).send({
+          success: false,
+          error: parsed.error.issues.map(i => i.message).join(', ')
+        })
+      }
+      const { protocol, domain, port } = parsed.data
+      const url = assembleGatewayUrl(protocol, domain, port)
+      await writeEnvVar('GATEWAY_PUBLIC_URL', url)
+      logger.info({ url }, 'GATEWAY_PUBLIC_URL guardado en .env')
+      return reply.send({ success: true, url })
+    } catch (error) {
+      logger.error({ error }, 'Error al guardar domain')
+      return reply.status(500).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Error al guardar domain'
+      })
+    }
+  })
+
+  // GET /api/setup/generate-env - Descargar .env actual como archivo
+  app.get('/api/setup/generate-env', async (_request, reply) => {
+    try {
+      const cwd = process.cwd()
+      const envPath = path.join(cwd, '.env')
+      const examplePath = path.join(cwd, '.env.example')
+
+      // Read .env.example as template
+      let exampleContent = ''
+      try {
+        exampleContent = await fs.readFile(examplePath, 'utf-8')
+      } catch {
+        // No .env.example — fall back to raw .env
+      }
+
+      // Read current .env values
+      let envContent = ''
+      try {
+        envContent = await fs.readFile(envPath, 'utf-8')
+      } catch {
+        // No .env file yet — return example as-is
+      }
+
+      // Build a map of current .env values
+      const envMap: Record<string, string> = {}
+      for (const line of envContent.split('\n')) {
+        const match = line.match(/^([A-Z0-9_]+)=(.*)$/)
+        if (match) {
+          envMap[match[1]] = match[2]
+        }
+      }
+
+      // Merge: replace KEY= lines in example with current values where they exist
+      let merged: string
+      if (exampleContent) {
+        merged = exampleContent
+          .split('\n')
+          .map(line => {
+            const match = line.match(/^([A-Z0-9_]+)=/)
+            if (match && envMap[match[1]] !== undefined) {
+              return `${match[1]}=${envMap[match[1]]}`
+            }
+            return line
+          })
+          .join('\n')
+      } else {
+        merged = envContent
+      }
+
+      return reply
+        .header('Content-Type', 'text/plain; charset=utf-8')
+        .header('Content-Disposition', 'attachment; filename=".env"')
+        .send(merged)
+    } catch (error) {
+      logger.error({ error }, 'Error al generar .env para descarga')
+      return reply.status(500).send('Error generating .env file')
+    }
+  })
+
   // GET /api/setup/status - Obtener estado actual de configuración
   app.get('/api/setup/status', async (_request, reply) => {
     try {
@@ -906,14 +1005,16 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       return reply.send({
         database: dbInfo,
         jwt: jwtInfo,
-        auth: authInfo
+        auth: authInfo,
+        gatewayUrl: process.env.GATEWAY_PUBLIC_URL || null
       })
     } catch (error) {
       logger.error({ error }, 'Error al obtener estado de setup')
       return reply.send({
         database: null,
         jwt: null,
-        auth: null
+        auth: null,
+        gatewayUrl: null
       })
     }
   })
