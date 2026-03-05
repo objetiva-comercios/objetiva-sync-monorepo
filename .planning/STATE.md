@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
 status: executing
-stopped_at: "Completed 20-02-PLAN.md Task 1 — checkpoint:human-verify at Task 2"
-last_updated: "2026-03-05T15:47:38.518Z"
+stopped_at: Completed 20-02-PLAN.md — Phase 20 gateway pairing routes complete
+last_updated: "2026-03-05T16:40:44.058Z"
 last_activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
 progress:
   total_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** v1.2 Setup & Pairing — Phase 18: Pre-Flight Validator
+**Current focus:** v1.2 Setup & Pairing — Phase 20: Gateway Pairing Routes (complete)
 
 ## Current Position
 
-Phase: 18 of 21 (Pre-Flight Validator)
-Plan: 1 of TBD in current phase
-Status: In progress — Plan 01 complete
-Last activity: 2026-03-05 — 18-01 env-writer implemented (TDD, 13 tests)
+Phase: 20 of 21 (Gateway Pairing Routes)
+Plan: 2 of 2 in current phase
+Status: Complete — Phase 20 all plans done, pairing flow end-to-end verified
+Last activity: 2026-03-05 — 20-02 wizard step 6 Link Sync Client implemented and human-verified
 
 Progress: [█████████░] 91%
 
@@ -67,6 +67,8 @@ See: .planning/MILESTONES.md for full details
 - [Phase 20-01]: claimCode discriminated union ('ok'/'consumed'/'invalid') enables clean 200/410/404 HTTP status mapping without additional state queries
 - [Phase 20-gateway-pairing-routes]: 20-02: /auth/login added to SETUP_ONLY_ALLOWLIST — enables wizard step 6 to acquire JWT token in setup-only mode after password is configured
 - [Phase 20-gateway-pairing-routes]: 20-02: JWT token acquired in savePasswordAndNext() via /auth/login immediately after password save — password still in memory, stored in state.token for step 6 use
+- [Phase Phase 20]: Step 5 apply-config replaces download-only: writes .env in-place with .env.bak backup and hot-reloads process.env without Windows service restart
+- [Phase Phase 20]: POST /api/pairing/generate fetch sends no body and no Content-Type header — Fastify body parser rejects Content-Type: application/json with empty body
 
 ### Pending Todos
 
@@ -74,16 +76,16 @@ None yet.
 
 ### Blockers/Concerns
 
-- PC-02: Pairing token persistence strategy (separate file vs. write into .env) — decide in Phase 20 planning
-- INT-04: Setup wizard access token strategy (log-only vs. Traefik IP restriction) — decide in Phase 19 planning
+- PC-02: RESOLVED — Pairing credentials (gatewayUrl, jwtSecret, syncPassword) delivered at claim time; no persistence needed beyond the 10min TTL window
+- INT-04: RESOLVED — Setup wizard uses /auth/login allowlist approach; no Traefik IP restriction needed
 - ENV-04: RESOLVED — env-writer.ts now handles special char escaping correctly (18-01)
 
 ## Session Continuity
 
-Last session: 2026-03-05T15:47:38.513Z
-Stopped at: Completed 20-02-PLAN.md Task 1 — checkpoint:human-verify at Task 2
+Last session: 2026-03-05T16:40:35.379Z
+Stopped at: Completed 20-02-PLAN.md — Phase 20 gateway pairing routes complete
 Resume file: None
-Next action: Execute next plan in Phase 18
+Next action: Phase 20 complete — ready for next phase
 
 ---
-*Last updated: 2026-03-05 after 18-01 env-writer completed*
+*Last updated: 2026-03-05 after 20-02 wizard step 6 complete and human-verified*

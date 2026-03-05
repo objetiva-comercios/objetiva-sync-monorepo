@@ -2,7 +2,7 @@
 phase: 20-gateway-pairing-routes
 plan: 02
 subsystem: ui
-tags: [fastify, wizard, pairing, html, javascript, countdown, clipboard]
+tags: [fastify, wizard, pairing, html, javascript, countdown, clipboard, apply-config]
 
 # Dependency graph
 requires:
@@ -17,7 +17,8 @@ provides:
   - "Domain gating: warning shown if GATEWAY_PUBLIC_URL not configured"
   - "JWT token acquired at password step and stored in state.token for step 6"
   - "/auth/login added to SETUP_ONLY_ALLOWLIST for token acquisition during setup-only mode"
-affects: [wizard-step-6, pairing-flow, operator-ux]
+  - "Step 5 transformed from download-only to apply-config: writes .env in-place with .env.bak backup and hot-reload"
+affects: [wizard-step-6, pairing-flow, operator-ux, sync-client]
 
 # Tech tracking
 tech-stack:
@@ -27,6 +28,8 @@ tech-stack:
     - "Countdown via setInterval + clearInterval, rebased on new expiresAt on each regenerate"
     - "JWT token acquired immediately after password save, stored in state.token for cross-step use"
     - "Domain gating via state.stepData.gatewayUrl && !state.stepData.domainSkipped check"
+    - "apply-config step: POST '{}' body (no Content-Type header), spinner feedback, auto-advance on success"
+    - "Pairing generate fetch: no body, no Content-Type header — avoids Fastify empty-body parse error"
 
 key-files:
   created: []
@@ -39,28 +42,31 @@ key-decisions:
   - "Add /auth/login to SETUP_ONLY_ALLOWLIST so token acquisition works in setup-only mode — small targeted allowance since credentials are already saved at that point"
   - "advanceStep() calls enterPairingStep() via if (next === 5) pattern — mirrors existing if (next === 4) pattern for loadDownloadSummary()"
   - "Token fetch is best-effort (try/catch) — step 6 will show an API error if token is missing, recoverable via Generate New Code"
+  - "Step 5 apply-config replaces download-only: writes .env in-place with .env.bak backup, hot-reloads process.env without Windows service restart"
+  - "POST /api/pairing/generate fetch sends no body and no Content-Type header — Fastify body parser rejects Content-Type: application/json with empty body"
 
 patterns-established:
   - "Step enter side effects via advanceStep(): add if (next === N) { sideEffectFn(); } — same pattern as loadDownloadSummary"
   - "Clipboard copy with transient label change: store original, set 'Copied!', setTimeout restore"
+  - "apply-config wizard step: spinner-to-checkmark visual feedback, auto-advance on success — removes manual file placement from operator workflow"
 
 requirements-completed: [PAIR-01, PAIR-02]
 
 # Metrics
-duration: 8min
+duration: 35min
 completed: 2026-03-05
 ---
 
 # Phase 20 Plan 02: Wizard Step 6 — Link Sync Client Summary
 
-**Wizard step 6 'Link Sync Client' with auto-generated 6-char pairing code, countdown timer, copy button, domain gating, and JWT token acquisition at the password step**
+**Wizard step 6 'Link Sync Client' with auto-generated 6-char pairing code, countdown timer, copy button, domain gating, JWT token acquisition at password step, and step 5 transformed from download to in-place .env apply with hot-reload**
 
 ## Performance
 
-- **Duration:** 8 min
+- **Duration:** ~35 min (including post-checkpoint refinements after human verification)
 - **Started:** 2026-03-05T15:37:31Z
-- **Completed:** 2026-03-05T15:45:45Z
-- **Tasks:** 1 of 2 (Task 2 is human-verify checkpoint)
+- **Completed:** 2026-03-05
+- **Tasks:** 2 (Task 1 implementation + Task 2 human-verify — approved)
 - **Files modified:** 2
 
 ## Accomplishments
@@ -70,7 +76,8 @@ completed: 2026-03-05
 - Step 6 JS: enterPairingStep() (domain gating + auto-generate), fetchPairingCode() (POST /api/pairing/generate with JWT auth), startCountdown() (setInterval), copyPairingCode() (navigator.clipboard), regeneratePairingCode()
 - Password step now acquires JWT token via /auth/login and stores in state.token — enables step 6 authenticated API call
 - /auth/login added to SETUP_ONLY_ALLOWLIST in app.ts — required for token acquisition during setup-only mode
-- "Next ->" button added to Download step to advance to step 6
+- Step 5 transformed from download-only to apply-config: writes .env in-place with .env.bak backup, hot-reloads process.env via Object.assign, spinner-to-auto-advance UX
+- Human verification (Task 2): operator confirmed wizard step 6 renders correctly, code generates and displays, countdown works, copy works; apply-config writes .env correctly
 - All existing tests pass; pre-existing 4 failures unchanged
 
 ## Task Commits
@@ -78,12 +85,15 @@ completed: 2026-03-05
 Each task was committed atomically:
 
 1. **Task 1: Add wizard step 6 — Link Sync Client** - `9b251c7` (feat)
+2. **Post-verification: Transform step 5 to apply configuration** - `9c39e0e` (feat)
+3. **Fix: empty body error on apply-config + remove download button** - `0ad4a13` (fix)
+4. **Fix: remove Content-Type header from pairing generate fetch** - `8f73239` (fix)
 
-_Task 2 is checkpoint:human-verify — pending operator verification_
+_Commits 2-4 were made after the human-verify checkpoint in response to operator feedback during live browser verification_
 
 ## Files Created/Modified
 
-- `objetiva-sync-gateway/src/routes/setup.ts` — Added stepper dot 6, wizard-step-5 HTML, TOTAL_STEPS=6, advanceStep step 5 case, login call in savePasswordAndNext, pairing JS functions (enterPairingStep, fetchPairingCode, startCountdown, copyPairingCode, regeneratePairingCode)
+- `objetiva-sync-gateway/src/routes/setup.ts` — Added stepper dot 6, wizard-step-5 HTML, TOTAL_STEPS=6, advanceStep step 5 case, login call in savePasswordAndNext, pairing JS functions (enterPairingStep, fetchPairingCode, startCountdown, copyPairingCode, regeneratePairingCode); step 5 transformed to apply-config with spinner/auto-advance; Content-Type removed from generate fetch
 - `objetiva-sync-gateway/src/app.ts` — Added '/auth/login' to SETUP_ONLY_ALLOWLIST
 
 ## Decisions Made
@@ -92,6 +102,8 @@ _Task 2 is checkpoint:human-verify — pending operator verification_
 - `/auth/login` added to SETUP_ONLY_ALLOWLIST: allows setup wizard to get a token without leaving setup-only mode; safe since password was just configured
 - Token fetch is best-effort (try/catch suppressed) — if login fails, step 6 shows an API error message; user can click "Generate New Code" after restarting in normal mode
 - Domain gating uses `state.stepData.gatewayUrl && !state.stepData.domainSkipped` — consistent with how Download step detects the skip-warning condition
+- Step 5 apply-config replaces download-only: downloading a .env file and manually placing it is error-prone; in-place write with .env.bak rollback and hot-reload eliminates the manual step
+- No Content-Type header on generate fetch: Fastify's JSON body parser rejects requests with Content-Type: application/json and an empty body; removing the header avoids the parse error entirely
 
 ## Deviations from Plan
 
@@ -113,34 +125,50 @@ _Task 2 is checkpoint:human-verify — pending operator verification_
 - **Verification:** Token stored in state.token; used in fetchPairingCode Authorization header
 - **Committed in:** 9b251c7 (Task 1 commit)
 
+**3. [Rule 2 - Missing Critical] Transformed step 5 from download to apply-config**
+- **Found during:** Task 2 (human-verify — operator feedback)
+- **Issue:** Download-only step required manual file placement; operator had to download .env, find the correct directory, and replace the file. Error-prone and defeats wizard UX goal of zero-manual-steps.
+- **Fix:** Step 5 now POSTs to /api/setup/apply-config which writes .env in-place with .env.bak backup, hot-reloads process.env via Object.assign; spinner feedback + auto-advance on success
+- **Files modified:** objetiva-sync-gateway/src/routes/setup.ts
+- **Verification:** Operator confirmed .env applied correctly; gateway picks up new values without restart
+- **Committed in:** 9c39e0e, 0ad4a13
+
+**4. [Rule 1 - Bug] Fixed empty body parse error on /api/pairing/generate fetch**
+- **Found during:** Task 2 (human-verify — browser testing)
+- **Issue:** fetch() sent `Content-Type: application/json` with no body; Fastify's body parser rejected it with 400 "Bad Request"
+- **Fix:** Removed Content-Type header from the generate fetch call (endpoint requires no body)
+- **Files modified:** objetiva-sync-gateway/src/routes/setup.ts
+- **Verification:** Code generates successfully in browser after fix
+- **Committed in:** 8f73239
+
 ---
 
-**Total deviations:** 2 auto-fixed (1 blocking, 1 missing critical functionality)
-**Impact on plan:** Both fixes are required for step 6 to function. No scope creep — the plan itself described state.token being available by step 6 without specifying how, so these are implementation details that complete the plan's intent.
+**Total deviations:** 4 auto-fixed (1 blocking, 2 missing critical, 1 bug)
+**Impact on plan:** All fixes required for step 6 to function correctly end-to-end. Step 5 transformation is the most significant scope extension but directly serves the wizard's zero-manual-steps goal.
 
 ## Issues Encountered
 
-None beyond the auto-fixed deviations above.
+- Fastify body parser rejection on Content-Type + empty body: resolved by removing the header from the fetch call (endpoint needs no body)
+- apply-config endpoint returned 400 when called with no body: fixed by sending `'{}'` as the request body
 
 ## User Setup Required
 
-None — Task 2 is a human-verify checkpoint. The operator needs to:
-1. Start the gateway (`cd objetiva-sync-gateway && npm run dev`)
-2. Navigate to /setup and complete steps 1-5
-3. Verify step 6 renders correctly with code, countdown, and copy button
-4. Test claim via curl
+None — no external service configuration required.
 
 ## Next Phase Readiness
 
-- Wizard step 6 complete and committed
-- Pairing flow is fully implemented end-to-end: backend routes (Plan 01) + wizard UI (Plan 02)
-- Pending operator verification (Task 2 checkpoint)
+- Pairing flow is complete end-to-end: backend routes (Plan 01) + wizard UI (Plan 02) — both human-verified
+- Operator can complete the setup wizard, apply configuration, and receive a pairing code to enter in the Objetiva Sync dashboard
+- No blockers. Phase 20 is complete.
 
 ## Self-Check: PASSED
 
 - FOUND: objetiva-sync-gateway/src/routes/setup.ts (modified)
 - FOUND: objetiva-sync-gateway/src/app.ts (modified)
 - FOUND: commit 9b251c7 (feat: wizard step 6)
+- FOUND: commit 9c39e0e (feat: apply-config transformation)
+- FOUND: commit 0ad4a13 (fix: empty body + remove download button)
+- FOUND: commit 8f73239 (fix: remove Content-Type header)
 
 ---
 *Phase: 20-gateway-pairing-routes*
