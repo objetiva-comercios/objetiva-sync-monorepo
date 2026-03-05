@@ -476,7 +476,6 @@
         try {
           const testResponse = await fetch('/api/config/api/test', { method: 'POST' });
           const testResult = await testResponse.json();
-          console.log('DEBUG pairing auto-test result:', testResult);
           if (!testResult.success) {
             const errMsg = testResult.error || 'Error de conexion desconocido';
             showPairingResult('warning', errMsg, true,
@@ -485,8 +484,7 @@
           } else {
             loadApiStatus();
           }
-        } catch (testErr) {
-          console.error('DEBUG pairing auto-test error:', testErr);
+        } catch {
           showPairingResult('warning', 'Enlazado pero sin conexion -- verificar que el gateway este corriendo', true,
             '<span>Enlazado pero sin conexion -- verificar que el gateway este corriendo.</span> ' +
             '<button onclick="testApiConnection()" class="ml-2 underline font-medium">Reintentar</button>');

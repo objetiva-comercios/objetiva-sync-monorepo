@@ -349,21 +349,22 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
           });
         }
 
-        const resolvedUrl = data.gatewayUrl ?? baseUrl;
+        // Always use the URL the user entered — it's the one that actually reached the gateway.
+        // The gateway's GATEWAY_PUBLIC_URL may be misconfigured (e.g., missing port).
 
         // Save 4 config keys: URL (plain), USERNAME (plain), PASSWORD (encrypted), JWT_SECRET (encrypted)
         await Promise.all([
-          setConfig('REMOTE_API_URL', resolvedUrl),
+          setConfig('REMOTE_API_URL', baseUrl),
           setConfig('REMOTE_API_USERNAME', 'admin'),
           setConfig('REMOTE_API_PASSWORD', encrypt(data.syncPassword), true),
           setConfig('JWT_SECRET', encrypt(data.jwtSecret), true),
         ]);
 
-        logger.info({ resolvedUrl }, 'Pairing claim exitoso — configuración guardada');
+        logger.info({ baseUrl }, 'Pairing claim exitoso — configuración guardada');
 
         return reply.send({
           success: true,
-          gatewayUrl: resolvedUrl,
+          gatewayUrl: baseUrl,
         });
       } catch (error) {
         logger.error({ error }, 'Error al procesar claim de emparejamiento');
