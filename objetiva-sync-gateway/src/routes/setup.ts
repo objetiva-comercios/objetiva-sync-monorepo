@@ -699,12 +699,17 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       const dbUrl = assembleDbUrl();
 
+      var controller = new AbortController();
+      var clientTimeout = setTimeout(function() { controller.abort(); }, 20000);
+
       try {
         const res = await fetch('/api/setup/test-db', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ databaseUrl: dbUrl })
+          body: JSON.stringify({ databaseUrl: dbUrl }),
+          signal: controller.signal
         });
+        clearTimeout(clientTimeout);
         const data = await res.json();
 
         if (data.success) {
@@ -725,7 +730,11 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           showAlert('db-alert', 'error', 'Connection failed: ' + (data.error || 'Unknown error'));
         }
       } catch (err) {
-        showAlert('db-alert', 'error', 'Connection failed: ' + err.message);
+        clearTimeout(clientTimeout);
+        var msg = err.name === 'AbortError'
+          ? 'Connection timed out. Check that the database host is reachable and PostgreSQL is running.'
+          : 'Connection failed: ' + err.message;
+        showAlert('db-alert', 'error', msg);
       } finally {
         btn.disabled = false;
         btn.textContent = 'Test Connection & Next';
@@ -1217,21 +1226,34 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     try {
       const { databaseUrl } = TestDbSchema.parse(request.body)
 
+      // Append connect_timeout to the URL if not already present
+      const urlWithTimeout = databaseUrl.includes('connect_timeout')
+        ? databaseUrl
+        : databaseUrl + (databaseUrl.includes('?') ? '&' : '?') + 'connect_timeout=10'
+
       // Crear cliente temporal de Prisma
       const tempPrisma = new PrismaClient({
         datasources: {
           db: {
-            url: databaseUrl
+            url: urlWithTimeout
           }
         }
       })
 
       try {
-        // Intentar conectar
-        await tempPrisma.$connect()
-        await tempPrisma.$queryRaw`SELECT 1`
+        // Intentar conectar con timeout de 15s como fallback
+        const connectPromise = (async () => {
+          await tempPrisma.$connect()
+          await tempPrisma.$queryRaw`SELECT 1`
+        })()
 
-        // Persist DATABASE_URL so the summary step reads the current value
+        const timeoutPromise = new Promise((_resolve, reject) => {
+          setTimeout(() => reject(new Error('Connection timed out after 15 seconds. Check that the database host is reachable and PostgreSQL is running.')), 15000)
+        })
+
+        await Promise.race([connectPromise, timeoutPromise])
+
+        // Persist DATABASE_URL (without the connect_timeout param we added)
         await writeEnvVar('DATABASE_URL', databaseUrl)
         logger.info({ databaseUrl: databaseUrl.replace(/:[^:@]+@/, ':***@') }, 'Conexión a DB exitosa')
 

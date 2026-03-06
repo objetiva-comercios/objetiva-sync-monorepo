@@ -122,6 +122,11 @@ export async function buildApp() {
     const url = request.url
     const allowed = SETUP_ONLY_ALLOWLIST.some((prefix) => url.startsWith(prefix))
     if (!allowed) {
+      // Redirect browsers to /setup, return JSON for API clients
+      const accept = request.headers.accept || ''
+      if (accept.includes('text/html')) {
+        return reply.redirect('/setup')
+      }
       return reply.code(503).send({
         error: 'SERVICE_UNAVAILABLE',
         message: 'Gateway is in setup-only mode. Complete configuration at /setup.',

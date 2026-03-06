@@ -119,10 +119,13 @@ fi
 
 # -- Construir imagen --------------------------------------------------------
 echo ""
-info "Construyendo imagen Docker (esto puede tardar unos minutos)..."
+info "Limpiando cache de Docker builder..."
+docker builder prune -f 2>/dev/null || true
+
+info "Construyendo imagen Docker desde cero (esto puede tardar unos minutos)..."
 cd "$GATEWAY_DIR"
 
-docker compose build --no-cache
+docker compose build --no-cache --pull
 ok "Imagen construida"
 
 # -- Levantar contenedor ----------------------------------------------------
