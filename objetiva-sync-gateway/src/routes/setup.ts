@@ -574,6 +574,20 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           <div id="pairing-error" style="display:none;color:#ef4444;text-align:center;margin:8px 0;"></div>
         </div>
 
+        <!-- Success message (hidden until pairing is claimed) -->
+        <div id="pairing-success" style="display:none;">
+          <div style="text-align:center;margin:32px 0 24px;">
+            <div style="width:64px;height:64px;border-radius:50%;background:#d1fae5;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <h3 style="font-size:18px;font-weight:700;color:#065f46;margin-bottom:8px;">Enlace completado exitosamente</h3>
+            <p style="font-size:14px;color:#6b7280;max-width:360px;margin:0 auto;">La contraparte se ha enlazado correctamente. El sincronizador ya tiene las credenciales para conectarse al gateway.</p>
+          </div>
+          <div style="text-align:center;">
+            <a href="/" class="btn btn-primary" style="text-decoration:none;padding:12px 32px;font-size:15px;">Ir al Dashboard</a>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -1016,11 +1030,13 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
     // ── Step 5: Link Sync Client ──────────────────────────────────────────────
     let countdownInterval = null;
+    let pairingPollInterval = null;
 
     async function enterPairingStep() {
       const warningEl = document.getElementById('pairing-no-domain-warning');
       const codeEl = document.getElementById('pairing-code-container');
       const errorEl = document.getElementById('pairing-error');
+      const successEl = document.getElementById('pairing-success');
 
       // Check if domain was configured
       const hasDomain = !!state.stepData.gatewayUrl;
@@ -1028,11 +1044,13 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       if (!hasDomain) {
         warningEl.style.display = 'block';
         codeEl.style.display = 'none';
+        if (successEl) successEl.style.display = 'none';
         return;
       }
 
       warningEl.style.display = 'none';
       codeEl.style.display = 'block';
+      if (successEl) successEl.style.display = 'none';
       if (errorEl) errorEl.style.display = 'none';
 
       // Auto-generate on step enter
@@ -1060,6 +1078,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         displayEl.textContent = data.code;
         if (errorEl) errorEl.style.display = 'none';
         startCountdown(data.expiresAt);
+        startPairingPoll();
       } catch (err) {
         displayEl.textContent = '------';
         if (errorEl) {
@@ -1084,10 +1103,47 @@ export async function registerSetupRoutes(app: FastifyInstance) {
             ? 'Expires in ' + mins + ':' + secs.toString().padStart(2, '0')
             : 'Code expired \u2014 click Generate New Code';
         }
-        if (remaining === 0) clearInterval(countdownInterval);
+        if (remaining === 0) {
+          clearInterval(countdownInterval);
+          stopPairingPoll();
+        }
       }
       tick();
       countdownInterval = setInterval(tick, 1000);
+    }
+
+    function startPairingPoll() {
+      stopPairingPoll();
+      pairingPollInterval = setInterval(async function() {
+        try {
+          const res = await fetch('/api/pairing/status', {
+            headers: { 'Authorization': 'Bearer ' + state.token }
+          });
+          const data = await res.json();
+          if (data.claimed) {
+            showPairingSuccess();
+          }
+        } catch (e) {
+          // Ignore poll errors — will retry next interval
+        }
+      }, 3000);
+    }
+
+    function stopPairingPoll() {
+      if (pairingPollInterval) {
+        clearInterval(pairingPollInterval);
+        pairingPollInterval = null;
+      }
+    }
+
+    function showPairingSuccess() {
+      stopPairingPoll();
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      var codeContainer = document.getElementById('pairing-code-container');
+      var successEl = document.getElementById('pairing-success');
+      if (codeContainer) codeContainer.style.display = 'none';
+      if (successEl) successEl.style.display = 'block';
     }
 
     function copyPairingCode() {
@@ -1102,6 +1158,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
 
     async function regeneratePairingCode() {
+      var successEl = document.getElementById('pairing-success');
+      var codeContainer = document.getElementById('pairing-code-container');
+      if (successEl) successEl.style.display = 'none';
+      if (codeContainer) codeContainer.style.display = 'block';
       await fetchPairingCode();
     }
 

@@ -15,12 +15,16 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth.js'
-import { generateCode, claimCode } from '../lib/pairing-store.js'
+import { generateCode, claimCode, getActiveCode } from '../lib/pairing-store.js'
 import { logger } from '../lib/logger.js'
 
 const ClaimSchema = z.object({
   code: z.string().min(1, 'Code is required').max(10, 'Code too long')
 })
+
+// Tracks whether the most recently generated code was successfully claimed.
+// Reset on generate, set on successful claim.
+let lastCodeWasClaimed = false
 
 export async function registerPairingRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -34,6 +38,7 @@ export async function registerPairingRoutes(app: FastifyInstance): Promise<void>
   app.post('/api/pairing/generate', {
     preHandler: [authenticate]
   }, async (request, reply) => {
+    lastCodeWasClaimed = false
     const { code, expiresAt } = generateCode()
 
     logger.info(
@@ -87,6 +92,7 @@ export async function registerPairingRoutes(app: FastifyInstance): Promise<void>
     )
 
     if (result === 'ok') {
+      lastCodeWasClaimed = true
       return reply.code(200).send({
         success: true,
         gatewayUrl: process.env.GATEWAY_PUBLIC_URL ?? null,
@@ -108,6 +114,41 @@ export async function registerPairingRoutes(app: FastifyInstance): Promise<void>
       success: false,
       error: 'CODE_INVALID',
       message: 'Pairing code is invalid or has expired'
+    })
+  })
+
+  /**
+   * GET /api/pairing/status
+   *
+   * Requires JWT authentication. Returns whether the current pairing code
+   * has been claimed by a sync client. Used by the setup wizard to poll
+   * for pairing completion.
+   *
+   * Response: { active: boolean, claimed: boolean }
+   *  - active=true,  claimed=false → code is live, waiting for claim
+   *  - active=false, claimed=true  → code was claimed successfully
+   *  - active=false, claimed=false → no code generated or code expired
+   */
+  app.get('/api/pairing/status', {
+    preHandler: [authenticate]
+  }, async (_request, reply) => {
+    const entry = getActiveCode()
+
+    if (entry) {
+      // Code is still active (not yet claimed, not expired)
+      const expired = Date.now() >= entry.expiresAt.getTime()
+      return reply.code(200).send({
+        active: !expired,
+        claimed: false
+      })
+    }
+
+    // No active code — either it was claimed or never generated / expired
+    // We can't distinguish "claimed" from "expired" with the current store,
+    // so we track it via a module-level flag set when generate→claim happens.
+    return reply.code(200).send({
+      active: false,
+      claimed: lastCodeWasClaimed
     })
   })
 }
