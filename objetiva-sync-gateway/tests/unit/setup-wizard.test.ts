@@ -1,35 +1,47 @@
 /**
- * Unit Tests for assembleGatewayUrl helper (Phase 19, Plan 01)
+ * Unit Tests for normalizeGatewayUrl helper (Phase 19, Plan 01)
  *
- * Tests the pure URL assembly function that combines protocol + domain + port
- * with correct default-port omission logic.
+ * Tests the URL normalization function that adds protocol if missing
+ * and strips default ports.
  */
 
 import { describe, it, expect } from 'vitest'
-import { assembleGatewayUrl } from '../../src/routes/setup.js'
+import { normalizeGatewayUrl } from '../../src/routes/setup.js'
 
-describe('assembleGatewayUrl', () => {
-  it('returns bare https URL when no port provided', () => {
-    expect(assembleGatewayUrl('https', 'gw.example.com', undefined)).toBe('https://gw.example.com')
+describe('normalizeGatewayUrl', () => {
+  it('returns bare https URL as-is', () => {
+    expect(normalizeGatewayUrl('https://gw.example.com')).toBe('https://gw.example.com')
   })
 
-  it('returns https URL with non-default port', () => {
-    expect(assembleGatewayUrl('https', 'gw.example.com', '8443')).toBe('https://gw.example.com:8443')
+  it('preserves non-default port', () => {
+    expect(normalizeGatewayUrl('https://gw.example.com:8443')).toBe('https://gw.example.com:8443')
   })
 
-  it('omits port 443 for https (default)', () => {
-    expect(assembleGatewayUrl('https', 'gw.example.com', '443')).toBe('https://gw.example.com')
+  it('strips default port 443 for https', () => {
+    expect(normalizeGatewayUrl('https://gw.example.com:443')).toBe('https://gw.example.com')
   })
 
-  it('omits port 80 for http (default)', () => {
-    expect(assembleGatewayUrl('http', 'gw.example.com', '80')).toBe('http://gw.example.com')
+  it('strips default port 80 for http', () => {
+    expect(normalizeGatewayUrl('http://gw.example.com:80')).toBe('http://gw.example.com')
   })
 
-  it('omits empty string port', () => {
-    expect(assembleGatewayUrl('http', 'gw.example.com', '')).toBe('http://gw.example.com')
+  it('adds http:// when no protocol is provided', () => {
+    expect(normalizeGatewayUrl('gw.example.com')).toBe('http://gw.example.com')
   })
 
-  it('returns http URL with non-default port', () => {
-    expect(assembleGatewayUrl('http', 'gw.example.com', '8080')).toBe('http://gw.example.com:8080')
+  it('adds http:// and preserves custom port', () => {
+    expect(normalizeGatewayUrl('gw.example.com:8080')).toBe('http://gw.example.com:8080')
+  })
+
+  it('preserves http URL with non-default port', () => {
+    expect(normalizeGatewayUrl('http://gw.example.com:8080')).toBe('http://gw.example.com:8080')
+  })
+
+  it('trims whitespace', () => {
+    expect(normalizeGatewayUrl('  http://gw.example.com  ')).toBe('http://gw.example.com')
+  })
+
+  it('strips trailing slash', () => {
+    expect(normalizeGatewayUrl('http://gw.example.com/')).toBe('http://gw.example.com')
   })
 })

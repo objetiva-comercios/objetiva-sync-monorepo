@@ -16,19 +16,33 @@ const SetPasswordSchema = z.object({
 })
 
 const SaveDomainSchema = z.object({
-  protocol: z.enum(['http', 'https']),
-  domain: z.string().min(1, 'Domain is required').regex(/^[a-zA-Z0-9.-]+$/, 'Domain must be a valid hostname'),
-  port: z.string().regex(/^\d+$/, 'Port must be numeric').optional().or(z.literal(''))
+  url: z.string().min(1, 'URL is required')
 })
 
 /**
- * Assembles a gateway public URL from its parts.
- * Default ports (80 for http, 443 for https) are omitted from the URL.
+ * Normalizes a gateway URL input.
+ * - Adds http:// if no protocol is provided
+ * - Strips trailing slashes
+ * - Removes default ports (80 for http, 443 for https)
  */
-export function assembleGatewayUrl(protocol: string, domain: string, port?: string): string {
-  const defaultPorts: Record<string, string> = { http: '80', https: '443' }
-  const includePort = port && port !== '' && port !== defaultPorts[protocol]
-  return includePort ? `${protocol}://${domain}:${port}` : `${protocol}://${domain}`
+export function normalizeGatewayUrl(input: string): string {
+  let url = input.trim()
+
+  // Add protocol if missing
+  if (!/^https?:\/\//i.test(url)) {
+    url = 'http://' + url
+  }
+
+  const parsed = new URL(url)
+
+  // Remove default ports
+  const defaultPorts: Record<string, string> = { 'http:': '80', 'https:': '443' }
+  if (parsed.port === defaultPorts[parsed.protocol]) {
+    parsed.port = ''
+  }
+
+  // Return clean URL without trailing slash
+  return parsed.origin
 }
 
 export async function registerSetupRoutes(app: FastifyInstance) {
@@ -455,26 +469,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         <div class="step-title">Step 2 of 6 — Domain</div>
         <p class="step-subtitle">Configure the public URL where this gateway will be reachable. This is required for pairing with the sync client.</p>
 
-        <div class="form-row">
-          <div class="form-group" style="flex: 0 0 110px;">
-            <label for="domain-protocol">Protocol</label>
-            <select id="domain-protocol">
-              <option value="https" selected>https</option>
-              <option value="http">http</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="domain-input">Domain</label>
-            <input type="text" id="domain-input" placeholder="gateway.example.com">
-          </div>
-        </div>
-
-        <button class="advanced-toggle" onclick="toggleAdvanced()" id="advanced-toggle-btn">+ Advanced (custom port)</button>
-        <div class="advanced-section" id="advanced-section">
-          <div class="form-group" style="max-width: 160px;">
-            <label for="domain-port">Port</label>
-            <input type="text" id="domain-port" placeholder="leave empty for default">
-          </div>
+        <div class="form-group">
+          <label for="domain-url">Gateway URL</label>
+          <input type="text" id="domain-url" placeholder="http://sync-gateway.example.com">
+          <div class="input-hint">If you omit http:// or https://, http:// will be added automatically.</div>
         </div>
 
         <div id="domain-alert" class="alert"></div>
@@ -735,31 +733,28 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
 
     // ── Step 1: Domain ────────────────────────────────────────────────────────
-    function toggleAdvanced() {
-      const section = document.getElementById('advanced-section');
-      const btn = document.getElementById('advanced-toggle-btn');
-      if (section.classList.contains('show')) {
-        section.classList.remove('show');
-        btn.textContent = '+ Advanced (custom port)';
-      } else {
-        section.classList.add('show');
-        btn.textContent = '- Advanced (custom port)';
-      }
-    }
-
     async function saveDomainAndNext() {
-      const protocol = document.getElementById('domain-protocol').value;
-      const domain = document.getElementById('domain-input').value.trim();
-      const portRaw = document.getElementById('domain-port').value.trim();
+      var urlInput = document.getElementById('domain-url');
+      var raw = urlInput.value.trim();
 
-      if (!domain) {
-        showAlert('domain-alert', 'error', 'Please enter a domain name.');
+      if (!raw) {
+        showAlert('domain-alert', 'error', 'Please enter the gateway URL.');
         return;
       }
 
-      // Omit port if it matches the protocol default
-      const defaultPorts = { http: '80', https: '443' };
-      const port = (portRaw && portRaw !== defaultPorts[protocol]) ? portRaw : undefined;
+      // Auto-add http:// if no protocol
+      if (!/^https?:\/\//i.test(raw)) {
+        raw = 'http://' + raw;
+        urlInput.value = raw;
+      }
+
+      // Basic URL validation
+      try {
+        new URL(raw);
+      } catch (_) {
+        showAlert('domain-alert', 'error', 'Invalid URL format. Example: http://sync-gateway.example.com');
+        return;
+      }
 
       const btn = document.getElementById('save-domain-btn');
       btn.disabled = true;
@@ -767,18 +762,16 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       hideAlert('domain-alert');
 
       try {
-        const payload = { protocol, domain };
-        if (port) payload.port = port;
-
         const res = await fetch('/api/setup/save-domain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ url: raw })
         });
         const data = await res.json();
 
         if (res.ok && data.success) {
           state.stepData.gatewayUrl = data.url;
+          urlInput.value = data.url;
           advanceStep();
         } else {
           showAlert('domain-alert', 'error', data.error || 'Failed to save domain. Check the format.');
@@ -1189,16 +1182,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
         // Pre-fill domain
         if (status.gatewayUrl) {
-          try {
-            const url = new URL(status.gatewayUrl);
-            document.getElementById('domain-protocol').value = url.protocol.replace(':', '');
-            document.getElementById('domain-input').value = url.hostname;
-            if (url.port) {
-              document.getElementById('domain-port').value = url.port;
-              document.getElementById('advanced-section').classList.add('show');
-              document.getElementById('advanced-toggle-btn').textContent = '- Advanced (custom port)';
-            }
-          } catch (_) {}
+          document.getElementById('domain-url').value = status.gatewayUrl;
         }
 
         // JWT configured indicator + pre-fill
@@ -1378,16 +1362,16 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           error: parsed.error.issues.map(i => i.message).join(', ')
         })
       }
-      const { protocol, domain, port } = parsed.data
-      const url = assembleGatewayUrl(protocol, domain, port)
+      const url = normalizeGatewayUrl(parsed.data.url)
       await writeEnvVar('GATEWAY_PUBLIC_URL', url)
       logger.info({ url }, 'GATEWAY_PUBLIC_URL guardado en .env')
       return reply.send({ success: true, url })
     } catch (error) {
       logger.error({ error }, 'Error al guardar domain')
-      return reply.status(500).send({
+      const message = error instanceof Error ? error.message : 'Error al guardar domain'
+      return reply.status(400).send({
         success: false,
-        error: error instanceof Error ? error.message : 'Error al guardar domain'
+        error: message.includes('Invalid URL') ? 'Invalid URL format. Example: http://sync-gateway.example.com' : message
       })
     }
   })
