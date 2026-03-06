@@ -5,7 +5,9 @@ services:
       dockerfile: objetiva-sync-gateway/Dockerfile
     container_name: sync-gateway
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     # No port mapping — Traefik routes internally via Docker network
     # Uncomment for local development without Traefik:
     # ports:

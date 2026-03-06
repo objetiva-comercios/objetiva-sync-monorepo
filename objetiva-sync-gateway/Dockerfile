@@ -113,7 +113,8 @@ RUN mkdir -p objetiva-sync-gateway/logs
 # Non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 gateway && \
-    chown -R gateway:nodejs objetiva-sync-gateway/logs
+    chown -R gateway:nodejs objetiva-sync-gateway/logs && \
+    chown gateway:nodejs objetiva-sync-gateway
 
 USER gateway
 WORKDIR /app/objetiva-sync-gateway
