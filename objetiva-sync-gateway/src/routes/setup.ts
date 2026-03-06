@@ -1428,13 +1428,36 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       // Run Prisma migrations now that DATABASE_URL is available
       try {
         const { execSync } = await import('child_process')
-        const output = execSync('npx prisma migrate deploy --schema=./prisma/schema.prisma', {
-          cwd: process.cwd(),
-          stdio: 'pipe',
-          timeout: 60000,
-          env: { ...process.env }
-        })
-        logger.info({ output: output.toString() }, 'Prisma migrations applied successfully')
+        const execOpts = { cwd: process.cwd(), stdio: 'pipe' as const, timeout: 60000, env: { ...process.env } }
+
+        try {
+          const output = execSync('npx prisma migrate deploy --schema=./prisma/schema.prisma', execOpts)
+          logger.info({ output: output.toString() }, 'Prisma migrations applied successfully')
+        } catch (deployErr: any) {
+          const errOutput = (deployErr?.stderr?.toString?.() || '') + (deployErr?.stdout?.toString?.() || '')
+
+          // P3005: database schema is not empty — needs baselining
+          if (errOutput.includes('P3005')) {
+            logger.info('Database has existing schema without migration history — baselining all migrations')
+
+            // Read migration directories and resolve each one as already applied
+            const migrationsDir = path.join(process.cwd(), 'prisma', 'migrations')
+            const entries = await fs.readdir(migrationsDir, { withFileTypes: true })
+            const migrationDirs = entries
+              .filter((e) => e.isDirectory() && e.name !== '_migration_lock.toml')
+              .map((e) => e.name)
+              .sort()
+
+            for (const migration of migrationDirs) {
+              execSync(`npx prisma migrate resolve --applied "${migration}" --schema=./prisma/schema.prisma`, execOpts)
+              logger.info({ migration }, 'Marked migration as applied (baseline)')
+            }
+
+            logger.info('Baseline complete — all migrations marked as applied')
+          } else {
+            throw deployErr
+          }
+        }
       } catch (migrationErr: any) {
         const stderr = migrationErr?.stderr?.toString?.() || ''
         const stdout = migrationErr?.stdout?.toString?.() || ''
