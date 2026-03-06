@@ -1,5 +1,19 @@
 # Objetiva Sync Gateway - Guia de Deployment con Docker
 
+## Instalacion Rapida
+
+Ejecutar desde el VPS:
+
+```bash
+curl -sL https://raw.githubusercontent.com/objetiva-comercios/objetiva-sync-monorepo/main/objetiva-sync-gateway/install.sh | bash
+```
+
+Esto clona el repo, construye la imagen Docker y levanta el gateway en modo setup wizard. Despues seguir las instrucciones en pantalla.
+
+> Para instalacion manual paso a paso, continuar leyendo.
+
+---
+
 ## Requisitos Previos
 
 - **Docker** >= 20.10 con Docker Compose v2
