@@ -1,14 +1,15 @@
 # Objetiva Sync Gateway - Guia de Deployment con Docker
 
-## Requisitos
+## Requisitos Previos
 
 - **Docker** >= 20.10 con Docker Compose v2
-- **Git** (para sparse checkout)
+- **Git**
 - **PostgreSQL** accesible desde la red Docker (ej: corriendo en un contenedor en `sanchez_docker_network`)
+- **Traefik** como reverse proxy (ya corriendo en `sanchez_docker_network`)
 
-## 1. Clonar con Sparse Checkout
+## 1. Clonar el Repositorio
 
-Descarga solo los archivos necesarios para el gateway (~5% del repo):
+Descarga solo los archivos necesarios con sparse checkout:
 
 ```bash
 git clone --filter=blob:none --sparse https://github.com/objetiva-comercios/objetiva-sync-monorepo.git
@@ -19,78 +20,130 @@ git sparse-checkout set --skip-checks \
   objetiva-sync-gateway/
 ```
 
-> Si ya tienes un clon completo, salta este paso.
+> Si ya tenes un clon completo, salta este paso.
 
-## 2. Configurar Entorno
-
-La configuracion se realiza a traves del **wizard de setup** integrado. No es necesario crear ni editar el `.env` manualmente.
-
-1. Construir e iniciar el contenedor (ver Paso 4)
-2. Acceder a `http://<host>:3335/setup`
-3. Seguir el asistente de 6 pasos: base de datos, dominio, JWT, contraseña, aplicar, enlazar sync
-
-El wizard genera el `.env` automaticamente y recarga la configuracion sin reiniciar el contenedor.
-
-> **Nota Docker:** En el paso de base de datos, usar el hostname del contenedor PostgreSQL (ej: `postgres`), NO `localhost`. Ambos contenedores deben estar en la misma red Docker.
-
-Ver `.env.example` como referencia de todas las variables disponibles.
-
-## 3. Crear la red Docker (si no existe)
+## 2. Crear la Red Docker (si no existe)
 
 ```bash
 docker network create sanchez_docker_network
 ```
 
-Traefik y sync-gateway deben estar en esta misma red.
+Traefik, PostgreSQL y sync-gateway deben estar en esta misma red.
 
-## 4. Construir e Iniciar
+## 3. Construir e Iniciar
+
+**No se necesita crear `.env` manualmente.** El gateway arranca en modo setup wizard y se configura desde el navegador.
 
 ```bash
-docker compose build --no-cache && docker compose up -d
+cd objetiva-sync-gateway
+docker compose up -d --build
 ```
 
-Verificar que esta corriendo:
+Verificar que el contenedor este corriendo:
 
 ```bash
-# Estado del contenedor
 docker compose ps
-
-# Health check
-curl http://localhost:3335/health
-
-# Ver logs
 docker compose logs -f sync-gateway
 ```
 
-## 5. Actualizar
+Deberias ver en los logs:
 
-Desde el directorio `objetiva-sync-gateway/`:
+```
+Mode: SETUP-ONLY
+DATABASE_URL not set — skipping migrations (setup wizard mode).
+Action required: visit http://0.0.0.0:3335/setup
+```
+
+## 4. Configurar DNS / Acceso
+
+El contenedor no expone puertos directamente — Traefik rutea internamente via labels de Docker.
+
+### Opcion A: Acceso via Tailscale (recomendado para setup inicial)
+
+Si el VPS esta conectado via Tailscale, agregar una entrada en el archivo `hosts` de tu PC:
+
+```
+# Windows: C:\Windows\System32\drivers\etc\hosts
+# Linux/Mac: /etc/hosts
+<IP-TAILSCALE-DEL-VPS>    sync-gateway.sanchezrepuestos.com.ar
+```
+
+Para obtener la IP Tailscale del VPS:
 
 ```bash
-git pull
-docker compose build --no-cache && docker compose up -d
+tailscale ip -4
 ```
 
-Las migraciones de Prisma se ejecutan automaticamente en cada inicio del contenedor (idempotente).
+### Opcion B: DNS publico
 
-## 6. Traefik + Tailscale
+Crear un registro A en tu proveedor DNS:
 
-El servicio se publica detras de Tailscale usando Traefik como reverse proxy en HTTP. Los labels ya estan configurados en `docker-compose.yml` para el dominio `sync-gateway.sanchezrepuestos.com.ar`.
+```
+Tipo: A
+Nombre: sync-gateway
+Valor: <IP publica del VPS>
+```
 
-**Importante:** Se usa HTTP (entrypoint `web`) porque Let's Encrypt no puede completar el challenge HTTP-01 detras de Tailscale (el puerto 80 no es accesible desde internet). El trafico viaja cifrado por el tunel de Tailscale.
+### Opcion C: Desarrollo local sin Traefik
 
-Para cambiar el dominio, editar el label en `docker-compose.yml`:
+Descomentar el port mapping en `docker-compose.yml`:
 
 ```yaml
-- "traefik.http.routers.sync-gateway.rule=Host(`sync-gateway.sanchezrepuestos.com.ar`)"
+ports:
+  - "3335:3335"
 ```
 
-**Requisitos:**
-- Traefik y sync-gateway deben compartir la red Docker `sanchez_docker_network`
-- El DNS del subdominio debe apuntar a la IP de Tailscale del servidor
-- No se exponen puertos directamente al host (Traefik rutea internamente)
+Y acceder directamente a `http://localhost:3335/setup`.
 
-Para desarrollo local sin Traefik, descomentar el port mapping en `docker-compose.yml`.
+## 5. Ejecutar el Setup Wizard
+
+Abrir en el navegador:
+
+```
+http://sync-gateway.sanchezrepuestos.com.ar/setup
+```
+
+El wizard tiene 6 pasos:
+
+1. **Base de datos** — Ingresar la URL de PostgreSQL
+2. **Dominio publico** — Configurar la URL publica del gateway
+3. **JWT** — Genera automaticamente el secret de autenticacion
+4. **Contrasena** — Establecer la contrasena del sincronizador
+5. **Aplicar** — Guarda todo en `.env` y reinicia la configuracion
+6. **Enlazar sync** — Genera el codigo de pairing para conectar objetiva-sync
+
+> **Importante (Docker):** En el paso de base de datos, usar el hostname del contenedor PostgreSQL (ej: `postgres`), NO `localhost`. Ambos contenedores deben estar en la misma red Docker.
+
+Despues de completar el wizard, reiniciar el contenedor para que ejecute las migraciones:
+
+```bash
+docker compose restart sync-gateway
+```
+
+Verificar que arranco en modo normal:
+
+```bash
+docker compose logs --tail 10 sync-gateway
+```
+
+Deberias ver:
+
+```
+Running Prisma migrations...
+Migrations complete.
+Mode: NORMAL
+All systems go.
+```
+
+## 6. Actualizar
+
+```bash
+cd objetiva-sync-gateway
+git pull
+docker compose up -d --build
+```
+
+Las migraciones de Prisma se ejecutan automaticamente en cada inicio (idempotente). El `.env` se preserva porque no esta dentro de la imagen Docker — lo genera el wizard en el directorio de trabajo.
 
 ## 7. Monitoreo y Troubleshooting
 
@@ -107,36 +160,58 @@ docker compose exec sync-gateway sh
 # Reiniciar
 docker compose restart sync-gateway
 
-# Reconstruir sin cache
+# Reconstruir desde cero
 docker compose build --no-cache && docker compose up -d
 
-# Metricas Prometheus
-curl http://localhost:3335/metrics
+# Health check
+curl http://localhost:3335/health   # solo si ports esta descomentado
+
+# Preflight checks (desde dentro del contenedor)
+docker compose exec sync-gateway node -e "fetch('http://localhost:3335/api/setup/preflight').then(r=>r.json()).then(console.log)"
 ```
 
 ### Problemas Comunes
 
-**El contenedor se detiene inmediatamente:**
-Revisar logs con `docker compose logs sync-gateway`. Generalmente es una variable `.env` faltante o incorrecta.
+**El contenedor queda en `Restarting`:**
+Revisar logs con `docker compose logs sync-gateway`. Si dice `DATABASE_URL environment variable is required`, la imagen es vieja — reconstruir con `docker compose build --no-cache`.
+
+**No puedo acceder a `/setup`:**
+El contenedor no expone puertos por defecto (Traefik rutea). Verificar que Traefik este corriendo y en la misma red. Alternativamente, descomentar `ports: - "3335:3335"` en `docker-compose.yml` para acceso directo.
 
 **Conexion a base de datos rechazada:**
-Verificar que `DATABASE_URL` use el hostname del contenedor PostgreSQL (no `localhost`). Ambos contenedores deben estar en la misma red Docker (`sanchez_docker_network`).
+Verificar que `DATABASE_URL` use el hostname del contenedor PostgreSQL (no `localhost`). Ambos contenedores deben estar en `sanchez_docker_network`.
 
 **Las migraciones fallan:**
-Verificar que la base de datos exista y el usuario tenga permisos. Revisar `docker compose logs sync-gateway` para ver la salida de Prisma.
+Verificar que la base de datos exista y el usuario tenga permisos CREATE TABLE. Revisar `docker compose logs sync-gateway` para ver la salida de Prisma.
 
-## 8. Migracion desde PM2
+**El wizard no puede escribir `.env`:**
+El contenedor corre como usuario no-root (`gateway`). Si ves errores de permisos al guardar en el wizard, reconstruir la imagen (`docker compose build --no-cache`) — el Dockerfile actual da permisos de escritura al directorio de trabajo.
 
-Si se esta migrando desde el deployment anterior con PM2:
+## 8. Traefik + Tailscale
+
+Se usa HTTP (entrypoint `web`) porque Let's Encrypt no puede completar el challenge HTTP-01 detras de Tailscale (el puerto 80 no es accesible desde internet). El trafico viaja cifrado por el tunel de Tailscale.
+
+Para cambiar el dominio, editar el label en `docker-compose.yml`:
+
+```yaml
+- "traefik.http.routers.sync-gateway.rule=Host(`tu-dominio.ejemplo.com`)"
+```
+
+## 9. Migracion desde PM2
+
+Si migrás desde el deployment anterior con PM2:
 
 1. Detener PM2: `pm2 stop sync-gateway && pm2 delete sync-gateway`
 2. El contenedor Docker usa la misma base de datos, no se necesita migrar datos
-3. Asegurarse de que `DATABASE_URL` en `.env` apunte al host correcto (hostname del contenedor en vez de `localhost`)
+3. Si ya tenias un `.env`, copialo a `objetiva-sync-gateway/.env` y el contenedor lo levanta directamente sin pasar por el wizard
 
 ## Notas de Arquitectura
 
-- **Build multi-stage:** deps -> builder -> runtime (~200MB imagen final)
-- **El entrypoint ejecuta migraciones:** `prisma migrate deploy` en cada inicio (idempotente)
+- **Build multi-stage:** deps → builder → runtime (~200MB imagen final)
+- **Setup-only mode:** Si falta `.env` o `DATABASE_URL`, el server arranca solo con `/setup` habilitado
+- **Entrypoint condicional:** `prisma migrate deploy` solo corre si `DATABASE_URL` esta definido
+- **env_file opcional:** Docker Compose no exige `.env` para arrancar (`required: false`)
 - **Limite de memoria:** 512MB (configurable en `docker-compose.yml`)
 - **Health check:** endpoint `/health`, verificado cada 30s
 - **Logs:** persistidos via Docker named volume `gateway-logs`
+- **Usuario no-root:** el contenedor corre como `gateway` (UID 1001) con permisos de escritura en el workdir
