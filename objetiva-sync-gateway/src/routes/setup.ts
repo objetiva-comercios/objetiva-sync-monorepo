@@ -752,7 +752,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       }
 
       // Auto-add http:// if no protocol
-      if (!/^https?:\/\//i.test(raw)) {
+      if (!new RegExp('^https?://', 'i').test(raw)) {
         raw = 'http://' + raw;
         urlInput.value = raw;
       }
