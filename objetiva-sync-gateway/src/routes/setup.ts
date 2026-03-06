@@ -1406,17 +1406,21 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       // Run Prisma migrations now that DATABASE_URL is available
       try {
         const { execSync } = await import('child_process')
-        execSync('npx prisma migrate deploy --schema=./prisma/schema.prisma', {
+        const output = execSync('npx prisma migrate deploy --schema=./prisma/schema.prisma', {
           cwd: process.cwd(),
           stdio: 'pipe',
-          timeout: 30000
+          timeout: 60000,
+          env: { ...process.env }
         })
-        logger.info('Prisma migrations applied successfully')
-      } catch (migrationErr) {
-        logger.error({ err: migrationErr }, 'Prisma migration failed during apply')
+        logger.info({ output: output.toString() }, 'Prisma migrations applied successfully')
+      } catch (migrationErr: any) {
+        const stderr = migrationErr?.stderr?.toString?.() || ''
+        const stdout = migrationErr?.stdout?.toString?.() || ''
+        const detail = stderr || stdout || migrationErr?.message || 'Unknown error'
+        logger.error({ stderr, stdout, err: migrationErr }, 'Prisma migration failed during apply')
         return reply.send({
           success: false,
-          error: 'Database migrations failed. Check that DATABASE_URL is correct and the database is accessible.'
+          error: 'Database migrations failed: ' + detail.slice(0, 500)
         })
       }
 
