@@ -6,6 +6,7 @@
 import type { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { logger } from '../lib/logger.js'
+import { systemState } from '../lib/system-state.js'
 
 interface HealthCheck {
   status: 'up' | 'down'
@@ -60,6 +61,16 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         checks: { database: { status: 'down', error: 'Server shutting down' } }
+      })
+    }
+
+    // In setup-only mode, return 200 — the server is alive and serving /setup
+    if (systemState.startupMode === 'setup-only') {
+      return reply.code(200).send({
+        status: 'setup',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        checks: { database: { status: 'down', error: 'Pending setup wizard configuration' } }
       })
     }
 

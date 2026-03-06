@@ -131,22 +131,18 @@ info "Levantando contenedor..."
 docker compose up -d
 ok "Contenedor levantado"
 
-# -- Esperar que el contenedor este healthy ----------------------------------
-info "Esperando que el servicio responda..."
+# -- Esperar que el contenedor este corriendo --------------------------------
+info "Esperando que el servicio arranque..."
 RETRIES=0
-MAX_RETRIES=30
+MAX_RETRIES=15
 
 while [ $RETRIES -lt $MAX_RETRIES ]; do
-  STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "not_found")
+  RUNNING=$(docker inspect --format='{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null || echo "false")
 
-  if [ "$STATUS" = "healthy" ]; then
-    ok "Servicio healthy"
-    break
-  elif [ "$STATUS" = "unhealthy" ]; then
-    # En modo setup-only, /health puede fallar — verificar que el contenedor este corriendo
-    RUNNING=$(docker inspect --format='{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null || echo "false")
-    if [ "$RUNNING" = "true" ]; then
-      ok "Contenedor corriendo (modo setup wizard — health check esperado como unhealthy)"
+  if [ "$RUNNING" = "true" ]; then
+    # Verificar que el proceso de Node responda (no solo que Docker lo tenga "running")
+    if docker exec "$CONTAINER_NAME" node -e "fetch('http://localhost:3335/health').then(()=>process.exit(0)).catch(()=>process.exit(1))" 2>/dev/null; then
+      ok "Servicio respondiendo"
       break
     fi
   fi
