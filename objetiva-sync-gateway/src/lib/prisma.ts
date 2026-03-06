@@ -5,41 +5,16 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-/**
- * Lazy-initialized Prisma client.
- *
- * When DATABASE_URL is not set (setup wizard mode), the client is not created
- * and any attempt to use it will throw a clear error instead of crashing the
- * entire process at import time.
- */
-function createPrismaClient(): PrismaClient {
-  if (!process.env.DATABASE_URL) {
-    // Return a Proxy that throws on any property access that looks like a
-    // Prisma method call.  This lets the server boot in setup-only mode
-    // without crashing, while giving a clear error if code accidentally
-    // tries to query the DB before setup is complete.
-    return new Proxy({} as PrismaClient, {
-      get(_target, prop) {
-        // Allow type-checking / toString / Symbol access without throwing
-        if (typeof prop === 'symbol' || prop === 'then' || prop === 'toJSON') {
-          return undefined
-        }
-        // $on, $connect, $disconnect — no-op in setup mode
-        if (prop === '$on' || prop === '$disconnect') {
-          return () => Promise.resolve()
-        }
-        if (prop === '$connect') {
-          return () => Promise.reject(new Error('DATABASE_URL is not configured'))
-        }
-        // $queryRaw and model accessors — throw descriptive error
-        throw new Error(
-          `Database is not configured (DATABASE_URL not set). Complete the setup wizard at /setup first.`
-        )
-      }
-    })
-  }
+let _realClient: PrismaClient | null = null
 
-  const client =
+/**
+ * Get or create the real PrismaClient.
+ * Only called when DATABASE_URL is available.
+ */
+function getRealClient(): PrismaClient {
+  if (_realClient) return _realClient
+
+  _realClient =
     globalForPrisma.prisma ??
     new PrismaClient({
       log: [
@@ -49,25 +24,60 @@ function createPrismaClient(): PrismaClient {
       ]
     })
 
-  // Log queries en desarrollo
   if (process.env.NODE_ENV === 'development') {
-    client.$on('query' as never, (e: any) => {
+    _realClient.$on('query' as never, (e: any) => {
       logger.debug({ query: e.query, duration: e.duration }, 'Database query')
     })
   }
 
   if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.prisma = client
+    globalForPrisma.prisma = _realClient
   }
 
-  return client
+  return _realClient
 }
 
-export const prisma = createPrismaClient()
+/**
+ * Prisma client proxy.
+ *
+ * - If DATABASE_URL is set, delegates to a real PrismaClient (lazy-created).
+ * - If DATABASE_URL is not set, throws a descriptive error on DB operations.
+ *
+ * This allows the server to boot in setup-only mode without DATABASE_URL,
+ * and transparently start working once the wizard sets it in process.env.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    // Allow type-checking / Symbol access without throwing
+    if (typeof prop === 'symbol' || prop === 'then' || prop === 'toJSON') {
+      return undefined
+    }
+
+    // If DATABASE_URL is now available, delegate to real client
+    if (process.env.DATABASE_URL) {
+      const client = getRealClient()
+      const value = Reflect.get(client, prop, receiver)
+      return typeof value === 'function' ? value.bind(client) : value
+    }
+
+    // No DATABASE_URL — graceful stubs for lifecycle methods
+    if (prop === '$on' || prop === '$disconnect') {
+      return () => Promise.resolve()
+    }
+    if (prop === '$connect') {
+      return () => Promise.reject(new Error('DATABASE_URL is not configured'))
+    }
+
+    // All other access throws
+    throw new Error(
+      'Database is not configured (DATABASE_URL not set). Complete the setup wizard at /setup first.'
+    )
+  }
+})
 
 // Graceful shutdown
 process.on('beforeExit', async () => {
-  if (process.env.DATABASE_URL) {
-    await prisma.$disconnect()
+  if (_realClient) {
+    await _realClient.$disconnect()
   }
 })

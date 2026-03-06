@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { logger } from '../lib/logger.js'
+import { systemState } from '../lib/system-state.js'
 import fs from 'fs/promises'
 import path from 'path'
 import { writeEnvVar } from '../utils/env-writer.js'
@@ -1416,6 +1417,30 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           success: false,
           error: `Missing configuration: ${missing.join(', ')}. Go back and complete those steps.`
         })
+      }
+
+      // Run Prisma migrations now that DATABASE_URL is available
+      try {
+        const { execSync } = await import('child_process')
+        execSync('npx prisma migrate deploy --schema=./prisma/schema.prisma', {
+          cwd: process.cwd(),
+          stdio: 'pipe',
+          timeout: 30000
+        })
+        logger.info('Prisma migrations applied successfully')
+      } catch (migrationErr) {
+        logger.error({ err: migrationErr }, 'Prisma migration failed during apply')
+        return reply.send({
+          success: false,
+          error: 'Database migrations failed. Check that DATABASE_URL is correct and the database is accessible.'
+        })
+      }
+
+      // Transition out of setup-only mode — all config is now live
+      if (systemState.startupMode === 'setup-only') {
+        systemState.startupMode = 'normal'
+        systemState.dbConnected = true
+        logger.info('Transitioned from setup-only to normal mode')
       }
 
       logger.info('Configuration applied — all env vars are live in process.env')
