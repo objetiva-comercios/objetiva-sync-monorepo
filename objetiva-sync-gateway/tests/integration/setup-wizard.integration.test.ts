@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../../src/app.js'
+import { systemState } from '../../src/lib/system-state.js'
 import type { FastifyInstance } from 'fastify'
 import fs from 'fs/promises'
 import path from 'path'
@@ -160,5 +161,47 @@ describe('GET /api/setup/status includes gatewayUrl', () => {
     expect(response.statusCode).toBe(200)
     const body = JSON.parse(response.body)
     expect(body).toHaveProperty('gatewayUrl')
+  })
+})
+
+describe('POST /api/setup/token', () => {
+  it('returns signed JWT token in setup-only mode', async () => {
+    const savedMode = systemState.startupMode
+    systemState.startupMode = 'setup-only'
+
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/setup/token'
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.success).toBe(true)
+      expect(body.token).toBeDefined()
+      expect(typeof body.token).toBe('string')
+      expect(body.token.split('.')).toHaveLength(3) // JWT has 3 parts
+    } finally {
+      systemState.startupMode = savedMode
+    }
+  })
+
+  it('returns 403 after setup completes (normal mode)', async () => {
+    const savedMode = systemState.startupMode
+    systemState.startupMode = 'normal'
+
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/setup/token'
+      })
+
+      expect(response.statusCode).toBe(403)
+      const body = JSON.parse(response.body)
+      expect(body.success).toBe(false)
+      expect(body.error).toBe('Only available during setup')
+    } finally {
+      systemState.startupMode = savedMode
+    }
   })
 })

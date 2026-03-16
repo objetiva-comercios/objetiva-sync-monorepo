@@ -31,18 +31,12 @@ describe('CLI Regenerate Schemas E2E', { sequential: true }, () => {
     }
 
     try {
-      // Try health check or auth endpoint
-      const response = await fetch(`${gatewayUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: process.env.SYNC_USERNAME,
-          password: process.env.SYNC_PASSWORD
-        })
+      const response = await fetch(`${gatewayUrl}/health`, {
+        signal: AbortSignal.timeout(5000)
       });
 
-      if (!response.ok && response.status !== 401) {
-        throw new Error(`Gateway returned ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Gateway health check returned ${response.status}`);
       }
     } catch (error) {
       throw new Error(
@@ -58,9 +52,9 @@ describe('CLI Regenerate Schemas E2E', { sequential: true }, () => {
     it('should authenticate and display diffs with --dry-run', async () => {
       const result = await runRegenerateSchemas(['--dry-run']);
 
-      // Verify successful authentication
-      expect(result.stdout).toContain('Authenticating with gateway');
-      expect(result.stdout).toContain('Authentication successful');
+      // Verify successful local token signing
+      expect(result.stdout).toContain('Signing local JWT token');
+      expect(result.stdout).toContain('Token signed successfully');
 
       // Verify schema fetching
       expect(result.stdout).toContain('Fetching schema');
@@ -91,7 +85,7 @@ describe('CLI Regenerate Schemas E2E', { sequential: true }, () => {
       const result = await runRegenerateSchemas(['--entity', 'articulos']);
 
       // Verify authentication and fetching
-      expect(result.stdout).toContain('Authentication successful');
+      expect(result.stdout).toContain('Token signed successfully');
       expect(result.stdout).toContain('Fetched 1 schema(s)');
 
       // Should either show changes written OR "are up-to-date" if no changes
@@ -133,25 +127,15 @@ describe('CLI Regenerate Schemas E2E', { sequential: true }, () => {
       expect(result.stdout + result.stderr).toMatch(/Missing required|GATEWAY_URL/i);
     }, 10000);
 
-    it('should fail when SYNC_USERNAME is missing', async () => {
+    it('should fail when JWT_SECRET is missing', async () => {
       const result = await runRegenerateSchemas(['--dry-run'], {
-        SYNC_USERNAME: undefined
+        JWT_SECRET: undefined
       });
 
       expect(result.exitCode).toBe(1);
-      // Error format: "Missing required environment variables: SYNC_USERNAME"
-      expect(result.stdout + result.stderr).toMatch(/Missing required|SYNC_USERNAME/i);
+      // Error format: "Missing required environment variables: JWT_SECRET"
+      expect(result.stdout + result.stderr).toMatch(/Missing required|JWT_SECRET/i);
     }, 10000);
-
-    it('should fail when authentication fails', async () => {
-      const result = await runRegenerateSchemas(['--dry-run'], {
-        SYNC_PASSWORD: 'wrong-password'
-      });
-
-      expect(result.exitCode).toBe(1);
-      // Verify CLI fails - may show various error messages depending on gateway state
-      expect(result.stdout + result.stderr).toMatch(/Error|failed|not running|authentication|unauthorized/i);
-    }, 15000);
 
     it('should fail when entity is invalid', async () => {
       const result = await runRegenerateSchemas(['--dry-run', '--entity', 'invalid_entity']);

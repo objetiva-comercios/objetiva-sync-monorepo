@@ -14,6 +14,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 import chalk from 'chalk';
+import { createSigner } from 'fast-jwt';
 import type { RegenerateOptions, RegenerateResult, SchemaResponse, DiffResult } from './types.js';
 import { generatePrismaSchema } from './prisma-generator.js';
 import { generateZodSchema } from './zod-generator.js';
@@ -21,28 +22,16 @@ import { computeDiff, displayDiff, displaySummary } from './diff-display.js';
 import { getSyncEntities } from '../config/entities.js';
 
 /**
- * Authenticate with the gateway and return JWT token
+ * Sign a JWT locally using JWT_SECRET (no /auth/login call needed).
  */
-async function authenticate(gatewayUrl: string, username: string, password: string): Promise<string> {
-  let response: Response;
-  try {
-    response = await fetch(`${gatewayUrl}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ username, password }),
-    });
-  } catch (error) {
-    throw new Error(`E003: Cannot connect to gateway at ${gatewayUrl}. Is it running? Start it with: npm run dev`);
+function signLocalToken(): string {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('E002: JWT_SECRET environment variable not set. Required for authentication.');
   }
 
-  if (!response.ok) {
-    throw new Error('E003: Authentication failed. Check SYNC_USERNAME and SYNC_PASSWORD credentials.');
-  }
-
-  const data = await response.json() as { token: string };
-  return data.token;
+  const signer = createSigner({ key: jwtSecret, expiresIn: 60000 }); // 60s is plenty for codegen
+  return signer({ source: 'codegen', authenticated: true });
 }
 
 /**
@@ -81,20 +70,10 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
     throw new Error('E001: GATEWAY_URL environment variable not set. Set it to the gateway base URL (e.g., http://localhost:3001).');
   }
 
-  const username = process.env.SYNC_USERNAME;
-  if (!username) {
-    throw new Error('E002: SYNC_USERNAME environment variable not set. Required for gateway authentication.');
-  }
-
-  const password = process.env.SYNC_PASSWORD;
-  if (!password) {
-    throw new Error('E002: SYNC_PASSWORD environment variable not set. Required for gateway authentication.');
-  }
-
-  // Step 2: Authenticate with gateway
-  console.log(chalk.cyan('Authenticating with gateway...'));
-  const token = await authenticate(gatewayUrl, username, password);
-  console.log(chalk.green('Authentication successful\n'));
+  // Step 2: Sign JWT locally (no /auth/login call needed)
+  console.log(chalk.cyan('Signing local JWT token...'));
+  const token = signLocalToken();
+  console.log(chalk.green('Token signed successfully\n'));
 
   // Step 3: Determine entities to process
   const allEntities = getSyncEntities();

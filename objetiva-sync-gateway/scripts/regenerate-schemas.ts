@@ -47,7 +47,7 @@ const GATEWAY_CWD = resolve(__dirname, '..');
 const DLL_PATH = resolve(GATEWAY_CWD, '..', 'node_modules', '.prisma', 'client', 'query_engine-windows.dll.node');
 
 // Required environment variables
-const REQUIRED_ENV_VARS = ['GATEWAY_URL', 'SYNC_USERNAME', 'SYNC_PASSWORD'] as const;
+const REQUIRED_ENV_VARS = ['GATEWAY_URL', 'JWT_SECRET'] as const;
 
 /**
  * Check all prerequisites before running schema regeneration

@@ -11,10 +11,6 @@ const TestDbSchema = z.object({
   databaseUrl: z.string().url('URL de base de datos inválida')
 })
 
-const SetPasswordSchema = z.object({
-  password: z.string().min(6, 'Password debe tener al menos 6 caracteres')
-})
-
 const SaveDomainSchema = z.object({
   url: z.string().min(1, 'URL is required')
 })
@@ -386,14 +382,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       </div>
       <div class="stepper-item upcoming" id="step-indicator-3">
         <div class="stepper-dot">4</div>
-        <div class="stepper-label">Password</div>
+        <div class="stepper-label">Apply</div>
       </div>
       <div class="stepper-item upcoming" id="step-indicator-4">
         <div class="stepper-dot">5</div>
-        <div class="stepper-label">Apply</div>
-      </div>
-      <div class="stepper-item upcoming" id="step-indicator-5">
-        <div class="stepper-dot">6</div>
         <div class="stepper-label">Link Sync</div>
       </div>
     </div>
@@ -414,13 +406,9 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       </div>
       <div class="nav-step" id="nav-step-3">
         <button class="btn btn-secondary" onclick="goBack()">&larr; Back</button>
-        <button class="btn btn-primary" onclick="savePasswordAndNext()" id="save-password-btn">Save &amp; Next &rarr;</button>
-      </div>
-      <div class="nav-step" id="nav-step-4">
-        <button class="btn btn-secondary" onclick="goBack()">&larr; Back</button>
         <button class="btn btn-primary" onclick="applyConfig()" id="apply-btn">Apply &amp; Continue &rarr;</button>
       </div>
-      <div class="nav-step" id="nav-step-5">
+      <div class="nav-step" id="nav-step-4">
         <button class="btn btn-secondary" onclick="goBack()">&larr; Back</button>
         <span></span>
       </div>
@@ -430,7 +418,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       <!-- Step 0: Database -->
       <div class="wizard-step active" id="wizard-step-0">
-        <div class="step-title">Step 1 of 6 — Database</div>
+        <div class="step-title">Step 1 of 5 — Database</div>
         <p class="step-subtitle">Configure the connection to your PostgreSQL database. The system will test the connection before proceeding.</p>
 
         <div class="form-row">
@@ -466,7 +454,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       <!-- Step 1: Domain -->
       <div class="wizard-step" id="wizard-step-1">
-        <div class="step-title">Step 2 of 6 — Domain</div>
+        <div class="step-title">Step 2 of 5 — Domain</div>
         <p class="step-subtitle">Configure the public URL where this gateway will be reachable. This is required for pairing with the sync client.</p>
 
         <div class="form-group">
@@ -481,7 +469,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       <!-- Step 2: JWT Secret -->
       <div class="wizard-step" id="wizard-step-2">
-        <div class="step-title">Step 3 of 6 — JWT Secret</div>
+        <div class="step-title">Step 3 of 5 — JWT Secret</div>
         <p class="step-subtitle">Set the JWT signing secret. It must match the value configured in your Objetiva Sync client for tokens to be valid.</p>
 
         <div class="form-group">
@@ -498,28 +486,9 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       </div>
 
-      <!-- Step 3: Password -->
+      <!-- Step 3: Apply Configuration -->
       <div class="wizard-step" id="wizard-step-3">
-        <div class="step-title">Step 4 of 6 — Admin Password</div>
-        <p class="step-subtitle">Configure the password for the <strong>admin</strong> user. This will be used to authenticate from the sync client.</p>
-
-        <div class="alert alert-info show" style="margin-bottom: 18px;">
-          Username: <strong>admin</strong> (fixed)
-        </div>
-
-        <div class="form-group">
-          <label for="admin-password">Password</label>
-          <input type="password" id="admin-password" placeholder="At least 6 characters">
-          <div class="input-hint">Minimum 6 characters.</div>
-        </div>
-
-        <div id="password-alert" class="alert"></div>
-
-      </div>
-
-      <!-- Step 4: Apply Configuration -->
-      <div class="wizard-step" id="wizard-step-4">
-        <div class="step-title">Step 5 of 6 — Apply Configuration</div>
+        <div class="step-title">Step 4 of 5 — Apply Configuration</div>
         <p class="step-subtitle">Review your configuration and apply changes. Settings will activate immediately without restarting the gateway.</p>
 
         <div id="download-alert" class="alert"></div>
@@ -547,9 +516,9 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       </div>
 
-      <!-- Step 5: Link Sync Client -->
-      <div class="wizard-step" id="wizard-step-5">
-        <h2 class="step-title">Step 6 of 6 — Link Sync Client</h2>
+      <!-- Step 4: Link Sync Client -->
+      <div class="wizard-step" id="wizard-step-4">
+        <h2 class="step-title">Step 5 of 5 — Link Sync Client</h2>
         <p class="step-subtitle">Enter this code in your Objetiva Sync dashboard to automatically configure the connection.</p>
 
         <!-- Domain gating warning (hidden by default) -->
@@ -599,7 +568,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       stepData: {}
     };
 
-    const TOTAL_STEPS = 6;
+    const TOTAL_STEPS = 5;
 
     // ── Stepper UI ──────────────────────────────────────────────────────────
     function updateStepper() {
@@ -645,10 +614,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       state.completedSteps.add(state.currentStep);
       const next = state.currentStep + 1;
       showStep(next);
-      if (next === 4) {
+      if (next === 3) {
         loadDownloadSummary();
       }
-      if (next === 5) {
+      if (next === 4) {
         enterPairingStep();
       }
     }
@@ -835,59 +804,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       }
     }
 
-    // ── Step 3: Password ──────────────────────────────────────────────────────
-    async function savePasswordAndNext() {
-      const password = document.getElementById('admin-password').value;
-
-      if (password.length < 6) {
-        showAlert('password-alert', 'error', 'Password must be at least 6 characters.');
-        return;
-      }
-
-      const btn = document.getElementById('save-password-btn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> Saving...';
-      hideAlert('password-alert');
-
-      try {
-        const res = await fetch('/api/setup/set-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-          // Obtain a JWT token now while we still have the password value.
-          // The token is needed by step 6 to call POST /api/pairing/generate.
-          try {
-            const loginRes = await fetch('/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: 'admin', password: password })
-            });
-            const loginData = await loginRes.json();
-            if (loginData.success && loginData.token) {
-              state.token = loginData.token;
-            }
-          } catch (_) {
-            // Token fetch is best-effort; step 6 will show an error if it fails
-          }
-          // Clear password from DOM (security — never store in stepData)
-          document.getElementById('admin-password').value = '';
-          advanceStep();
-        } else {
-          showAlert('password-alert', 'error', data.error || 'Failed to set password.');
-        }
-      } catch (err) {
-        showAlert('password-alert', 'error', 'Request failed: ' + err.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Save & Next';
-      }
-    }
-
-    // ── Step 4: Download ──────────────────────────────────────────────────────
+    // ── Step 3: Apply / Summary ─────────────────────────────────────────────
     async function loadDownloadSummary() {
       const loadingEl = document.getElementById('summary-loading');
       const containerEl = document.getElementById('summary-container');
@@ -989,10 +906,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       }
     }
 
-    // ── Step 4: Apply Configuration ────────────────────────────────────────────
+    // ── Step 3: Apply Configuration ────────────────────────────────────────────
     async function applyConfig() {
       const btn = document.getElementById('apply-btn');
-      const btnGroup = document.getElementById('nav-step-4');
+      const btnGroup = document.getElementById('nav-step-3');
       const statusEl = document.getElementById('apply-status');
       const spinnerEl = document.getElementById('apply-spinner');
       const successEl = document.getElementById('apply-success');
@@ -1031,7 +948,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       }
     }
 
-    // ── Step 5: Link Sync Client ──────────────────────────────────────────────
+    // ── Step 4: Link Sync Client ──────────────────────────────────────────────
     let countdownInterval = null;
     let pairingPollInterval = null;
 
@@ -1055,6 +972,23 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       codeEl.style.display = 'block';
       if (successEl) successEl.style.display = 'none';
       if (errorEl) errorEl.style.display = 'none';
+
+      // Obtain a JWT token via the setup-only token endpoint
+      // (available only during setup-only mode, after apply-config sets JWT_SECRET)
+      if (!state.token) {
+        try {
+          const tokenRes = await fetch('/api/setup/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const tokenData = await tokenRes.json();
+          if (tokenData.success && tokenData.token) {
+            state.token = tokenData.token;
+          }
+        } catch (_) {
+          // Token fetch is best-effort; fetchPairingCode will show an error if it fails
+        }
+      }
 
       // Auto-generate on step enter
       await fetchPairingCode();
@@ -1204,11 +1138,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           }
         }
 
-        // Pre-fill admin password
-        if (status.auth && status.auth.password) {
-          document.getElementById('admin-password').value = status.auth.password;
-        }
-
         // Suppress unused preflight variable warning
         void preflight;
       } catch (_) {
@@ -1353,27 +1282,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
   })
 
-  // POST /api/setup/set-password - Configurar password de admin
-  app.post('/api/setup/set-password', async (request, reply) => {
-    try {
-      const { password } = SetPasswordSchema.parse(request.body)
-
-      // Guardar en .env usando env-writer centralizado (serializado y con escape correcto)
-      await writeEnvVar('SYNC_USERNAME', 'admin')
-      await writeEnvVar('SYNC_PASSWORD', password)
-
-      logger.info('Credenciales de autenticación configuradas')
-
-      return reply.send({ success: true })
-    } catch (error) {
-      logger.error({ error }, 'Error al configurar password')
-      return reply.send({
-        success: false,
-        error: error instanceof Error ? error.message : 'Error al configurar password'
-      })
-    }
-  })
-
   // POST /api/setup/save-domain - Guardar URL pública del gateway en .env
   app.post('/api/setup/save-domain', async (request, reply) => {
     try {
@@ -1415,7 +1323,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       }
 
       // Confirm key env vars are present in process.env
-      const required = ['DATABASE_URL', 'JWT_SECRET', 'SYNC_PASSWORD']
+      const required = ['DATABASE_URL', 'JWT_SECRET']
       const missing = required.filter(k => !process.env[k])
 
       if (missing.length > 0) {
@@ -1551,9 +1459,6 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     try {
       const DATABASE_URL = process.env.DATABASE_URL || ''
       const JWT_SECRET = process.env.JWT_SECRET || ''
-      const SYNC_USERNAME = process.env.SYNC_USERNAME || ''
-      const SYNC_PASSWORD = process.env.SYNC_PASSWORD || ''
-
       // Parsear DATABASE_URL con password incluido para pre-fill
       let dbInfo = null
       if (DATABASE_URL && DATABASE_URL !== 'postgresql://user:password@localhost:5432/objetiva_db') {
@@ -1581,20 +1486,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         }
       }
 
-      // Info de credenciales con password para pre-fill
-      let authInfo = null
-      if (SYNC_USERNAME && SYNC_USERNAME !== 'admin' || SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me') {
-        authInfo = {
-          username: SYNC_USERNAME || 'admin',
-          passwordConfigured: !!(SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me'),
-          password: SYNC_PASSWORD && SYNC_PASSWORD !== 'change-me' ? SYNC_PASSWORD : null
-        }
-      }
-
       return reply.send({
         database: dbInfo,
         jwt: jwtInfo,
-        auth: authInfo,
+        auth: null,
         gatewayUrl: process.env.GATEWAY_PUBLIC_URL || null
       })
     } catch (error) {
@@ -1604,6 +1499,37 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         jwt: null,
         auth: null,
         gatewayUrl: null
+      })
+    }
+  })
+
+  // POST /api/setup/token - Issue a JWT during setup-only mode
+  // This endpoint replaces /auth/login for the setup wizard.
+  // It is only available while the gateway is in setup-only mode;
+  // once apply-config transitions to normal mode, it returns 403.
+  app.post('/api/setup/token', async (_request, reply) => {
+    if (systemState.startupMode !== 'setup-only') {
+      return reply.status(403).send({
+        success: false,
+        error: 'Only available during setup'
+      })
+    }
+
+    try {
+      const token = app.jwt.sign({
+        source: 'setup-wizard',
+        authenticated: true
+      })
+
+      return reply.send({
+        success: true,
+        token
+      })
+    } catch (error) {
+      logger.error({ error }, 'Error signing setup token')
+      return reply.status(500).send({
+        success: false,
+        error: 'Failed to sign token'
       })
     }
   })
