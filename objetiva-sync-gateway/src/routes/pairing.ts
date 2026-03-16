@@ -9,7 +9,7 @@
  *  2. Wizard calls POST /api/pairing/generate (requires JWT) to get a 6-char code
  *  3. Operator reads code to the sync server or enters it in sync UI
  *  4. Sync server calls POST /api/pairing/claim with the code
- *  5. On success, sync receives { gatewayUrl, jwtSecret, syncPassword } in one call
+ *  5. On success, sync receives { gatewayUrl, jwtSecret } in one call
  */
 
 import type { FastifyInstance } from 'fastify'
@@ -59,7 +59,7 @@ export async function registerPairingRoutes(app: FastifyInstance): Promise<void>
    * Unauthenticated endpoint — rate-limited to 5 per minute per IP.
    * Validates the submitted code and returns gateway credentials on success.
    *
-   * Response 200: { success, gatewayUrl, jwtSecret, syncPassword }
+   * Response 200: { success, gatewayUrl, jwtSecret }
    * Response 400: { success: false, error: 'INVALID_INPUT' }
    * Response 404: { success: false, error: 'CODE_INVALID' }
    * Response 410: { success: false, error: 'CODE_CONSUMED' }
@@ -96,8 +96,7 @@ export async function registerPairingRoutes(app: FastifyInstance): Promise<void>
       return reply.code(200).send({
         success: true,
         gatewayUrl: process.env.GATEWAY_PUBLIC_URL ?? null,
-        jwtSecret: process.env.JWT_SECRET ?? null,
-        syncPassword: process.env.SYNC_PASSWORD ?? null
+        jwtSecret: process.env.JWT_SECRET ?? null
       })
     }
 

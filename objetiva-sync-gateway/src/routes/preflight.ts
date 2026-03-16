@@ -45,7 +45,6 @@ async function checkEnvVars(): Promise<PreflightCheck> {
   const missing: string[] = []
   if (!process.env.DATABASE_URL) missing.push('DATABASE_URL')
   if (!process.env.JWT_SECRET) missing.push('JWT_SECRET')
-  if (!process.env.SYNC_PASSWORD) missing.push('SYNC_PASSWORD')
 
   // GATEWAY_PUBLIC_URL is optional — warn if absent, do not fail
   const warnMissing: string[] = []

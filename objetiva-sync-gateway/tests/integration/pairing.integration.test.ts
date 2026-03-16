@@ -19,7 +19,6 @@ import type { FastifyInstance } from 'fastify'
 async function createTestApp() {
   process.env.JWT_SECRET = 'test-jwt-secret-for-pairing-tests-32chars'
   process.env.JWT_EXPIRES_IN = '1h'
-  process.env.SYNC_PASSWORD = 'TestSyncPassword123!'
   process.env.GATEWAY_PUBLIC_URL = 'https://gateway.example.com'
 
   const app = await buildApp()
@@ -169,7 +168,7 @@ describe('POST /api/pairing/claim — success path', () => {
     expect(body.success).toBe(true)
     expect(body.gatewayUrl).toBe('https://gateway.example.com')
     expect(body.jwtSecret).toBe('test-jwt-secret-for-pairing-tests-32chars')
-    expect(body.syncPassword).toBe('TestSyncPassword123!')
+    expect(body.syncPassword).toBeUndefined()
   })
 
   it('accepts lowercase code (case-insensitive)', async () => {

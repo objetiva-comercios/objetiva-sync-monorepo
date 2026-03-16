@@ -8,7 +8,6 @@ import { fileURLToPath } from 'url'
 import { logger } from './lib/logger.js'
 import { rTracer, getCorrelationId } from './lib/correlation.js'
 import { registerErrorHandler } from './middleware/error-handler.js'
-import { registerAuthRoutes } from './routes/auth.js'
 import { registerArticulosRoutes } from './routes/articulos.js'
 import { registerComprobantesRoutes } from './routes/comprobantes.js'
 import { registerSetupRoutes } from './routes/setup.js'
@@ -114,9 +113,9 @@ export async function buildApp() {
   // Setup-only mode — return 503 on all routes NOT in the allowlist
   // Checked after rate-limit and correlation hooks so those still work.
   // The hook runs on every request; systemState.startupMode is read live.
-  // /auth/login is included so the setup wizard (step 6) can obtain a JWT token
-  // after configuring the admin password, without leaving setup-only mode.
-  const SETUP_ONLY_ALLOWLIST = ['/health', '/metrics', '/setup', '/api/setup/', '/api/pairing/', '/auth/login']
+  // /api/setup/token is included so the setup wizard (step 5) can obtain a JWT token
+  // during setup-only mode, before any password-based auth exists.
+  const SETUP_ONLY_ALLOWLIST = ['/health', '/metrics', '/setup', '/api/setup/', '/api/pairing/']
   app.addHook('onRequest', async (request, reply) => {
     if (systemState.startupMode !== 'setup-only') return
     const url = request.url
@@ -147,7 +146,6 @@ export async function buildApp() {
   // Routes
   await registerStatusRoutes(app)
   await registerSetupRoutes(app)
-  await registerAuthRoutes(app)
   await registerArticulosRoutes(app)
   await registerComprobantesRoutes(app)
   await registerSchemaRoutes(app)
