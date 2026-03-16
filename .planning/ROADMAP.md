@@ -45,7 +45,7 @@ Note: Phase 17 (Dashboard Modernization with shadcn/React) was implemented but r
 - [x] **Phase 19: Setup Wizard Enhancement** - Wizard guides operator through complete gateway configuration with .env generation (completed 2026-03-05)
 - [x] **Phase 20: Gateway Pairing Routes** - Gateway generates short-lived pairing codes; claim endpoint transfers credentials to sync (completed 2026-03-05)
 - [x] **Phase 21: Sync Pairing Client** - Sync dashboard lets operator enter pairing code and link to gateway automatically (completed 2026-03-05)
-- [x] **Phase 22: Auth Simplification** - Remove password-based login, keep JWT-only auth via shared secret (in progress) (completed 2026-03-16)
+- [x] **Phase 22: Auth Simplification** - Remove password-based login, keep JWT-only auth via shared secret (completed 2026-03-16)
 - [x] **Phase 23: Fix Wizard Pairing Auth & Missing Dependency** - Fix critical 403 bug in wizard pairing flow and add missing fast-jwt dependency (completed 2026-03-16)
 - [ ] **Phase 24: Phase 21 Verification & Traceability Update** - Verify Phase 21 implementation, update traceability, fix documentation gaps
 
@@ -152,6 +152,9 @@ Plans:
   2. REQUIREMENTS.md traceability table shows AUTH-RM-01..08 as "Complete" (not "Planned")
   3. All v1.2 requirement checkboxes accurately reflect implementation status
   4. PAIR-03 scoping boundary documented (gateway in Phase 20, sync storage in Phase 21)
+**Plans:** 1 plan
+Plans:
+- [ ] 24-01-PLAN.md — Verify SPC-01/02/03, create 21-VERIFICATION.md, update all stale docs and traceability
 
 ## Progress
 
@@ -163,13 +166,13 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22 → 23 → 24
 | 1-7. Foundation through Monitoring | v1.0 | 14/14 | Complete | 2026-02-03 |
 | 8-12. Reliability & Deployment | v1.1-rc | 15/15 | Complete | 2026-02-05 |
 | 13-16. Multi-Source & Hardening | v1.1-rc2 | 14/14 | Complete | 2026-02-18 |
-| 18. Pre-Flight Validator | 2/2 | Complete    | 2026-03-05 | - |
-| 19. Setup Wizard Enhancement | 2/2 | Complete    | 2026-03-05 | - |
-| 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
-| 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
-| 22. Auth Simplification | 2/2 | Complete    | 2026-03-16 | - |
-| 23. Fix Wizard Pairing Auth & Missing Dependency | 2/2 | Complete    | 2026-03-16 | - |
-| 24. Phase 21 Verification & Traceability Update | 0/0 | Pending | - | - |
+| 18. Pre-Flight Validator | v1.2 | 2/2 | Complete | 2026-03-05 |
+| 19. Setup Wizard Enhancement | v1.2 | 2/2 | Complete | 2026-03-05 |
+| 20. Gateway Pairing Routes | v1.2 | 2/2 | Complete | 2026-03-05 |
+| 21. Sync Pairing Client | v1.2 | 2/2 | Complete | 2026-03-05 |
+| 22. Auth Simplification | v1.2 | 2/2 | Complete | 2026-03-16 |
+| 23. Fix Wizard Pairing Auth & Missing Dependency | v1.2 | 2/2 | Complete | 2026-03-16 |
+| 24. Phase 21 Verification & Traceability Update | v1.2 | 0/1 | Pending | - |
 
 ---
-*Last updated: 2026-03-16 — Phase 23 plans created (2 plans, wave 1 parallel)*
+*Last updated: 2026-03-16 — Phase 24 plan created (1 plan, wave 1)*
