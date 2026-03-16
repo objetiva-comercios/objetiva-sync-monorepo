@@ -137,6 +137,10 @@ Plans:
   2. Fresh Install Wizard completes end-to-end from step 1 through pairing code generation without 403 errors
   3. `fast-jwt` is listed as an explicit dependency in objetiva-sync/package.json and `npm install` in a clean environment resolves it
   4. No residual references to REMOTE_API_USERNAME, REMOTE_API_PASSWORD, or SYNC_PASSWORD exist in production code (env.ts, env-writer.ts)
+**Plans:** 2 plans
+Plans:
+- [ ] 23-01-PLAN.md — Gateway: fix 403 bug (setupComplete flag + token guard + claim wiring) + wizard flow integration test
+- [ ] 23-02-PLAN.md — Sync: add fast-jwt dependency, remove dead env fields, add import verification test
 
 ### Phase 24: Phase 21 Verification & Traceability Update
 **Goal**: Verify Phase 21 implementation (SPC-01/02/03), update REQUIREMENTS.md traceability for AUTH-RM-01..08, and fix documentation gaps across phases
@@ -152,7 +156,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 18 → 19 → 20 → 21 → 22
+Phases execute in numeric order: 18 → 19 → 20 → 21 → 22 → 23 → 24
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -164,8 +168,8 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
 | 22. Auth Simplification | 2/2 | Complete    | 2026-03-16 | - |
-| 23. Fix Wizard Pairing Auth & Missing Dependency | 0/0 | Pending | - | - |
+| 23. Fix Wizard Pairing Auth & Missing Dependency | 0/2 | Planned | - | - |
 | 24. Phase 21 Verification & Traceability Update | 0/0 | Pending | - | - |
 
 ---
-*Last updated: 2026-03-16 — Gap closure phases 23-24 added from v1.2 audit*
+*Last updated: 2026-03-16 — Phase 23 plans created (2 plans, wave 1 parallel)*
