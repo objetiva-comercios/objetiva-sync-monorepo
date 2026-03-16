@@ -186,9 +186,35 @@ describe('POST /api/setup/token', () => {
     }
   })
 
-  it('returns 403 after setup completes (normal mode)', async () => {
+  it('returns 200 in normal mode when setupComplete is false (bug fix)', async () => {
     const savedMode = systemState.startupMode
+    const savedSetupComplete = systemState.setupComplete
     systemState.startupMode = 'normal'
+    systemState.setupComplete = false
+
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/setup/token'
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.success).toBe(true)
+      expect(body.token).toBeDefined()
+      expect(typeof body.token).toBe('string')
+      expect(body.token.split('.')).toHaveLength(3)
+    } finally {
+      systemState.startupMode = savedMode
+      systemState.setupComplete = savedSetupComplete
+    }
+  })
+
+  it('returns 403 after setup completes (normal mode + setupComplete)', async () => {
+    const savedMode = systemState.startupMode
+    const savedSetupComplete = systemState.setupComplete
+    systemState.startupMode = 'normal'
+    systemState.setupComplete = true
 
     try {
       const response = await app.inject({
@@ -202,6 +228,7 @@ describe('POST /api/setup/token', () => {
       expect(body.error).toBe('Only available during setup')
     } finally {
       systemState.startupMode = savedMode
+      systemState.setupComplete = savedSetupComplete
     }
   })
 })
