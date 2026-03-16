@@ -152,7 +152,7 @@ Plans:
   2. REQUIREMENTS.md traceability table shows AUTH-RM-01..08 as "Complete" (not "Planned")
   3. All v1.2 requirement checkboxes accurately reflect implementation status
   4. PAIR-03 scoping boundary documented (gateway in Phase 20, sync storage in Phase 21)
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 24-01-PLAN.md — Verify SPC-01/02/03, create 21-VERIFICATION.md, update all stale docs and traceability
 

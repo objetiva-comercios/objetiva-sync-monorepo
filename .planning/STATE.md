@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
-status: completed
-stopped_at: Phase 24 plan 01 complete — all v1.2 verification done
-last_updated: "2026-03-16T23:25:00Z"
+status: verifying
+stopped_at: Completed 24-01-PLAN.md
+last_updated: "2026-03-16T23:28:22.799Z"
 last_activity: 2026-03-16 — 24-01 verified SPC-01/02/03, updated all stale docs and traceability
 progress:
   total_phases: 7
@@ -84,6 +84,8 @@ See: .planning/MILESTONES.md for full details
 - [Phase 23-01]: Widened token guard: setup-only OR (normal AND !setupComplete) -- fixes 403 bug mid-wizard
 - [Phase 23-01]: setupComplete set in claim handler, not apply-config -- token remains available between config and claim
 - [Phase 23-01]: Mocked child_process.execSync in wizard-flow test to avoid Prisma migration dependency
+- [Phase 24]: SPC-02 verified as fully implemented -- code inspection found Conectar button + claimPairingCode + POST claim + showPairingResult
+- [Phase 24]: PAIR-03 scope boundary resolved: Phase 20 gateway delivery + Phase 21 sync SQLite storage together satisfy PAIR-03
 
 ### Roadmap Evolution
 
@@ -101,9 +103,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T23:25:00Z
-Stopped at: Phase 24 plan 01 complete — all v1.2 verification done
-Resume file: .planning/phases/24-phase-21-verification-traceability/24-01-SUMMARY.md
+Last session: 2026-03-16T23:28:22.792Z
+Stopped at: Completed 24-01-PLAN.md
+Resume file: None
 Next action: v1.2 milestone ready for audit and closure
 
 ---
