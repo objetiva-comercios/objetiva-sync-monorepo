@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
 status: verifying
-stopped_at: "Completed 21-02-PLAN.md (checkpoint: awaiting human verify)"
-last_updated: "2026-03-05T19:33:24.334Z"
+stopped_at: Phase 22 context gathered
+last_updated: "2026-03-16T15:32:39.567Z"
 last_activity: 2026-03-05 — 20-02 wizard step 6 Link Sync Client implemented and human-verified
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
   total_plans: 8
   completed_plans: 8
@@ -73,6 +73,10 @@ See: .planning/MILESTONES.md for full details
 - [Phase 21]: gateway-client.ts: getGatewayUrl and getGatewayJwtSecret made async reading REMOTE_API_URL/JWT_SECRET from SQLite first before env fallback
 - [Phase 21]: 21-02: Warning state (test failure after pairing) uses innerHTML with embedded Reintentar button — textContent cannot render interactive elements
 
+### Roadmap Evolution
+
+- Phase 22 added: Simplify sync-gateway auth to token-based pairing-only
+
 ### Pending Todos
 
 None yet.
@@ -85,9 +89,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-05T19:33:24.328Z
-Stopped at: Completed 21-02-PLAN.md (checkpoint: awaiting human verify)
-Resume file: None
+Last session: 2026-03-16T15:32:39.549Z
+Stopped at: Phase 22 context gathered
+Resume file: .planning/phases/22-simplify-sync-gateway-auth-to-token-based-pairing-only/22-CONTEXT.md
 Next action: Phase 20 complete — ready for next phase
 
 ---
