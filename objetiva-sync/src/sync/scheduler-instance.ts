@@ -11,7 +11,6 @@ import { normalizeAdapterConfig } from '../adapters/database-adapter.js';
 import { APIClient } from '../api-client/index.js';
 import { getActiveConnectionConfig } from '../store/repositories/connection-config-repo.js';
 import { getConfig } from '../store/repositories/config-repo.js';
-import { decrypt } from '../utils/crypto.js';
 import { logger } from '../utils/logger.js';
 import { initSyncQueue } from './sync-queue-instance.js';
 import { SYNC_CONFIG } from '../config/constants.js';
@@ -46,26 +45,22 @@ export async function initScheduler(): Promise<void> {
     logger.info('[Scheduler] ✅ Adaptador conectado a base de datos');
 
     // 4. Obtener configuración de API remota
-    const [apiUrl, apiUsername, apiPassword] = await Promise.all([
+    const [apiUrl, jwtSecret] = await Promise.all([
       getConfig('REMOTE_API_URL'),
-      getConfig('REMOTE_API_USERNAME'),
-      getConfig('REMOTE_API_PASSWORD'),
+      getConfig('JWT_SECRET'),
     ]);
 
-    if (!apiUrl || !apiUsername || !apiPassword) {
-      logger.warn('[Scheduler] API remota no configurada. Scheduler iniciado sin API client.');
+    if (!apiUrl || !jwtSecret) {
+      logger.warn('[Scheduler] Gateway no enlazado, sync deshabilitado');
     }
 
-    // 5. Crear API client si está configurado
+    // 5. Crear API client si está configurado (paired)
     let apiClient: APIClient | undefined;
-    if (apiUrl && apiUsername && apiPassword) {
-      const password = decrypt(apiPassword.value);
+    if (apiUrl && jwtSecret) {
       apiClient = new APIClient({
         baseUrl: apiUrl.value,
-        username: apiUsername.value,
-        password: password,
       });
-      logger.info('[Scheduler] ✅ API client creado');
+      logger.info('[Scheduler] API client creado');
     }
 
     // 6. Crear SyncEngine con adaptador conectado y API client

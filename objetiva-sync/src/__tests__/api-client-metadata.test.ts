@@ -7,7 +7,6 @@ import { ArticulosClient } from '../api-client/articulos-client.js';
 import { ComprobantesCabeceraClient } from '../api-client/comprobantes-cabecera-client.js';
 import { ComprobantesDetalleClient } from '../api-client/comprobantes-detalle-client.js';
 import { ComprobantesPagosClient } from '../api-client/comprobantes-pagos-client.js';
-import type { AuthManager } from '../api-client/auth.js';
 import type { IArticuloPayload } from '../types/articulos.js';
 import type { IComprobanteCabeceraPayload } from '../types/comprobantes-cabecera.js';
 import type { IComprobanteDetallePayload } from '../types/comprobantes-detalle.js';
@@ -28,22 +27,23 @@ vi.mock('../utils/logger.js', () => ({
   },
 }));
 
-describe('API Clients - Metadata Transmission', () => {
-  const mockAuthManager: AuthManager = {
-    getToken: vi.fn().mockResolvedValue('test-token-123'),
-    login: vi.fn(),
-    logout: vi.fn(),
-    isAuthenticated: vi.fn(),
-  } as any;
+// Mock getJwtToken from gateway-client
+vi.mock('../services/gateway-client.js', () => ({
+  getJwtToken: vi.fn().mockResolvedValue('test-jwt-token-123'),
+}));
 
+describe('API Clients - Metadata Transmission', () => {
   const baseUrl = 'https://api.example.com';
   const mockMetadata = {
     queryId: 42,
     queryName: 'Test Query - Factura A',
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    // Re-setup getJwtToken mock after clearAllMocks resets implementations
+    const { getJwtToken } = await import('../services/gateway-client.js');
+    (getJwtToken as any).mockResolvedValue('test-jwt-token-123');
   });
 
   describe('ArticulosClient', () => {
@@ -60,7 +60,7 @@ describe('API Clients - Metadata Transmission', () => {
         }),
       });
 
-      const client = new ArticulosClient(baseUrl, mockAuthManager);
+      const client = new ArticulosClient(baseUrl);
       const testArticulos: IArticuloPayload[] = [
         { sku: 'TEST-001', erp_codigo: 'TEST-001', erp_nombre: 'Test Article', nombre: 'Test Article', objeto: 'producto' },
       ];
@@ -74,7 +74,7 @@ describe('API Clients - Metadata Transmission', () => {
 
       expect(headers['X-Query-Id']).toBe('42');
       expect(headers['X-Query-Name']).toBe('Test Query - Factura A');
-      expect(headers['Authorization']).toBe('Bearer test-token-123');
+      expect(headers['Authorization']).toBe('Bearer test-jwt-token-123');
       expect(headers['Content-Type']).toBe('application/json');
     });
 
@@ -90,7 +90,7 @@ describe('API Clients - Metadata Transmission', () => {
         }),
       });
 
-      const client = new ArticulosClient(baseUrl, mockAuthManager);
+      const client = new ArticulosClient(baseUrl);
       const testArticulos: IArticuloPayload[] = [
         { sku: 'TEST-002', erp_codigo: 'TEST-002', erp_nombre: 'Test Article 2', nombre: 'Test Article 2', objeto: 'producto' },
       ];
@@ -105,7 +105,7 @@ describe('API Clients - Metadata Transmission', () => {
       // Should not have X-Query-* headers
       expect(headers['X-Query-Id']).toBeUndefined();
       expect(headers['X-Query-Name']).toBeUndefined();
-      expect(headers['Authorization']).toBe('Bearer test-token-123');
+      expect(headers['Authorization']).toBe('Bearer test-jwt-token-123');
     });
   });
 
@@ -122,7 +122,7 @@ describe('API Clients - Metadata Transmission', () => {
         }),
       });
 
-      const client = new ComprobantesCabeceraClient(baseUrl, mockAuthManager);
+      const client = new ComprobantesCabeceraClient(baseUrl);
       const testComprobantes: IComprobanteCabeceraPayload[] = [
         {
           erp_operacion: 'FC',
@@ -164,7 +164,7 @@ describe('API Clients - Metadata Transmission', () => {
         }),
       });
 
-      const client = new ComprobantesDetalleClient(baseUrl, mockAuthManager);
+      const client = new ComprobantesDetalleClient(baseUrl);
       const testDetalles: IComprobanteDetallePayload[] = [
         {
           erp_operacion: 'FC',
@@ -208,7 +208,7 @@ describe('API Clients - Metadata Transmission', () => {
         }),
       });
 
-      const client = new ComprobantesPagosClient(baseUrl, mockAuthManager);
+      const client = new ComprobantesPagosClient(baseUrl);
       const testPagos: IComprobantePagosPayload[] = [
         {
           erp_operacion: 'FC',
@@ -242,16 +242,16 @@ describe('API Clients - Metadata Transmission', () => {
         ok: true,
         json: async () => ({
           success: true,
-          data: { inserted: 0, updated: 0, errors: [] },
+          data: { inserted: 1, updated: 0, errors: [] },
         }),
       });
 
-      const client = new ArticulosClient(baseUrl, mockAuthManager);
+      const client = new ArticulosClient(baseUrl);
 
-      await client.sendBatch([], {
-        queryId: 999,
-        queryName: 'Query with numeric ID',
-      });
+      await client.sendBatch(
+        [{ sku: 'TEST-NUM', erp_codigo: 'TEST-NUM', erp_nombre: 'Numeric ID Test', nombre: 'Numeric ID Test', objeto: 'producto' }],
+        { queryId: 999, queryName: 'Query with numeric ID' }
+      );
 
       const callArgs = mockFetch.mock.calls[0];
       const headers = callArgs[1].headers;
@@ -269,16 +269,16 @@ describe('API Clients - Metadata Transmission', () => {
         ok: true,
         json: async () => ({
           success: true,
-          data: { inserted: 0, updated: 0, errors: [] },
+          data: { inserted: 1, updated: 0, errors: [] },
         }),
       });
 
-      const client = new ArticulosClient(baseUrl, mockAuthManager);
+      const client = new ArticulosClient(baseUrl);
 
-      await client.sendBatch([], {
-        queryId: 1,
-        queryName: 'Query with "quotes" & special-chars',
-      });
+      await client.sendBatch(
+        [{ sku: 'TEST-SPEC', erp_codigo: 'TEST-SPEC', erp_nombre: 'Special Chars Test', nombre: 'Special Chars Test', objeto: 'producto' }],
+        { queryId: 1, queryName: 'Query with "quotes" & special-chars' }
+      );
 
       const callArgs = mockFetch.mock.calls[0];
       const headers = callArgs[1].headers;

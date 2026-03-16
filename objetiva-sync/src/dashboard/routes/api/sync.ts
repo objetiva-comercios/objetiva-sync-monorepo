@@ -8,7 +8,7 @@ import { requireNoPasswordChange } from '../../middleware/auth.js';
 import { getAllQueries, getQueriesOrdered, getQuery } from '../../../store/repositories/queries-repo.js';
 import { getActiveConnectionConfig } from '../../../store/repositories/connection-config-repo.js';
 import { getConfig } from '../../../store/repositories/config-repo.js';
-import { decrypt } from '../../../utils/crypto.js';
+// decrypt import removed — JWT auth via getJwtToken, no password decryption needed
 import { createAdapter } from '../../../adapters/index.js';
 import { normalizeAdapterConfig } from '../../../adapters/database-adapter.js';
 import { APIClient } from '../../../api-client/index.js';
@@ -232,17 +232,16 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
           });
         }
 
-        // Verificar configuración de API remota
-        const [apiUrl, apiUsername, apiPassword] = await Promise.all([
+        // Verificar configuración de API remota (paired via JWT)
+        const [apiUrl, jwtSecret] = await Promise.all([
           getConfig('REMOTE_API_URL'),
-          getConfig('REMOTE_API_USERNAME'),
-          getConfig('REMOTE_API_PASSWORD'),
+          getConfig('JWT_SECRET'),
         ]);
 
-        if (!apiUrl || !apiUsername || !apiPassword) {
+        if (!apiUrl || !jwtSecret) {
           return reply.status(400).send({
             success: false,
-            error: 'La API remota no está configurada completamente',
+            error: 'Gateway no enlazado — ejecuta el pairing primero',
           });
         }
 
@@ -255,21 +254,11 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
           await adapter.connect(adapterConfig);
           logger.info('Adaptador de base de datos conectado para sincronización manual');
 
-          // Crear cliente de API
-          const password = decrypt(apiPassword.value);
-
-          // Log para debug (sin mostrar password completo)
-          logger.info({
-            baseUrl: apiUrl.value,
-            username: apiUsername.value,
-            passwordLength: password.length,
-            passwordHint: password.length > 4 ? `${password.substring(0, 2)}...${password.substring(password.length - 2)}` : '***'
-          }, 'Creando cliente API con credenciales');
+          // Crear cliente de API (JWT auth via getJwtToken)
+          logger.info({ baseUrl: apiUrl.value }, 'Creando cliente API');
 
           const apiClient = new APIClient({
             baseUrl: apiUrl.value,
-            username: apiUsername.value,
-            password: password,
           });
 
           // Crear motor de sincronización
@@ -552,14 +541,13 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
           return;
         }
 
-        const [apiUrl, apiUsername, apiPassword] = await Promise.all([
+        const [apiUrl, jwtSecret] = await Promise.all([
           getConfig('REMOTE_API_URL'),
-          getConfig('REMOTE_API_USERNAME'),
-          getConfig('REMOTE_API_PASSWORD'),
+          getConfig('JWT_SECRET'),
         ]);
 
-        if (!apiUrl || !apiUsername || !apiPassword) {
-          sendEvent('error', { error: 'La API remota no está configurada completamente' });
+        if (!apiUrl || !jwtSecret) {
+          sendEvent('error', { error: 'Gateway no enlazado — ejecuta el pairing primero' });
           clearInterval(heartbeatTimer);
           reply.raw.end();
           return;
@@ -570,11 +558,8 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
         const syncAdapterConfig = normalizeAdapterConfig(activeConnection.adapterType, activeConnection.config);
         await adapter.connect(syncAdapterConfig);
 
-        const password = decrypt(apiPassword.value);
         const apiClient = new APIClient({
           baseUrl: apiUrl.value,
-          username: apiUsername.value,
-          password: password,
         });
 
         // Crear motor de sincronización con callback de progreso
@@ -832,27 +817,23 @@ export async function registerSyncApiRoutes(app: FastifyInstance) {
     { preHandler: requireNoPasswordChange },
     async (_request, reply) => {
       try {
-        // Verificar configuración de API remota
-        const [apiUrl, apiUsername, apiPassword] = await Promise.all([
+        // Verificar configuración de API remota (paired via JWT)
+        const [apiUrl, jwtSecret] = await Promise.all([
           getConfig('REMOTE_API_URL'),
-          getConfig('REMOTE_API_USERNAME'),
-          getConfig('REMOTE_API_PASSWORD'),
+          getConfig('JWT_SECRET'),
         ]);
 
-        if (!apiUrl || !apiUsername || !apiPassword) {
+        if (!apiUrl || !jwtSecret) {
           return reply.send({
             success: false,
             connected: false,
-            message: 'API remota no configurada',
+            message: 'Gateway no enlazado — ejecuta el pairing primero',
           });
         }
 
-        // Crear cliente de API
-        const password = decrypt(apiPassword.value);
+        // Crear cliente de API (JWT auth via getJwtToken)
         const apiClient = new APIClient({
           baseUrl: apiUrl.value,
-          username: apiUsername.value,
-          password: password,
         });
 
         // Probar conexión

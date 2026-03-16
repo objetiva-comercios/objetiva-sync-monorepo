@@ -1,6 +1,6 @@
 /**
  * Cliente principal de la API remota
- * Agrupa AuthManager y todos los clientes de endpoints
+ * Agrupa todos los clientes de endpoints con autenticacion JWT
  */
 
 import os from 'os';
@@ -40,11 +40,12 @@ export function getSourceId(): string {
   }
   return _sourceId;
 }
-import { AuthManager } from './auth.js';
 import { ArticulosClient } from './articulos-client.js';
 import { ComprobantesCabeceraClient } from './comprobantes-cabecera-client.js';
 import { ComprobantesDetalleClient } from './comprobantes-detalle-client.js';
 import { ComprobantesPagosClient } from './comprobantes-pagos-client.js';
+import { getJwtToken } from '../services/gateway-client.js';
+import { fetch } from 'undici';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -52,8 +53,6 @@ import { logger } from '../utils/logger.js';
  */
 export interface APIClientConfig {
   baseUrl: string;
-  username: string;
-  password: string;
 }
 
 /**
@@ -61,7 +60,6 @@ export interface APIClientConfig {
  * Maneja autenticación y proporciona acceso a todos los endpoints
  */
 export class APIClient {
-  private authManager: AuthManager;
   private agent: Agent;
 
   public readonly articulos: ArticulosClient;
@@ -90,57 +88,67 @@ export class APIClient {
       pipelining: 1,                // HTTP/1.1 pipelining
     });
 
-    // Inicializar AuthManager
-    this.authManager = new AuthManager(normalizedBaseUrl, config.username, config.password, this.agent);
-
     // Inicializar clientes de endpoints con dispatcher compartido
-    this.articulos = new ArticulosClient(normalizedBaseUrl, this.authManager, this.agent);
-    this.comprobantes = new ComprobantesCabeceraClient(normalizedBaseUrl, this.authManager, this.agent);
-    this.comprobantesDetalle = new ComprobantesDetalleClient(normalizedBaseUrl, this.authManager, this.agent);
-    this.comprobantesPagos = new ComprobantesPagosClient(normalizedBaseUrl, this.authManager, this.agent);
+    this.articulos = new ArticulosClient(normalizedBaseUrl, this.agent);
+    this.comprobantes = new ComprobantesCabeceraClient(normalizedBaseUrl, this.agent);
+    this.comprobantesDetalle = new ComprobantesDetalleClient(normalizedBaseUrl, this.agent);
+    this.comprobantesPagos = new ComprobantesPagosClient(normalizedBaseUrl, this.agent);
   }
 
   /**
-   * Inicializa el cliente (realiza login)
+   * Inicializa el cliente (verifica conectividad via JWT + /health)
    */
   async initialize(): Promise<void> {
     logger.info('[APIClient] Inicializando cliente API...');
 
     try {
-      await this.authManager.login();
-      logger.info('[APIClient] ✅ Cliente API inicializado');
+      const token = await getJwtToken();
+      const response = await fetch(`${this.config.baseUrl}/health`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+        dispatcher: this.agent,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Health check failed: HTTP ${response.status}`);
+      }
+
+      logger.info('[APIClient] Cliente API inicializado');
     } catch (error) {
-      logger.error({ error }, '[APIClient] ❌ Error al inicializar cliente API');
+      logger.error({ error }, '[APIClient] Error al inicializar cliente API');
       throw error;
     }
   }
 
   /**
-   * Prueba la conexión a la API
+   * Prueba la conexion a la API via JWT + /health
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
-      logger.info('[APIClient] Probando conexión a API...');
+      logger.info('[APIClient] Probando conexion a API...');
 
-      // Intentar login
-      await this.authManager.login();
+      const token = await getJwtToken();
+      const response = await fetch(`${this.config.baseUrl}/health`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+        dispatcher: this.agent,
+      });
 
-      // Verificar que el token es válido
-      if (!this.authManager.hasValidToken()) {
+      if (!response.ok) {
         return {
           success: false,
-          message: 'Login exitoso pero token inválido',
+          message: `Health check failed: HTTP ${response.status}`,
         };
       }
 
-      logger.info('[APIClient] ✅ Test de conexión exitoso');
+      logger.info('[APIClient] Test de conexion exitoso');
 
       return {
         success: true,
-        message: 'Conexión exitosa. Token válido.',
+        message: 'Conexion exitosa. JWT valido.',
       };
     } catch (error) {
-      logger.error({ error }, '[APIClient] ❌ Test de conexión fallido');
+      logger.error({ error }, '[APIClient] Test de conexion fallido');
 
       return {
         success: false,
@@ -150,45 +158,16 @@ export class APIClient {
   }
 
   /**
-   * Obtiene el token de autenticación actual
+   * Obtiene informacion del cliente
    */
-  async getToken(): Promise<string> {
-    return await this.authManager.getToken();
-  }
-
-  /**
-   * Verifica si el cliente tiene un token válido
-   */
-  hasValidToken(): boolean {
-    return this.authManager.hasValidToken();
-  }
-
-  /**
-   * Limpia los tokens almacenados (logout)
-   */
-  logout(): void {
-    this.authManager.clearTokens();
-    logger.info('[APIClient] Logout realizado');
-  }
-
-  /**
-   * Obtiene información del cliente
-   */
-  getInfo(): {
-    baseUrl: string;
-    hasValidToken: boolean;
-    timeUntilExpiry: number;
-  } {
+  getInfo(): { baseUrl: string } {
     return {
       baseUrl: this.config.baseUrl,
-      hasValidToken: this.authManager.hasValidToken(),
-      timeUntilExpiry: this.authManager.getTimeUntilExpiry(),
     };
   }
 }
 
-// Re-exportar tipos y clases para facilitar imports
-export { AuthManager } from './auth.js';
+// Re-exportar clases para facilitar imports
 export { ArticulosClient } from './articulos-client.js';
 export { ComprobantesCabeceraClient } from './comprobantes-cabecera-client.js';
 export { ComprobantesDetalleClient } from './comprobantes-detalle-client.js';

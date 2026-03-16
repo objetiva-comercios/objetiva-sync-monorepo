@@ -4,7 +4,6 @@
 
 import { fetch } from 'undici';
 import type { Dispatcher } from 'undici';
-import type { AuthManager } from './auth.js';
 import type { IComprobantePagosPayload } from '../types/comprobantes-pagos.js';
 import type { BatchResult } from '../types/common.js';
 import { logger } from '../utils/logger.js';
@@ -13,6 +12,7 @@ import { SYNC_CONFIG } from '../config/constants.js';
 import { classifyError } from '../utils/error-classifier.js';
 import { getSourceId } from './index.js';
 import { getCorrelationId } from '../lib/correlation.js';
+import { getJwtToken } from '../services/gateway-client.js';
 
 const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
 
@@ -21,12 +21,10 @@ const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
  */
 export class ComprobantesPagosClient {
   private baseUrl: string;
-  private authManager: AuthManager;
   private dispatcher?: Dispatcher;
 
-  constructor(baseUrl: string, authManager: AuthManager, dispatcher?: Dispatcher) {
+  constructor(baseUrl: string, dispatcher?: Dispatcher) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.authManager = authManager;
     this.dispatcher = dispatcher;
   }
 
@@ -71,7 +69,7 @@ export class ComprobantesPagosClient {
       }
 
       // Obtener token
-      const token = await this.authManager.getToken();
+      const token = await getJwtToken();
 
       // Preparar headers con metadata de query
       const headers: Record<string, string> = {
@@ -293,13 +291,17 @@ export class ComprobantesPagosClient {
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
-      // Verificar que tenemos token válido
-      await this.authManager.getToken();
+      const token = await getJwtToken();
+      const response = await fetch(`${this.baseUrl}/health`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+        dispatcher: this.dispatcher,
+      });
 
-      return {
-        success: true,
-        message: 'Conexión OK. Token válido.',
-      };
+      if (response.ok) {
+        return { success: true, message: 'Conexion OK. JWT valido.' };
+      }
+      return { success: false, message: `HTTP ${response.status}: ${response.statusText}` };
     } catch (error) {
       return {
         success: false,
