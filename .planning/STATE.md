@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
-status: verifying
+status: completed
 stopped_at: Completed 22-02-PLAN.md
-last_updated: "2026-03-16T16:41:30Z"
+last_updated: "2026-03-16T16:48:15.038Z"
 last_activity: 2026-03-16 — 22-02 sync auth simplified to JWT-only, AuthManager deleted
 progress:
-  total_phases: 6
-  completed_phases: 6
+  total_phases: 5
+  completed_phases: 5
   total_plans: 10
   completed_plans: 10
   percent: 100

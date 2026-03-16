@@ -139,7 +139,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22
 | 19. Setup Wizard Enhancement | 2/2 | Complete    | 2026-03-05 | - |
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
-| 22. Auth Simplification | 2/2 | Complete   | 2026-03-16 | - |
+| 22. Auth Simplification | 2/2 | Complete    | 2026-03-16 | - |
 
 ---
 *Last updated: 2026-03-16 — Phase 22 planned (2 plans)*
