@@ -168,7 +168,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22 → 23 → 24
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
 | 22. Auth Simplification | 2/2 | Complete    | 2026-03-16 | - |
-| 23. Fix Wizard Pairing Auth & Missing Dependency | 2/2 | Complete   | 2026-03-16 | - |
+| 23. Fix Wizard Pairing Auth & Missing Dependency | 2/2 | Complete    | 2026-03-16 | - |
 | 24. Phase 21 Verification & Traceability Update | 0/0 | Pending | - | - |
 
 ---
