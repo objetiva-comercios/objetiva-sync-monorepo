@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
-status: executing
-stopped_at: Completed 22-01-PLAN.md
-last_updated: "2026-03-16T16:40:00Z"
-last_activity: 2026-03-16 — 22-01 gateway auth removed, 5-step wizard, setup token endpoint
+status: verifying
+stopped_at: Completed 22-02-PLAN.md
+last_updated: "2026-03-16T16:41:30Z"
+last_activity: 2026-03-16 — 22-02 sync auth simplified to JWT-only, AuthManager deleted
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 6
   total_plans: 10
-  completed_plans: 9
-  percent: 93
+  completed_plans: 10
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** v1.2 Setup & Pairing — Phase 22: Simplify Sync-Gateway Auth (plan 01 complete)
+**Current focus:** v1.2 Setup & Pairing — Phase 22 complete, all plans done
 
 ## Current Position
 
 Phase: 22 of 22 (Simplify Sync-Gateway Auth to Token-Based Pairing Only)
-Plan: 1 of 2 in current phase
-Status: Plan 22-01 complete — gateway auth removed, plan 22-02 pending
-Last activity: 2026-03-16 — 22-01 gateway auth removed, 5-step wizard, setup token endpoint
+Plan: 2 of 2 in current phase
+Status: Complete — Phase 22 all plans done, JWT-only auth end-to-end
+Last activity: 2026-03-16 — 22-02 sync auth simplified to JWT-only, AuthManager deleted
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Completed Milestones
 
@@ -76,6 +76,10 @@ See: .planning/MILESTONES.md for full details
 - [Phase 22]: Codegen uses fast-jwt createSigner for local JWT signing instead of HTTP /auth/login call
 - [Phase 22]: SYNC_PASSWORD and SYNC_USERNAME completely removed from gateway
 - [Phase 22]: Setup wizard reduced from 6 steps to 5 (password step removed entirely)
+- [Phase 22-02]: AuthManager class deleted entirely -- batch clients import getJwtToken directly
+- [Phase 22-02]: Pairing claim saves only 2 keys (URL + JWT_SECRET) instead of 4
+- [Phase 22-02]: Test Connection hits /health with JWT instead of /auth/login with credentials
+- [Phase 22-02]: Scheduler checks JWT_SECRET to determine pairing status (not password)
 
 ### Roadmap Evolution
 
@@ -93,10 +97,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T16:40:00Z
-Stopped at: Completed 22-01-PLAN.md
-Resume file: .planning/phases/22-simplify-sync-gateway-auth-to-token-based-pairing-only/22-01-SUMMARY.md
-Next action: Execute 22-02-PLAN.md (sync client auth cleanup)
+Last session: 2026-03-16T16:41:30Z
+Stopped at: Completed 22-02-PLAN.md
+Resume file: .planning/phases/22-simplify-sync-gateway-auth-to-token-based-pairing-only/22-02-SUMMARY.md
+Next action: Phase 22 complete — ready for milestone verification
 
 ---
-*Last updated: 2026-03-16 after 22-01 gateway auth removal complete*
+*Last updated: 2026-03-16 after 22-02 sync auth simplified to JWT-only*

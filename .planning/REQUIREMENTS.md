@@ -43,9 +43,9 @@
 - [x] **AUTH-RM-03**: Pairing claim response retorna solo gatewayUrl + jwtSecret (sin syncPassword)
 - [x] **AUTH-RM-04**: POST /api/setup/token retorna JWT firmado durante setup-only mode, 403 después
 - [x] **AUTH-RM-05**: Setup wizard tiene 5 pasos (sin paso de password), renumerado correctamente
-- [ ] **AUTH-RM-06**: AuthManager eliminado de sync; batch clients usan getJwtToken() directo
-- [ ] **AUTH-RM-07**: Dashboard sync muestra estado de pairing (enlazado/no enlazado) en vez de token expiry
-- [ ] **AUTH-RM-08**: Test Connection usa JWT firmado localmente contra /health (sin /auth/login)
+- [x] **AUTH-RM-06**: AuthManager eliminado de sync; batch clients usan getJwtToken() directo
+- [x] **AUTH-RM-07**: Dashboard sync muestra estado de pairing (enlazado/no enlazado) en vez de token expiry
+- [x] **AUTH-RM-08**: Test Connection usa JWT firmado localmente contra /health (sin /auth/login)
 
 ## Future Requirements
 

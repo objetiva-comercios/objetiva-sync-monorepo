@@ -45,7 +45,7 @@ Note: Phase 17 (Dashboard Modernization with shadcn/React) was implemented but r
 - [x] **Phase 19: Setup Wizard Enhancement** - Wizard guides operator through complete gateway configuration with .env generation (completed 2026-03-05)
 - [x] **Phase 20: Gateway Pairing Routes** - Gateway generates short-lived pairing codes; claim endpoint transfers credentials to sync (completed 2026-03-05)
 - [x] **Phase 21: Sync Pairing Client** - Sync dashboard lets operator enter pairing code and link to gateway automatically (completed 2026-03-05)
-- [ ] **Phase 22: Auth Simplification** - Remove password-based login, keep JWT-only auth via shared secret (in progress)
+- [x] **Phase 22: Auth Simplification** - Remove password-based login, keep JWT-only auth via shared secret (in progress) (completed 2026-03-16)
 
 ## Phase Details
 
@@ -119,7 +119,7 @@ Plans:
   5. Sync batch clients authenticate via direct getJwtToken() import, no AuthManager class exists
   6. Sync dashboard shows pairing status instead of token expiry, no password fields in config form
   7. Codegen script authenticates via local JWT signing, not /auth/login
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 22-01-PLAN.md — Gateway: delete auth routes, clean pairing/preflight/env, renumber wizard, add setup token endpoint
@@ -139,7 +139,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22
 | 19. Setup Wizard Enhancement | 2/2 | Complete    | 2026-03-05 | - |
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
-| 22. Auth Simplification | 1/2 | In Progress|  | - |
+| 22. Auth Simplification | 2/2 | Complete   | 2026-03-16 | - |
 
 ---
 *Last updated: 2026-03-16 — Phase 22 planned (2 plans)*
