@@ -20,5 +20,7 @@ export const systemState = {
   startupMode: 'normal' as 'normal' | 'setup-only' | 'degraded',
   // Snapshot of preflight checks from startup (for startup banner only)
   // The /api/setup/preflight endpoint runs live checks on each request.
-  preflightChecks: [] as PreflightCheck[]
+  preflightChecks: [] as PreflightCheck[],
+  // Whether a pairing code has been successfully claimed in this container lifecycle
+  setupComplete: false
 }

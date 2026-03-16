@@ -17,6 +17,7 @@ import { z } from 'zod'
 import { authenticate } from '../middleware/auth.js'
 import { generateCode, claimCode, getActiveCode } from '../lib/pairing-store.js'
 import { logger } from '../lib/logger.js'
+import { systemState } from '../lib/system-state.js'
 
 const ClaimSchema = z.object({
   code: z.string().min(1, 'Code is required').max(10, 'Code too long')
@@ -93,6 +94,8 @@ export async function registerPairingRoutes(app: FastifyInstance): Promise<void>
 
     if (result === 'ok') {
       lastCodeWasClaimed = true
+      // Lock /api/setup/token endpoint after successful claim
+      systemState.setupComplete = true
       return reply.code(200).send({
         success: true,
         gatewayUrl: process.env.GATEWAY_PUBLIC_URL ?? null,

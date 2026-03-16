@@ -67,7 +67,7 @@ async function doWrite(key: string, value: string): Promise<void> {
  * Write a single environment variable to .env atomically.
  * Concurrent calls are serialized through the in-memory mutex.
  *
- * @param key   Environment variable name (e.g. 'SYNC_PASSWORD')
+ * @param key   Environment variable name (e.g. 'JWT_SECRET')
  * @param value Raw value — will be escaped and double-quoted automatically
  */
 export async function writeEnvVar(key: string, value: string): Promise<void> {

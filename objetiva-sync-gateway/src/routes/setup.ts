@@ -1503,12 +1503,15 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
   })
 
-  // POST /api/setup/token - Issue a JWT during setup-only mode
+  // POST /api/setup/token - Issue a JWT during setup wizard
   // This endpoint replaces /auth/login for the setup wizard.
-  // It is only available while the gateway is in setup-only mode;
-  // once apply-config transitions to normal mode, it returns 403.
+  // Allow token during setup-only mode OR normal mode before first claim
+  // (fixes 403 bug when apply-config transitions mode mid-wizard).
+  // After restart with valid config, wizard UI is not served so this path is not exposed.
   app.post('/api/setup/token', async (_request, reply) => {
-    if (systemState.startupMode !== 'setup-only') {
+    const canIssueToken = systemState.startupMode === 'setup-only'
+      || (systemState.startupMode === 'normal' && !systemState.setupComplete)
+    if (!canIssueToken) {
       return reply.status(403).send({
         success: false,
         error: 'Only available during setup'
