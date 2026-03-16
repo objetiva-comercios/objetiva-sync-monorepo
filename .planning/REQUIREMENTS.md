@@ -38,11 +38,11 @@
 
 ### Auth Simplification
 
-- [ ] **AUTH-RM-01**: Gateway elimina rutas /auth/login, /auth/refresh, /api/auth/diagnostics, /api/auth/change-password
-- [ ] **AUTH-RM-02**: Gateway elimina env vars SYNC_PASSWORD y SYNC_USERNAME de .env.example, generate-env, y preflight checks
-- [ ] **AUTH-RM-03**: Pairing claim response retorna solo gatewayUrl + jwtSecret (sin syncPassword)
-- [ ] **AUTH-RM-04**: POST /api/setup/token retorna JWT firmado durante setup-only mode, 403 después
-- [ ] **AUTH-RM-05**: Setup wizard tiene 5 pasos (sin paso de password), renumerado correctamente
+- [x] **AUTH-RM-01**: Gateway elimina rutas /auth/login, /auth/refresh, /api/auth/diagnostics, /api/auth/change-password
+- [x] **AUTH-RM-02**: Gateway elimina env vars SYNC_PASSWORD y SYNC_USERNAME de .env.example, generate-env, y preflight checks
+- [x] **AUTH-RM-03**: Pairing claim response retorna solo gatewayUrl + jwtSecret (sin syncPassword)
+- [x] **AUTH-RM-04**: POST /api/setup/token retorna JWT firmado durante setup-only mode, 403 después
+- [x] **AUTH-RM-05**: Setup wizard tiene 5 pasos (sin paso de password), renumerado correctamente
 - [ ] **AUTH-RM-06**: AuthManager eliminado de sync; batch clients usan getJwtToken() directo
 - [ ] **AUTH-RM-07**: Dashboard sync muestra estado de pairing (enlazado/no enlazado) en vez de token expiry
 - [ ] **AUTH-RM-08**: Test Connection usa JWT firmado localmente contra /health (sin /auth/login)

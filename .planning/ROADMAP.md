@@ -119,7 +119,7 @@ Plans:
   5. Sync batch clients authenticate via direct getJwtToken() import, no AuthManager class exists
   6. Sync dashboard shows pairing status instead of token expiry, no password fields in config form
   7. Codegen script authenticates via local JWT signing, not /auth/login
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 22-01-PLAN.md — Gateway: delete auth routes, clean pairing/preflight/env, renumber wizard, add setup token endpoint
@@ -139,7 +139,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22
 | 19. Setup Wizard Enhancement | 2/2 | Complete    | 2026-03-05 | - |
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
-| 22. Auth Simplification | 0/2 | Planned | - | - |
+| 22. Auth Simplification | 1/2 | In Progress|  | - |
 
 ---
 *Last updated: 2026-03-16 — Phase 22 planned (2 plans)*

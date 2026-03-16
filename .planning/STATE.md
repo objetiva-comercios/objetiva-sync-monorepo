@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
-status: verifying
-stopped_at: Phase 22 context gathered
-last_updated: "2026-03-16T15:32:39.567Z"
-last_activity: 2026-03-05 — 20-02 wizard step 6 Link Sync Client implemented and human-verified
+status: executing
+stopped_at: Completed 22-01-PLAN.md
+last_updated: "2026-03-16T16:40:00Z"
+last_activity: 2026-03-16 — 22-01 gateway auth removed, 5-step wizard, setup token endpoint
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
-  percent: 91
+  total_plans: 10
+  completed_plans: 9
+  percent: 93
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** v1.2 Setup & Pairing — Phase 20: Gateway Pairing Routes (complete)
+**Current focus:** v1.2 Setup & Pairing — Phase 22: Simplify Sync-Gateway Auth (plan 01 complete)
 
 ## Current Position
 
-Phase: 20 of 21 (Gateway Pairing Routes)
-Plan: 2 of 2 in current phase
-Status: Complete — Phase 20 all plans done, pairing flow end-to-end verified
-Last activity: 2026-03-05 — 20-02 wizard step 6 Link Sync Client implemented and human-verified
+Phase: 22 of 22 (Simplify Sync-Gateway Auth to Token-Based Pairing Only)
+Plan: 1 of 2 in current phase
+Status: Plan 22-01 complete — gateway auth removed, plan 22-02 pending
+Last activity: 2026-03-16 — 22-01 gateway auth removed, 5-step wizard, setup token endpoint
 
-Progress: [█████████░] 91%
+Progress: [█████████░] 93%
 
 ## Completed Milestones
 
@@ -72,6 +72,10 @@ See: .planning/MILESTONES.md for full details
 - [Phase 21]: POST /api/config/pairing/claim validates null jwtSecret/syncPassword before saving — 502 with descriptive error, no partial saves
 - [Phase 21]: gateway-client.ts: getGatewayUrl and getGatewayJwtSecret made async reading REMOTE_API_URL/JWT_SECRET from SQLite first before env fallback
 - [Phase 21]: 21-02: Warning state (test failure after pairing) uses innerHTML with embedded Reintentar button — textContent cannot render interactive elements
+- [Phase 22]: POST /api/setup/token replaces /auth/login for setup wizard JWT acquisition
+- [Phase 22]: Codegen uses fast-jwt createSigner for local JWT signing instead of HTTP /auth/login call
+- [Phase 22]: SYNC_PASSWORD and SYNC_USERNAME completely removed from gateway
+- [Phase 22]: Setup wizard reduced from 6 steps to 5 (password step removed entirely)
 
 ### Roadmap Evolution
 
@@ -89,10 +93,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T15:32:39.549Z
-Stopped at: Phase 22 context gathered
-Resume file: .planning/phases/22-simplify-sync-gateway-auth-to-token-based-pairing-only/22-CONTEXT.md
-Next action: Phase 20 complete — ready for next phase
+Last session: 2026-03-16T16:40:00Z
+Stopped at: Completed 22-01-PLAN.md
+Resume file: .planning/phases/22-simplify-sync-gateway-auth-to-token-based-pairing-only/22-01-SUMMARY.md
+Next action: Execute 22-02-PLAN.md (sync client auth cleanup)
 
 ---
-*Last updated: 2026-03-05 after 20-02 wizard step 6 complete and human-verified*
+*Last updated: 2026-03-16 after 22-01 gateway auth removal complete*
