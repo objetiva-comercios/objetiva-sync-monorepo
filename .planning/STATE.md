@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
-status: completed
-stopped_at: Phase 23 context gathered
-last_updated: "2026-03-16T21:10:03.937Z"
-last_activity: 2026-03-16 — 22-02 sync auth simplified to JWT-only, AuthManager deleted
+status: executing
+stopped_at: Completed 23-02-PLAN.md
+last_updated: "2026-03-16T21:34:06.389Z"
+last_activity: 2026-03-16 — 23-02 fast-jwt dependency added, dead env fields removed
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  total_plans: 12
+  completed_plans: 11
+  percent: 90
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** v1.2 Setup & Pairing — Phase 22 complete, all plans done
+**Current focus:** v1.2 Setup & Pairing — Phase 23 in progress, fixing wizard pairing auth
 
 ## Current Position
 
-Phase: 22 of 22 (Simplify Sync-Gateway Auth to Token-Based Pairing Only)
-Plan: 2 of 2 in current phase
-Status: Complete — Phase 22 all plans done, JWT-only auth end-to-end
-Last activity: 2026-03-16 — 22-02 sync auth simplified to JWT-only, AuthManager deleted
+Phase: 23 of 23 (Fix Wizard Pairing Auth)
+Plan: 2 of 3 in current phase
+Status: In progress — 23-02 complete, fast-jwt dependency + env cleanup done
+Last activity: 2026-03-16 — 23-02 fast-jwt dependency added, dead env fields removed
 
-Progress: [██████████] 100%
+Progress: [█████████░] 90%
 
 ## Completed Milestones
 
@@ -80,6 +80,7 @@ See: .planning/MILESTONES.md for full details
 - [Phase 22-02]: Pairing claim saves only 2 keys (URL + JWT_SECRET) instead of 4
 - [Phase 22-02]: Test Connection hits /health with JWT instead of /auth/login with credentials
 - [Phase 22-02]: Scheduler checks JWT_SECRET to determine pairing status (not password)
+- [Phase 23-02]: fast-jwt pinned at ^6.1.0 matching gateway version for consistency
 
 ### Roadmap Evolution
 
@@ -97,10 +98,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T21:10:03.929Z
-Stopped at: Phase 23 context gathered
-Resume file: .planning/phases/23-fix-wizard-pairing-auth/23-CONTEXT.md
-Next action: Phase 22 complete — ready for milestone verification
+Last session: 2026-03-16T21:34:06.381Z
+Stopped at: Completed 23-02-PLAN.md
+Resume file: None
+Next action: Continue with remaining Phase 23 plans
 
 ---
-*Last updated: 2026-03-16 after 22-02 sync auth simplified to JWT-only*
+*Last updated: 2026-03-16 after 23-02 fast-jwt dependency + env cleanup*
