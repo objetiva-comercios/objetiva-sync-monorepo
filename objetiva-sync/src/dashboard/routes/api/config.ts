@@ -6,7 +6,8 @@
 import type { FastifyInstance } from 'fastify';
 import { requireNoPasswordChange } from '../../middleware/auth.js';
 import { getConfig, setConfig } from '../../../store/repositories/config-repo.js';
-import { encrypt, decrypt } from '../../../utils/crypto.js';
+import { encrypt } from '../../../utils/crypto.js';
+import { getJwtToken } from '../../../services/gateway-client.js';
 import { logger } from '../../../utils/logger.js';
 
 /**
@@ -14,8 +15,7 @@ import { logger } from '../../../utils/logger.js';
  */
 const CONFIG_KEYS = {
   API_URL: 'REMOTE_API_URL',
-  API_USERNAME: 'REMOTE_API_USERNAME',
-  API_PASSWORD: 'REMOTE_API_PASSWORD',
+  JWT_SECRET: 'JWT_SECRET',
   API_TIMEOUT: 'REMOTE_API_TIMEOUT',
   API_RETRY_ATTEMPTS: 'REMOTE_API_RETRY_ATTEMPTS',
   API_ENDPOINT_ARTICULOS: 'REMOTE_API_ENDPOINT_ARTICULOS',
@@ -40,7 +40,7 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
       try {
         const [
           url,
-          username,
+          jwtSecret,
           timeout,
           retryAttempts,
           endpointArticulos,
@@ -48,7 +48,7 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
           endpointPagos,
         ] = await Promise.all([
           getConfig(CONFIG_KEYS.API_URL),
-          getConfig(CONFIG_KEYS.API_USERNAME),
+          getConfig(CONFIG_KEYS.JWT_SECRET),
           getConfig(CONFIG_KEYS.API_TIMEOUT),
           getConfig(CONFIG_KEYS.API_RETRY_ATTEMPTS),
           getConfig(CONFIG_KEYS.API_ENDPOINT_ARTICULOS),
@@ -59,8 +59,7 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
         const config: Record<string, unknown> = {};
 
         if (url) config.url = url.value;
-        if (username) config.username = username.value;
-        // Don't return password for security
+        config.paired = !!(url && jwtSecret);
         if (timeout) config.timeout = parseInt(timeout.value, 10);
         if (retryAttempts) config.retryAttempts = parseInt(retryAttempts.value, 10);
         if (endpointArticulos) config.endpointArticulos = endpointArticulos.value;
@@ -83,20 +82,24 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
 
   /**
    * GET /api/config/api/status - Obtener estado de API (HTML fragment)
+   * Shows pairing status instead of token expiry
    */
   app.get(
     '/api/config/api/status',
     { preHandler: requireNoPasswordChange },
     async (_request, reply) => {
       try {
-        const [url, testStatus, testMessage, testedAt] = await Promise.all([
+        const [url, jwtSecret, testStatus, testMessage, testedAt] = await Promise.all([
           getConfig(CONFIG_KEYS.API_URL),
+          getConfig(CONFIG_KEYS.JWT_SECRET),
           getConfig(CONFIG_KEYS.API_TEST_STATUS),
           getConfig(CONFIG_KEYS.API_TEST_MESSAGE),
           getConfig(CONFIG_KEYS.API_TESTED_AT),
         ]);
 
-        if (!url) {
+        const isPaired = !!(url && jwtSecret);
+
+        if (!isPaired) {
           return reply.type('text/html').send(`
             <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
               <div class="flex">
@@ -105,10 +108,10 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
                 </div>
                 <div class="ml-3">
                   <h3 class="text-sm font-medium text-yellow-800">
-                    API no configurada
+                    No enlazado
                   </h3>
                   <div class="mt-2 text-sm text-yellow-700">
-                    <p>Configure la URL y credenciales de la API para enviar datos.</p>
+                    <p>Gateway no enlazado &mdash; ingresa el codigo de pairing en Configuracion API.</p>
                   </div>
                 </div>
               </div>
@@ -116,6 +119,7 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
           `);
         }
 
+        // Paired — show connection test status
         const isSuccess = testStatus?.value === 'success';
         const isFailed = testStatus?.value === 'failed';
         const notTested = !testStatus;
@@ -130,20 +134,20 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
           statusClass = 'bg-green-50 border-green-400';
           iconName = 'check-circle';
           iconClass = 'text-green-400';
-          title = 'API Configurada y Funcionando';
-          description = testMessage?.value || 'La conexión con la API es exitosa';
+          title = 'Enlazado y Funcionando';
+          description = testMessage?.value || `Conectado a ${escapeHtml(url!.value)}`;
         } else if (isFailed) {
           statusClass = 'bg-red-50 border-red-400';
           iconName = 'x-circle';
           iconClass = 'text-red-400';
-          title = 'Error en la API';
-          description = testMessage?.value || 'La última prueba de conexión falló';
+          title = 'Enlazado — Error de conexion';
+          description = testMessage?.value || 'La ultima prueba de conexion fallo';
         } else {
           statusClass = 'bg-blue-50 border-blue-400';
-          iconName = 'info';
+          iconName = 'link';
           iconClass = 'text-blue-400';
-          title = 'API Configurada';
-          description = 'No se ha probado la conexión aún';
+          title = 'Enlazado';
+          description = `Conectado a ${escapeHtml(url!.value)} — no se ha probado la conexion aun`;
         }
 
         const html = `
@@ -161,7 +165,7 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
                     <p>${escapeHtml(description)}</p>
                     ${
                       testedAt
-                        ? `<p class="text-xs mt-1">Última prueba: ${new Date(testedAt.value).toLocaleString('es-AR')}</p>`
+                        ? `<p class="text-xs mt-1">Ultima prueba: ${new Date(testedAt.value).toLocaleString('es-AR')}</p>`
                         : ''
                     }
                   </div>
@@ -212,7 +216,7 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
   );
 
   /**
-   * POST /api/config/api - Guardar configuración de API
+   * POST /api/config/api - Guardar configuración de API (solo URL del gateway)
    */
   app.post(
     '/api/config/api',
@@ -221,8 +225,6 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
       try {
         const body = request.body as {
           url: string;
-          username: string;
-          password: string;
           timeout?: number;
           retryAttempts?: number;
           endpointArticulos?: string | null;
@@ -230,21 +232,16 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
           endpointPagos?: string | null;
         };
 
-        if (!body.url || !body.username || !body.password) {
+        if (!body.url) {
           return reply.status(400).send({
             success: false,
-            error: 'Faltan campos requeridos (url, username, password)',
+            error: 'Falta campo requerido (url)',
           });
         }
-
-        // Encrypt password
-        const encryptedPassword = encrypt(body.password);
 
         // Save configuration
         await Promise.all([
           setConfig(CONFIG_KEYS.API_URL, body.url),
-          setConfig(CONFIG_KEYS.API_USERNAME, body.username),
-          setConfig(CONFIG_KEYS.API_PASSWORD, encryptedPassword, true),
           setConfig(CONFIG_KEYS.API_TIMEOUT, String(body.timeout || 30000)),
           setConfig(CONFIG_KEYS.API_RETRY_ATTEMPTS, String(body.retryAttempts ?? 3)),
         ]);
@@ -260,11 +257,11 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
           await setConfig(CONFIG_KEYS.API_ENDPOINT_PAGOS, body.endpointPagos);
         }
 
-        logger.info('Configuración de API guardada exitosamente');
+        logger.info('Configuracion de API guardada exitosamente');
 
         return reply.send({
           success: true,
-          message: 'Configuración guardada exitosamente',
+          message: 'Configuracion guardada exitosamente',
         });
       } catch (error) {
         logger.error({ error }, 'Error al guardar configuración de API');
@@ -278,6 +275,7 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
 
   /**
    * POST /api/config/pairing/claim - Reclamar código de emparejamiento del gateway
+   * Saves only REMOTE_API_URL and JWT_SECRET (no password)
    */
   app.post(
     '/api/config/pairing/claim',
@@ -339,28 +337,23 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
           success: boolean;
           gatewayUrl: string | null;
           jwtSecret: string | null;
-          syncPassword: string | null;
         };
 
-        if (!data.jwtSecret || !data.syncPassword) {
+        if (!data.jwtSecret) {
           return reply.status(502).send({
             success: false,
-            error: 'El gateway no tiene configurada la contrasena de sync (SYNC_PASSWORD)',
+            error: 'El gateway no devolvio el JWT secret necesario para el enlace',
           });
         }
 
         // Always use the URL the user entered — it's the one that actually reached the gateway.
-        // The gateway's GATEWAY_PUBLIC_URL may be misconfigured (e.g., missing port).
-
-        // Save 4 config keys: URL (plain), USERNAME (plain), PASSWORD (encrypted), JWT_SECRET (encrypted)
+        // Save only URL (plain) and JWT_SECRET (encrypted) — no password needed
         await Promise.all([
           setConfig('REMOTE_API_URL', baseUrl),
-          setConfig('REMOTE_API_USERNAME', 'admin'),
-          setConfig('REMOTE_API_PASSWORD', encrypt(data.syncPassword), true),
           setConfig('JWT_SECRET', encrypt(data.jwtSecret), true),
         ]);
 
-        logger.info({ baseUrl }, 'Pairing claim exitoso — configuración guardada');
+        logger.info({ baseUrl }, 'Pairing claim exitoso — configuracion guardada');
 
         return reply.send({
           success: true,
@@ -377,99 +370,84 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
   );
 
   /**
-   * POST /api/config/api/test - Probar conexión a API
+   * POST /api/config/api/test - Probar conexion a API via JWT + /health
    */
   app.post(
     '/api/config/api/test',
     { preHandler: requireNoPasswordChange },
     async (_request, reply) => {
       try {
-        const [url, username, passwordConfig] = await Promise.all([
-          getConfig(CONFIG_KEYS.API_URL),
-          getConfig(CONFIG_KEYS.API_USERNAME),
-          getConfig(CONFIG_KEYS.API_PASSWORD),
-        ]);
+        const url = await getConfig(CONFIG_KEYS.API_URL);
 
-        if (!url || !username || !passwordConfig) {
+        if (!url) {
           return reply.status(400).send({
             success: false,
-            error: 'La API no está configurada completamente',
+            error: 'Gateway no configurado',
           });
         }
 
-        // Decrypt password
-        const password = decrypt(passwordConfig.value);
-
-        // Test API connection with actual login
+        // Sign a JWT locally and hit /health
+        let token: string;
         try {
-          // Remove trailing slash from URL if present
+          token = await getJwtToken();
+        } catch {
+          // No JWT_SECRET configured — not paired
+          await Promise.all([
+            setConfig(CONFIG_KEYS.API_TEST_STATUS, 'failed'),
+            setConfig(CONFIG_KEYS.API_TEST_MESSAGE, 'Gateway no enlazado — ejecuta el pairing primero'),
+            setConfig(CONFIG_KEYS.API_TESTED_AT, new Date().toISOString()),
+          ]);
+
+          return reply.status(400).send({
+            success: false,
+            error: 'Gateway no enlazado — ejecuta el pairing primero',
+          });
+        }
+
+        try {
           const baseUrl = url.value.replace(/\/+$/, '');
-          const loginUrl = `${baseUrl}/auth/login`;
-          const response = await fetch(loginUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              username: username.value,
-              password: password,
-            }),
-            signal: AbortSignal.timeout(10000), // 10 second timeout
+          const response = await fetch(`${baseUrl}/health`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(10000),
           });
 
           if (response.ok) {
-            const data = (await response.json()) as Record<string, any>;
-            if (!data.success || !data.token) {
-              // Save test failure
-              await Promise.all([
-                setConfig(CONFIG_KEYS.API_TEST_STATUS, 'failed'),
-                setConfig(
-                  CONFIG_KEYS.API_TEST_MESSAGE,
-                  `Login falló: ${data.message || 'Error desconocido'}`
-                ),
-                setConfig(CONFIG_KEYS.API_TESTED_AT, new Date().toISOString()),
-              ]);
-
-              return reply.status(400).send({
-                success: false,
-                error: `Login falló: ${data.message || 'Error desconocido'}`,
-              });
-            }
-            // Save test result
             await Promise.all([
               setConfig(CONFIG_KEYS.API_TEST_STATUS, 'success'),
-              setConfig(CONFIG_KEYS.API_TEST_MESSAGE, 'Autenticación exitosa - Credenciales válidas'),
+              setConfig(CONFIG_KEYS.API_TEST_MESSAGE, 'Conexion exitosa — JWT valido'),
               setConfig(CONFIG_KEYS.API_TESTED_AT, new Date().toISOString()),
             ]);
 
             return reply.send({
               success: true,
-              message: 'Autenticación exitosa - Credenciales validadas correctamente',
+              message: 'Conexion exitosa — JWT valido',
             });
+          }
+
+          // Check for 401 — JWT_SECRET mismatch
+          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          if (response.status === 401) {
+            errorMessage = 'JWT rechazado por el gateway — posible desincronizacion del JWT_SECRET. Re-ejecuta el pairing.';
           } else {
-            // Try to get error message from response
-            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
             try {
               const errorData = (await response.json()) as Record<string, any>;
               errorMessage = errorData.error || errorData.message || errorMessage;
             } catch {
               // Ignore JSON parse error
             }
-
-            // Save test failure
-            await Promise.all([
-              setConfig(CONFIG_KEYS.API_TEST_STATUS, 'failed'),
-              setConfig(CONFIG_KEYS.API_TEST_MESSAGE, errorMessage),
-              setConfig(CONFIG_KEYS.API_TESTED_AT, new Date().toISOString()),
-            ]);
-
-            return reply.status(400).send({
-              success: false,
-              error: errorMessage,
-            });
           }
+
+          await Promise.all([
+            setConfig(CONFIG_KEYS.API_TEST_STATUS, 'failed'),
+            setConfig(CONFIG_KEYS.API_TEST_MESSAGE, errorMessage),
+            setConfig(CONFIG_KEYS.API_TESTED_AT, new Date().toISOString()),
+          ]);
+
+          return reply.status(400).send({
+            success: false,
+            error: errorMessage,
+          });
         } catch (fetchError) {
-          // Save test failure
           await Promise.all([
             setConfig(CONFIG_KEYS.API_TEST_STATUS, 'failed'),
             setConfig(
@@ -482,14 +460,14 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
           logger.error({ error: fetchError }, 'Error al probar API');
           return reply.status(400).send({
             success: false,
-            error: `Error de conexión: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
+            error: `Error de conexion: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
           });
         }
       } catch (error) {
-        logger.error({ error }, 'Error al probar configuración de API');
+        logger.error({ error }, 'Error al probar configuracion de API');
         return reply.status(500).send({
           success: false,
-          error: 'Error al probar conexión',
+          error: 'Error al probar conexion',
         });
       }
     }

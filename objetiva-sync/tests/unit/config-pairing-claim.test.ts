@@ -1,9 +1,9 @@
 /**
- * Unit Tests: POST /api/config/pairing/claim (Phase 21, Plan 01)
+ * Unit Tests: POST /api/config/pairing/claim (Phase 22, Plan 02)
  *
  * Tests the claim proxy route that:
  * - Forwards claim requests to the gateway
- * - Saves 4 config keys to SQLite on success
+ * - Saves 2 config keys to SQLite on success (URL + JWT_SECRET)
  * - Returns appropriate error responses for each gateway error code
  *
  * Strategy:
@@ -35,6 +35,10 @@ vi.mock('../../src/utils/logger.js', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
+}))
+
+vi.mock('../../src/services/gateway-client.js', () => ({
+  getJwtToken: vi.fn().mockResolvedValue('test-jwt-token'),
 }))
 
 // Mock session middleware so requireNoPasswordChange passes
@@ -128,12 +132,11 @@ describe('POST /api/config/pairing/claim', () => {
   // ── Success path ─────────────────────────────────────────────────────────────
 
   describe('Success path (gateway returns 200)', () => {
-    it('saves 4 config keys and returns success with gatewayUrl', async () => {
+    it('saves 2 config keys (URL + JWT_SECRET) and returns success with gatewayUrl', async () => {
       const gatewayData = {
         success: true,
         gatewayUrl: 'https://gateway.example.com',
         jwtSecret: 'super-secret-jwt',
-        syncPassword: 'sync-pass-123',
       }
       vi.spyOn(global, 'fetch').mockResolvedValue(mockFetchResponse(200, gatewayData))
 
@@ -151,11 +154,9 @@ describe('POST /api/config/pairing/claim', () => {
       expect(body.success).toBe(true)
       expect(body.gatewayUrl).toBe('https://gateway.example.com')
 
-      // Verify 4 keys were saved
-      expect(setConfig).toHaveBeenCalledTimes(4)
+      // Verify only 2 keys were saved (URL + JWT_SECRET, no password/username)
+      expect(setConfig).toHaveBeenCalledTimes(2)
       expect(setConfig).toHaveBeenCalledWith('REMOTE_API_URL', 'https://gateway.example.com')
-      expect(setConfig).toHaveBeenCalledWith('REMOTE_API_USERNAME', 'admin')
-      expect(setConfig).toHaveBeenCalledWith('REMOTE_API_PASSWORD', 'encrypted:sync-pass-123', true)
       expect(setConfig).toHaveBeenCalledWith('JWT_SECRET', 'encrypted:super-secret-jwt', true)
     })
 
@@ -164,7 +165,6 @@ describe('POST /api/config/pairing/claim', () => {
         success: true,
         gatewayUrl: null, // gateway returns null for gatewayUrl
         jwtSecret: 'secret',
-        syncPassword: 'pass',
       }
       vi.spyOn(global, 'fetch').mockResolvedValue(mockFetchResponse(200, gatewayData))
 
@@ -189,12 +189,11 @@ describe('POST /api/config/pairing/claim', () => {
       )
     })
 
-    it('encrypts syncPassword and jwtSecret before saving', async () => {
+    it('encrypts jwtSecret before saving', async () => {
       const gatewayData = {
         success: true,
         gatewayUrl: 'https://gw.test',
         jwtSecret: 'my-jwt-secret',
-        syncPassword: 'my-sync-pass',
       }
       vi.spyOn(global, 'fetch').mockResolvedValue(mockFetchResponse(200, gatewayData))
 
@@ -204,8 +203,8 @@ describe('POST /api/config/pairing/claim', () => {
         payload: { gatewayUrl: 'https://gw.test', code: 'CODE01' },
       })
 
-      // encrypt should have been called with the plaintext values
-      expect(encrypt).toHaveBeenCalledWith('my-sync-pass')
+      // encrypt should have been called with the jwtSecret only (no syncPassword)
+      expect(encrypt).toHaveBeenCalledTimes(1)
       expect(encrypt).toHaveBeenCalledWith('my-jwt-secret')
     })
   })
@@ -287,7 +286,6 @@ describe('POST /api/config/pairing/claim', () => {
         success: true,
         gatewayUrl: 'https://gateway.example.com',
         jwtSecret: null,
-        syncPassword: 'valid-pass',
       }
       vi.spyOn(global, 'fetch').mockResolvedValue(mockFetchResponse(200, gatewayData))
 
@@ -300,18 +298,18 @@ describe('POST /api/config/pairing/claim', () => {
       expect(response.statusCode).toBe(502)
       const body = JSON.parse(response.body)
       expect(body.success).toBe(false)
-      expect(body.error).toContain('contrasena de sync')
+      expect(body.error).toContain('JWT secret')
 
       // Should NOT have saved any config keys
       expect(setConfig).not.toHaveBeenCalled()
     })
 
-    it('returns 502 when gateway returns null syncPassword', async () => {
+    it('succeeds even when syncPassword is absent (no longer required)', async () => {
       const gatewayData = {
         success: true,
         gatewayUrl: 'https://gateway.example.com',
         jwtSecret: 'valid-secret',
-        syncPassword: null,
+        // syncPassword not provided — this is fine in the new model
       }
       vi.spyOn(global, 'fetch').mockResolvedValue(mockFetchResponse(200, gatewayData))
 
@@ -321,13 +319,12 @@ describe('POST /api/config/pairing/claim', () => {
         payload: { gatewayUrl: 'https://gateway.example.com', code: 'CODE01' },
       })
 
-      expect(response.statusCode).toBe(502)
+      expect(response.statusCode).toBe(200)
       const body = JSON.parse(response.body)
-      expect(body.success).toBe(false)
-      expect(body.error).toContain('contrasena de sync')
+      expect(body.success).toBe(true)
 
-      // Should NOT have saved any config keys
-      expect(setConfig).not.toHaveBeenCalled()
+      // Should have saved 2 keys
+      expect(setConfig).toHaveBeenCalledTimes(2)
     })
   })
 })

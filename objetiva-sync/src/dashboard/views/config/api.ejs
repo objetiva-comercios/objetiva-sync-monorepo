@@ -9,15 +9,15 @@
     <div class="md:flex md:items-center md:justify-between mb-6">
       <div class="flex-1 min-w-0">
         <h1 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
-          Configuración de API
+          Configuracion de API
         </h1>
         <p class="mt-1 text-sm text-gray-500">
-          Configurar credenciales y endpoints de la API remota
+          Enlazar con el gateway y configurar endpoints
         </p>
       </div>
     </div>
 
-    <!-- Current Status Card -->
+    <!-- Current Status Card (pairing status) -->
     <div class="mb-6" id="api-status-container">
       <!-- Loaded via HTMX -->
     </div>
@@ -53,18 +53,18 @@
       <div class="flex-1 border-t border-gray-200"></div>
     </div>
 
-    <!-- API Configuration Form -->
+    <!-- API Configuration Form (simplified: URL only, no credentials) -->
     <div class="bg-white shadow sm:rounded-lg">
       <div class="px-4 py-5 sm:p-6">
         <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">
-          Configuración de Endpoints y Credenciales
+          Configuracion de Gateway
         </h3>
 
         <form id="api-config-form" onsubmit="saveApiConfig(event)" class="space-y-6">
           <!-- Base URL -->
           <div>
             <label for="api-url" class="block text-sm font-medium text-gray-700">
-              URL Base de la API
+              URL del Gateway
             </label>
             <div class="mt-1">
               <input
@@ -73,62 +73,18 @@
                 name="url"
                 required
                 class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="https://api.example.com"
+                placeholder="https://gateway.example.com"
               >
             </div>
             <p class="mt-1 text-xs text-gray-500">
-              URL base del servidor API donde se enviarán los datos sincronizados
-            </p>
-          </div>
-
-          <!-- Username -->
-          <div>
-            <label for="api-username" class="block text-sm font-medium text-gray-700">
-              Usuario / Client ID
-            </label>
-            <div class="mt-1">
-              <input
-                type="text"
-                id="api-username"
-                name="username"
-                required
-                class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="usuario_api"
-              >
-            </div>
-          </div>
-
-          <!-- Password / API Key -->
-          <div>
-            <label for="api-password" class="block text-sm font-medium text-gray-700">
-              Contraseña / API Key
-            </label>
-            <div class="mt-1 relative">
-              <input
-                type="password"
-                id="api-password"
-                name="password"
-                required
-                class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm pr-10"
-                placeholder="••••••••"
-              >
-              <button
-                type="button"
-                onclick="togglePasswordVisibility()"
-                class="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                <i id="password-icon" data-lucide="eye" class="h-5 w-5 text-gray-400"></i>
-              </button>
-            </div>
-            <p class="mt-1 text-xs text-gray-500">
-              La contraseña/API key se almacenará encriptada
+              URL del gateway donde se envian los datos sincronizados
             </p>
           </div>
 
           <!-- Connection Timeout -->
           <div>
             <label for="api-timeout" class="block text-sm font-medium text-gray-700">
-              Timeout de Conexión (ms)
+              Timeout de Conexion (ms)
             </label>
             <div class="mt-1">
               <input
@@ -142,7 +98,7 @@
               >
             </div>
             <p class="mt-1 text-xs text-gray-500">
-              Tiempo máximo de espera para las peticiones HTTP (1000-300000 ms)
+              Tiempo maximo de espera para las peticiones HTTP (1000-300000 ms)
             </p>
           </div>
 
@@ -163,7 +119,7 @@
               >
             </div>
             <p class="mt-1 text-xs text-gray-500">
-              Número de intentos en caso de fallo (0-10)
+              Numero de intentos en caso de fallo (0-10)
             </p>
           </div>
 
@@ -182,7 +138,7 @@
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label for="api-endpoint-articulos" class="block text-sm font-medium text-gray-700">
-                    Endpoint Artículos
+                    Endpoint Articulos
                   </label>
                   <input
                     type="text"
@@ -220,7 +176,7 @@
                 </div>
               </div>
               <p class="text-xs text-gray-500">
-                Si no se especifican, se usarán las rutas por defecto
+                Si no se especifican, se usaran las rutas por defecto
               </p>
             </div>
           </div>
@@ -234,14 +190,14 @@
                 class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <i data-lucide="activity" class="w-4 h-4 mr-2"></i>
-                Probar Conexión
+                Probar Conexion
               </button>
               <button
                 type="submit"
                 class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                Guardar Configuración
+                Guardar Configuracion
               </button>
             </div>
           </div>
@@ -257,14 +213,14 @@
         </div>
         <div class="ml-3">
           <h3 class="text-sm font-medium text-blue-800">
-            Acerca de la Configuración de API
+            Acerca de la Configuracion de API
           </h3>
           <div class="mt-2 text-sm text-blue-700">
             <ul class="list-disc list-inside space-y-1">
+              <li>La autenticacion se maneja via JWT firmado con el secreto compartido del pairing</li>
+              <li>No se necesitan usuario ni contrasena — el enlace (pairing) configura todo automaticamente</li>
               <li>La URL base debe incluir el protocolo (https://)</li>
-              <li>Las credenciales se almacenan encriptadas en la base de datos</li>
-              <li>Puede usar autenticación básica o API keys según el servidor</li>
-              <li>Los endpoints personalizados son opcionales, se usarán rutas por defecto si no se especifican</li>
+              <li>Los endpoints personalizados son opcionales, se usaran rutas por defecto si no se especifican</li>
             </ul>
           </div>
         </div>
@@ -306,8 +262,6 @@
 
         // Populate form fields
         if (config.url) document.getElementById('api-url').value = config.url;
-        if (config.username) document.getElementById('api-username').value = config.username;
-        // Don't populate password for security
         if (config.timeout) document.getElementById('api-timeout').value = config.timeout;
         if (config.retryAttempts !== undefined) document.getElementById('api-retry-attempts').value = config.retryAttempts;
 
@@ -349,8 +303,6 @@
 
     const config = {
       url: url,
-      username: formData.get('username'),
-      password: formData.get('password'),
       timeout: parseInt(formData.get('timeout')),
       retryAttempts: parseInt(formData.get('retryAttempts')),
       endpointArticulos: formData.get('endpointArticulos') || null,
@@ -370,23 +322,20 @@
       const result = await response.json();
 
       if (result.success) {
-        showNotification('Configuración guardada exitosamente', 'success');
+        showNotification('Configuracion guardada exitosamente', 'success');
         loadApiStatus();
-
-        // Clear password field for security
-        document.getElementById('api-password').value = '';
       } else {
-        showNotification(result.error || 'Error al guardar configuración', 'error');
+        showNotification(result.error || 'Error al guardar configuracion', 'error');
       }
     } catch (error) {
       console.error('Error saving API config:', error);
-      showNotification('Error al guardar configuración', 'error');
+      showNotification('Error al guardar configuracion', 'error');
     }
   }
 
   async function testApiConnection() {
     try {
-      showNotification('Probando conexión a la API...', 'info');
+      showNotification('Probando conexion al gateway...', 'info');
 
       const response = await fetch('/api/config/api/test', {
         method: 'POST'
@@ -395,32 +344,14 @@
       const result = await response.json();
 
       if (result.success) {
-        showNotification(result.message || 'Conexión exitosa', 'success');
+        showNotification(result.message || 'Conexion exitosa', 'success');
         loadApiStatus();
       } else {
-        showNotification(result.error || 'Error en la conexión', 'error');
+        showNotification(result.error || 'Error en la conexion', 'error');
       }
     } catch (error) {
       console.error('Error testing API connection:', error);
-      showNotification('Error al probar conexión', 'error');
-    }
-  }
-
-  function togglePasswordVisibility() {
-    const passwordField = document.getElementById('api-password');
-    const icon = document.getElementById('password-icon');
-
-    if (passwordField.type === 'password') {
-      passwordField.type = 'text';
-      icon.setAttribute('data-lucide', 'eye-off');
-    } else {
-      passwordField.type = 'password';
-      icon.setAttribute('data-lucide', 'eye');
-    }
-
-    // Refresh lucide icons
-    if (window.lucide) {
-      lucide.createIcons();
+      showNotification('Error al probar conexion', 'error');
     }
   }
 
@@ -533,7 +464,6 @@
   window.loadApiStatus = loadApiStatus;
   window.saveApiConfig = saveApiConfig;
   window.testApiConnection = testApiConnection;
-  window.togglePasswordVisibility = togglePasswordVisibility;
   window.toggleEndpoints = toggleEndpoints;
   window.claimPairingCode = claimPairingCode;
   window.showPairingResult = showPairingResult;
