@@ -29,8 +29,6 @@ const envSchema = z.object({
 
   // Remote API (optional, configured via dashboard)
   REMOTE_API_URL: z.string().url().optional(),
-  REMOTE_API_USERNAME: z.string().optional(),
-  REMOTE_API_PASSWORD: z.string().optional(),
 
   // Sync configuration (optional, configured via dashboard)
   SYNC_INTERVAL_MINUTES: z.string().regex(/^\d+$/).transform(Number).optional(),
