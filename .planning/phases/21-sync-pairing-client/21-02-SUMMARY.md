@@ -23,7 +23,7 @@ key-decisions:
   - "Warning state (test failure after pairing) uses innerHTML with embedded Reintentar button — textContent cannot render the button"
   - "showPairingResult accepts optional isHtml+htmlContent args for warning case; simple messages use textContent for XSS safety"
   - "Pre-fill only when pairing-gateway-url is empty — loadApiConfig() may be called after success to reload form, guards against overwriting user's typed URL"
-requirements-completed: [SPC-01, SPC-03]
+requirements-completed: [SPC-01, SPC-02, SPC-03]
 duration: 3min
 completed: "2026-03-05"
 ---

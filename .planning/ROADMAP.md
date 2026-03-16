@@ -6,7 +6,7 @@
 - [x] **v1.1-rc Release Candidate** - Phases 8-12 (shipped 2026-02-05)
 - [x] **v1.1-rc2 Multi-Source & Hardening** - Phases 13-16 (shipped 2026-02-18)
 - [x] **v1.1-rc2 Dashboard (rolled back)** - Phase 17 (rolled back)
-- [ ] **v1.2 Setup & Pairing** - Phases 18-24 (in progress)
+- [x] **v1.2 Setup & Pairing** - Phases 18-24 (completed 2026-03-16)
 
 ---
 
@@ -47,7 +47,7 @@ Note: Phase 17 (Dashboard Modernization with shadcn/React) was implemented but r
 - [x] **Phase 21: Sync Pairing Client** - Sync dashboard lets operator enter pairing code and link to gateway automatically (completed 2026-03-05)
 - [x] **Phase 22: Auth Simplification** - Remove password-based login, keep JWT-only auth via shared secret (completed 2026-03-16)
 - [x] **Phase 23: Fix Wizard Pairing Auth & Missing Dependency** - Fix critical 403 bug in wizard pairing flow and add missing fast-jwt dependency (completed 2026-03-16)
-- [ ] **Phase 24: Phase 21 Verification & Traceability Update** - Verify Phase 21 implementation, update traceability, fix documentation gaps
+- [x] **Phase 24: Phase 21 Verification & Traceability Update** - Verify Phase 21 implementation, update traceability, fix documentation gaps (completed 2026-03-16)
 
 ## Phase Details
 
@@ -172,7 +172,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22 → 23 → 24
 | 21. Sync Pairing Client | v1.2 | 2/2 | Complete | 2026-03-05 |
 | 22. Auth Simplification | v1.2 | 2/2 | Complete | 2026-03-16 |
 | 23. Fix Wizard Pairing Auth & Missing Dependency | v1.2 | 2/2 | Complete | 2026-03-16 |
-| 24. Phase 21 Verification & Traceability Update | v1.2 | 0/1 | Pending | - |
+| 24. Phase 21 Verification & Traceability Update | v1.2 | 1/1 | Complete | 2026-03-16 |
 
 ---
-*Last updated: 2026-03-16 — Phase 24 plan created (1 plan, wave 1)*
+*Last updated: 2026-03-16 — Phase 24 complete; all v1.2 phases verified; milestone ready for closure*

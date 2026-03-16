@@ -108,6 +108,8 @@ No TODO, FIXME, XXX, HACK, placeholder comments, empty implementations, or conso
 **Expected:** Project owner confirms that Phase 20 satisfies the gateway-side portion of PAIR-03 (delivering the correct credential payload via `/api/pairing/claim`), and that the sync-side SQLite storage will be implemented in Phase 21 as part of SPC-01/02.
 **Why human:** REQUIREMENTS.md marks PAIR-03 as `[x]` complete and maps it to Phase 20. However, the requirement description explicitly mentions sync storing the config in encrypted SQLite — this is a sync-side behavior not present in any Phase 20 code. The RESEARCH.md documents the agreed boundary ("sync side is Phase 21"), but the REQUIREMENTS.md traceability table may need updating to reflect partial completion or the boundary agreement.
 
+**RESOLVED (Phase 24 verification):** PAIR-03 scope boundary confirmed. Gateway delivery verified in Phase 20 (POST /api/pairing/claim returns credential payload -- see 20-VERIFICATION.md Observable Truth #2). Sync SQLite storage verified in Phase 21 (claim proxy saves 4 keys via setConfig() -- see 21-VERIFICATION.md). Both phases together satisfy PAIR-03.
+
 ---
 
 ## Commits Verified
