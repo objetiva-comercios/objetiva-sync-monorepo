@@ -6,7 +6,7 @@
 - [x] **v1.1-rc Release Candidate** - Phases 8-12 (shipped 2026-02-05)
 - [x] **v1.1-rc2 Multi-Source & Hardening** - Phases 13-16 (shipped 2026-02-18)
 - [x] **v1.1-rc2 Dashboard (rolled back)** - Phase 17 (rolled back)
-- [ ] **v1.2 Setup & Pairing** - Phases 18-21 (in progress)
+- [ ] **v1.2 Setup & Pairing** - Phases 18-22 (in progress)
 
 ---
 
@@ -45,6 +45,7 @@ Note: Phase 17 (Dashboard Modernization with shadcn/React) was implemented but r
 - [x] **Phase 19: Setup Wizard Enhancement** - Wizard guides operator through complete gateway configuration with .env generation (completed 2026-03-05)
 - [x] **Phase 20: Gateway Pairing Routes** - Gateway generates short-lived pairing codes; claim endpoint transfers credentials to sync (completed 2026-03-05)
 - [x] **Phase 21: Sync Pairing Client** - Sync dashboard lets operator enter pairing code and link to gateway automatically (completed 2026-03-05)
+- [ ] **Phase 22: Auth Simplification** - Remove password-based login, keep JWT-only auth via shared secret (in progress)
 
 ## Phase Details
 
@@ -106,10 +107,28 @@ Plans:
 - [ ] 21-01-PLAN.md — Backend: claim proxy route + gateway-client SQLite-first config update (TDD)
 - [ ] 21-02-PLAN.md — Frontend: pairing card UI in api.ejs with claim flow + human verify
 
+### Phase 22: Simplify sync-gateway auth to token-based pairing-only
+**Goal**: Remove password-based login flow entirely; sync signs JWTs locally with shared JWT_SECRET, gateway verifies signatures. One credential instead of two, 5-step wizard instead of 6.
+**Depends on**: Phase 21
+**Requirements**: AUTH-RM-01, AUTH-RM-02, AUTH-RM-03, AUTH-RM-04, AUTH-RM-05, AUTH-RM-06, AUTH-RM-07, AUTH-RM-08
+**Success Criteria** (what must be TRUE):
+  1. Gateway has no /auth/login or /auth/refresh routes — POST to either returns 404
+  2. Gateway starts and runs without SYNC_PASSWORD or SYNC_USERNAME env vars
+  3. Setup wizard has 5 steps with no password step; step 5 uses POST /api/setup/token for JWT
+  4. Pairing claim returns only gatewayUrl + jwtSecret (no syncPassword)
+  5. Sync batch clients authenticate via direct getJwtToken() import, no AuthManager class exists
+  6. Sync dashboard shows pairing status instead of token expiry, no password fields in config form
+  7. Codegen script authenticates via local JWT signing, not /auth/login
+**Plans:** 2 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — Gateway: delete auth routes, clean pairing/preflight/env, renumber wizard, add setup token endpoint
+- [ ] 22-02-PLAN.md — Sync: delete AuthManager, refactor batch clients, update dashboard config/pairing
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 18 → 19 → 20 → 21
+Phases execute in numeric order: 18 → 19 → 20 → 21 → 22
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -120,6 +139,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21
 | 19. Setup Wizard Enhancement | 2/2 | Complete    | 2026-03-05 | - |
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
+| 22. Auth Simplification | 0/2 | Planned | - | - |
 
 ---
-*Last updated: 2026-03-05 — Phase 21 planned (2 plans)*
+*Last updated: 2026-03-16 — Phase 22 planned (2 plans)*

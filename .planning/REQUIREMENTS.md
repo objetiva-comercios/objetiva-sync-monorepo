@@ -36,6 +36,17 @@
 - [x] **SPC-02**: Botón de claim que ejecuta el intercambio y muestra resultado (éxito/error)
 - [x] **SPC-03**: Verificación automática de conexión después de pairing exitoso
 
+### Auth Simplification
+
+- [ ] **AUTH-RM-01**: Gateway elimina rutas /auth/login, /auth/refresh, /api/auth/diagnostics, /api/auth/change-password
+- [ ] **AUTH-RM-02**: Gateway elimina env vars SYNC_PASSWORD y SYNC_USERNAME de .env.example, generate-env, y preflight checks
+- [ ] **AUTH-RM-03**: Pairing claim response retorna solo gatewayUrl + jwtSecret (sin syncPassword)
+- [ ] **AUTH-RM-04**: POST /api/setup/token retorna JWT firmado durante setup-only mode, 403 después
+- [ ] **AUTH-RM-05**: Setup wizard tiene 5 pasos (sin paso de password), renumerado correctamente
+- [ ] **AUTH-RM-06**: AuthManager eliminado de sync; batch clients usan getJwtToken() directo
+- [ ] **AUTH-RM-07**: Dashboard sync muestra estado de pairing (enlazado/no enlazado) en vez de token expiry
+- [ ] **AUTH-RM-08**: Test Connection usa JWT firmado localmente contra /health (sin /auth/login)
+
 ## Future Requirements
 
 ### Pairing Enhancements
@@ -82,12 +93,20 @@
 | SPC-01 | Phase 21 | Complete |
 | SPC-02 | Phase 21 | Complete |
 | SPC-03 | Phase 21 | Complete |
+| AUTH-RM-01 | Phase 22 | Planned |
+| AUTH-RM-02 | Phase 22 | Planned |
+| AUTH-RM-03 | Phase 22 | Planned |
+| AUTH-RM-04 | Phase 22 | Planned |
+| AUTH-RM-05 | Phase 22 | Planned |
+| AUTH-RM-06 | Phase 22 | Planned |
+| AUTH-RM-07 | Phase 22 | Planned |
+| AUTH-RM-08 | Phase 22 | Planned |
 
 **Coverage:**
-- v1.2 requirements: 19 total
-- Mapped to phases: 19
-- Unmapped: 0 ✓
+- v1.2 requirements: 27 total
+- Mapped to phases: 27
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-04 after v1.2 roadmap created*
+*Last updated: 2026-03-16 after Phase 22 planned*
