@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Setup & Pairing
-status: executing
-stopped_at: Completed 23-02-PLAN.md
-last_updated: "2026-03-16T21:34:06.389Z"
-last_activity: 2026-03-16 — 23-02 fast-jwt dependency added, dead env fields removed
+status: completed
+stopped_at: Completed 23-01-PLAN.md
+last_updated: "2026-03-16T21:34:42Z"
+last_activity: 2026-03-16 — 23-01 fixed 403 bug in wizard token endpoint, full wizard flow test
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 12
-  completed_plans: 11
-  percent: 90
+  completed_plans: 12
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-04)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** v1.2 Setup & Pairing — Phase 23 in progress, fixing wizard pairing auth
+**Current focus:** v1.2 Setup & Pairing — Phase 23 complete, all plans done
 
 ## Current Position
 
 Phase: 23 of 23 (Fix Wizard Pairing Auth)
-Plan: 2 of 3 in current phase
-Status: In progress — 23-02 complete, fast-jwt dependency + env cleanup done
-Last activity: 2026-03-16 — 23-02 fast-jwt dependency added, dead env fields removed
+Plan: 2 of 2 in current phase
+Status: Complete — Phase 23 all plans done, wizard pairing auth fixed
+Last activity: 2026-03-16 — 23-01 fixed 403 bug in wizard token endpoint, full wizard flow test
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Completed Milestones
 
@@ -81,6 +81,9 @@ See: .planning/MILESTONES.md for full details
 - [Phase 22-02]: Test Connection hits /health with JWT instead of /auth/login with credentials
 - [Phase 22-02]: Scheduler checks JWT_SECRET to determine pairing status (not password)
 - [Phase 23-02]: fast-jwt pinned at ^6.1.0 matching gateway version for consistency
+- [Phase 23-01]: Widened token guard: setup-only OR (normal AND !setupComplete) -- fixes 403 bug mid-wizard
+- [Phase 23-01]: setupComplete set in claim handler, not apply-config -- token remains available between config and claim
+- [Phase 23-01]: Mocked child_process.execSync in wizard-flow test to avoid Prisma migration dependency
 
 ### Roadmap Evolution
 
@@ -98,10 +101,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T21:34:06.381Z
-Stopped at: Completed 23-02-PLAN.md
+Last session: 2026-03-16T21:34:42Z
+Stopped at: Completed 23-01-PLAN.md
 Resume file: None
-Next action: Continue with remaining Phase 23 plans
+Next action: Phase 23 complete — ready for milestone verification
 
 ---
-*Last updated: 2026-03-16 after 23-02 fast-jwt dependency + env cleanup*
+*Last updated: 2026-03-16 after 23-01 wizard pairing auth fix*

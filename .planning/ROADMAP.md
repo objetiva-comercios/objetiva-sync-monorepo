@@ -46,7 +46,7 @@ Note: Phase 17 (Dashboard Modernization with shadcn/React) was implemented but r
 - [x] **Phase 20: Gateway Pairing Routes** - Gateway generates short-lived pairing codes; claim endpoint transfers credentials to sync (completed 2026-03-05)
 - [x] **Phase 21: Sync Pairing Client** - Sync dashboard lets operator enter pairing code and link to gateway automatically (completed 2026-03-05)
 - [x] **Phase 22: Auth Simplification** - Remove password-based login, keep JWT-only auth via shared secret (in progress) (completed 2026-03-16)
-- [ ] **Phase 23: Fix Wizard Pairing Auth & Missing Dependency** - Fix critical 403 bug in wizard pairing flow and add missing fast-jwt dependency
+- [x] **Phase 23: Fix Wizard Pairing Auth & Missing Dependency** - Fix critical 403 bug in wizard pairing flow and add missing fast-jwt dependency (completed 2026-03-16)
 - [ ] **Phase 24: Phase 21 Verification & Traceability Update** - Verify Phase 21 implementation, update traceability, fix documentation gaps
 
 ## Phase Details
@@ -137,7 +137,7 @@ Plans:
   2. Fresh Install Wizard completes end-to-end from step 1 through pairing code generation without 403 errors
   3. `fast-jwt` is listed as an explicit dependency in objetiva-sync/package.json and `npm install` in a clean environment resolves it
   4. No residual references to REMOTE_API_USERNAME, REMOTE_API_PASSWORD, or SYNC_PASSWORD exist in production code (env.ts, env-writer.ts)
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 23-01-PLAN.md — Gateway: fix 403 bug (setupComplete flag + token guard + claim wiring) + wizard flow integration test
 - [ ] 23-02-PLAN.md — Sync: add fast-jwt dependency, remove dead env fields, add import verification test
@@ -168,7 +168,7 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22 → 23 → 24
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
 | 22. Auth Simplification | 2/2 | Complete    | 2026-03-16 | - |
-| 23. Fix Wizard Pairing Auth & Missing Dependency | 1/2 | In Progress|  | - |
+| 23. Fix Wizard Pairing Auth & Missing Dependency | 2/2 | Complete   | 2026-03-16 | - |
 | 24. Phase 21 Verification & Traceability Update | 0/0 | Pending | - | - |
 
 ---
