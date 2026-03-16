@@ -229,3 +229,13 @@ describe('gateway-client SQLite-first config reading', () => {
     })
   })
 })
+
+describe('fast-jwt dependency verification', () => {
+  it('createSigner is importable and produces a valid token', async () => {
+    const { createSigner } = await import('fast-jwt')
+    const signer = createSigner({ key: 'test-secret-for-verification' })
+    const token = signer({ sub: 'sync-client' })
+    expect(typeof token).toBe('string')
+    expect(token.split('.')).toHaveLength(3) // JWT has 3 parts
+  })
+})
