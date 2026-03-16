@@ -33,7 +33,7 @@
 ### Sync Pairing Client
 
 - [x] **SPC-01**: Campo de entrada de código de pairing en la configuración de API del sync dashboard
-- [x] **SPC-02**: Botón de claim que ejecuta el intercambio y muestra resultado (éxito/error)
+- [ ] **SPC-02**: Botón de claim que ejecuta el intercambio y muestra resultado (éxito/error)
 - [x] **SPC-03**: Verificación automática de conexión después de pairing exitoso
 
 ### Auth Simplification
@@ -90,17 +90,17 @@
 | PAIR-03 | Phase 20 | Complete |
 | PAIR-04 | Phase 20 | Complete |
 | PAIR-05 | Phase 20 | Complete |
-| SPC-01 | Phase 21 | Complete |
-| SPC-02 | Phase 21 | Complete |
-| SPC-03 | Phase 21 | Complete |
-| AUTH-RM-01 | Phase 22 | Planned |
-| AUTH-RM-02 | Phase 22 | Planned |
-| AUTH-RM-03 | Phase 22 | Planned |
-| AUTH-RM-04 | Phase 22 | Planned |
-| AUTH-RM-05 | Phase 22 | Planned |
-| AUTH-RM-06 | Phase 22 | Planned |
-| AUTH-RM-07 | Phase 22 | Planned |
-| AUTH-RM-08 | Phase 22 | Planned |
+| SPC-01 | Phase 21 → 24 | Pending |
+| SPC-02 | Phase 21 → 24 | Pending |
+| SPC-03 | Phase 21 → 24 | Pending |
+| AUTH-RM-01 | Phase 22 | Complete |
+| AUTH-RM-02 | Phase 22 | Complete |
+| AUTH-RM-03 | Phase 22 | Complete |
+| AUTH-RM-04 | Phase 22 → 23 | Complete |
+| AUTH-RM-05 | Phase 22 → 23 | Complete |
+| AUTH-RM-06 | Phase 22 → 23 | Complete |
+| AUTH-RM-07 | Phase 22 | Complete |
+| AUTH-RM-08 | Phase 22 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 27 total
@@ -109,4 +109,4 @@
 
 ---
 *Requirements defined: 2026-03-04*
-*Last updated: 2026-03-16 after Phase 22 planned*
+*Last updated: 2026-03-16 — Gap closure phases 23-24 added; AUTH-RM-01..08 → Complete; SPC-01/02/03 → Pending (re-verification needed)*

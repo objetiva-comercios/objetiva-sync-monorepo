@@ -6,7 +6,7 @@
 - [x] **v1.1-rc Release Candidate** - Phases 8-12 (shipped 2026-02-05)
 - [x] **v1.1-rc2 Multi-Source & Hardening** - Phases 13-16 (shipped 2026-02-18)
 - [x] **v1.1-rc2 Dashboard (rolled back)** - Phase 17 (rolled back)
-- [ ] **v1.2 Setup & Pairing** - Phases 18-22 (in progress)
+- [ ] **v1.2 Setup & Pairing** - Phases 18-24 (in progress)
 
 ---
 
@@ -46,6 +46,8 @@ Note: Phase 17 (Dashboard Modernization with shadcn/React) was implemented but r
 - [x] **Phase 20: Gateway Pairing Routes** - Gateway generates short-lived pairing codes; claim endpoint transfers credentials to sync (completed 2026-03-05)
 - [x] **Phase 21: Sync Pairing Client** - Sync dashboard lets operator enter pairing code and link to gateway automatically (completed 2026-03-05)
 - [x] **Phase 22: Auth Simplification** - Remove password-based login, keep JWT-only auth via shared secret (in progress) (completed 2026-03-16)
+- [ ] **Phase 23: Fix Wizard Pairing Auth & Missing Dependency** - Fix critical 403 bug in wizard pairing flow and add missing fast-jwt dependency
+- [ ] **Phase 24: Phase 21 Verification & Traceability Update** - Verify Phase 21 implementation, update traceability, fix documentation gaps
 
 ## Phase Details
 
@@ -125,6 +127,28 @@ Plans:
 - [ ] 22-01-PLAN.md — Gateway: delete auth routes, clean pairing/preflight/env, renumber wizard, add setup token endpoint
 - [ ] 22-02-PLAN.md — Sync: delete AuthManager, refactor batch clients, update dashboard config/pairing
 
+### Phase 23: Fix Wizard Pairing Auth & Missing Dependency
+**Goal**: Fix critical 403 bug in wizard pairing flow where POST /api/setup/token fails after apply-config mode transition, and add missing fast-jwt dependency to sync package
+**Depends on**: Phase 22
+**Requirements**: AUTH-RM-04, AUTH-RM-05, AUTH-RM-06, PAIR-01, PAIR-02
+**Gap Closure:** Closes integration gaps (setup token 403, fast-jwt dependency) and flow gap (Fresh Install Wizard) from v1.2 audit
+**Success Criteria** (what must be TRUE):
+  1. POST /api/setup/token returns a valid JWT during wizard step 4, even after apply-config has transitioned startupMode to 'normal'
+  2. Fresh Install Wizard completes end-to-end from step 1 through pairing code generation without 403 errors
+  3. `fast-jwt` is listed as an explicit dependency in objetiva-sync/package.json and `npm install` in a clean environment resolves it
+  4. No residual references to REMOTE_API_USERNAME, REMOTE_API_PASSWORD, or SYNC_PASSWORD exist in production code (env.ts, env-writer.ts)
+
+### Phase 24: Phase 21 Verification & Traceability Update
+**Goal**: Verify Phase 21 implementation (SPC-01/02/03), update REQUIREMENTS.md traceability for AUTH-RM-01..08, and fix documentation gaps across phases
+**Depends on**: Phase 23
+**Requirements**: SPC-01, SPC-02, SPC-03
+**Gap Closure:** Closes verification gap (Phase 21 unverified), traceability gap (AUTH-RM status), and documentation gaps from v1.2 audit
+**Success Criteria** (what must be TRUE):
+  1. Phase 21 has a VERIFICATION.md with explicit pass/fail evidence for SPC-01, SPC-02, SPC-03
+  2. REQUIREMENTS.md traceability table shows AUTH-RM-01..08 as "Complete" (not "Planned")
+  3. All v1.2 requirement checkboxes accurately reflect implementation status
+  4. PAIR-03 scoping boundary documented (gateway in Phase 20, sync storage in Phase 21)
+
 ## Progress
 
 **Execution Order:**
@@ -140,6 +164,8 @@ Phases execute in numeric order: 18 → 19 → 20 → 21 → 22
 | 20. Gateway Pairing Routes | 2/2 | Complete    | 2026-03-05 | - |
 | 21. Sync Pairing Client | 2/2 | Complete   | 2026-03-05 | - |
 | 22. Auth Simplification | 2/2 | Complete    | 2026-03-16 | - |
+| 23. Fix Wizard Pairing Auth & Missing Dependency | 0/0 | Pending | - | - |
+| 24. Phase 21 Verification & Traceability Update | 0/0 | Pending | - | - |
 
 ---
-*Last updated: 2026-03-16 — Phase 22 planned (2 plans)*
+*Last updated: 2026-03-16 — Gap closure phases 23-24 added from v1.2 audit*
