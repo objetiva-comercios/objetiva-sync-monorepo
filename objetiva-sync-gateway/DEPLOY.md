@@ -117,14 +117,13 @@ Abrir en el navegador:
 http://sync-gateway.sanchezrepuestos.com.ar/setup
 ```
 
-El wizard tiene 6 pasos:
+El wizard tiene 5 pasos:
 
 1. **Base de datos** — Ingresar la URL de PostgreSQL
 2. **Dominio publico** — Configurar la URL publica del gateway
 3. **JWT** — Genera automaticamente el secret de autenticacion
-4. **Contrasena** — Establecer la contrasena del sincronizador
-5. **Aplicar** — Guarda todo en `.env` y reinicia la configuracion
-6. **Enlazar sync** — Genera el codigo de pairing para conectar objetiva-sync
+4. **Aplicar** — Guarda todo en `.env` y reinicia la configuracion
+5. **Enlazar sync** — Genera el codigo de pairing para conectar objetiva-sync
 
 > **Importante (Docker):** En el paso de base de datos, usar el hostname del contenedor PostgreSQL (ej: `postgres`), NO `localhost`. Ambos contenedores deben estar en la misma red Docker.
 
