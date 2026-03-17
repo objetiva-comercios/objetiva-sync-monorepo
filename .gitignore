@@ -32,3 +32,6 @@ objetiva-sync-gateway/prisma/*.db
 # Temp / Cache
 .cache/
 *.tmp
+
+# Playwright
+.playwright-cli/

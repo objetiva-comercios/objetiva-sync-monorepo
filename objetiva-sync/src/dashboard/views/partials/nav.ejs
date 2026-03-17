@@ -97,12 +97,6 @@
           <span><%= locals.user ? locals.user.username : 'Usuario' %></span>
         </li>
         <li>
-          <a href="/auth/change-password">
-            <i data-lucide="key" class="w-4 h-4"></i>
-            Cambiar contraseña
-          </a>
-        </li>
-        <li>
           <form action="/auth/logout" method="POST" class="w-full">
             <button type="submit" class="w-full flex items-center">
               <i data-lucide="log-out" class="w-4 h-4"></i>
