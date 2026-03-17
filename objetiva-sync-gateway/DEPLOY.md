@@ -50,7 +50,7 @@ Traefik, PostgreSQL y sync-gateway deben estar en esta misma red.
 
 ```bash
 cd objetiva-sync-gateway
-docker compose up -d --build
+docker compose build --no-cache && docker compose up -d
 ```
 
 Verificar que el contenedor este corriendo:
@@ -153,7 +153,7 @@ All systems go.
 ```bash
 cd objetiva-sync-gateway
 git pull
-docker compose up -d --build
+docker compose build --no-cache && docker compose up -d
 ```
 
 Las migraciones de Prisma se ejecutan automaticamente en cada inicio (idempotente). El `.env` se preserva porque no esta dentro de la imagen Docker — lo genera el wizard en el directorio de trabajo.
