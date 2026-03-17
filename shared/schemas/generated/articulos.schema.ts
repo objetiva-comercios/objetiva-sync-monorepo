@@ -1,6 +1,6 @@
 // Auto-generated from PostgreSQL schema introspection
 // DO NOT EDIT - regenerate with: npm run regenerate-schemas
-// Generated: 2026-02-18T20:48:20.981Z
+// Generated: 2026-03-17T12:28:22.473Z
 // Table: articulos
 
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import type { EntityMetadata, TableSchemaMetadata } from '../../types/schema-met
  */
 export const articuloSchema = z.object({
   sku: z.string().nullable().optional(),
-  codigo: z.string().nullable().optional(),
+  codigo: z.string().min(1, 'Campo requerido'),
   codigo_barras: z.string().nullable().optional(),
   codigo_equivalencia: z.string().nullable().optional(),
   nombre: z.string().nullable().optional(),
@@ -47,8 +47,8 @@ export const articuloSchema = z.object({
   creado: z.coerce.date().optional(),
   actualizado: z.coerce.date().optional(),
   erp_id: z.string().nullable().optional(),
-  erp_codigo: z.string().min(1, 'Campo requerido'),
-  erp_nombre: z.string().min(1, 'Campo requerido'),
+  erp_codigo: z.string().nullable().optional(),
+  erp_nombre: z.string().nullable().optional(),
   erp_precio: z.coerce.number().nullable().optional(),
   erp_costo: z.coerce.number().nullable().optional(),
   erp_unidades: z.coerce.number().transform(n => Math.trunc(n)).nullable().optional(),
@@ -60,6 +60,7 @@ export const articuloSchema = z.object({
   origin_source: z.string().nullable().optional(),
   origin_sync_id: z.string().nullable().optional(),
   origin_synced_at: z.coerce.date().nullable().optional(),
+  imagenes_producto_procesadas: z.array(z.string()).nullable().optional(),
 });
 
 export type ArticuloInput = z.infer<typeof articuloSchema>;
@@ -68,10 +69,10 @@ export type ArticuloInput = z.infer<typeof articuloSchema>;
  * Metadata for articulo entity
  * Used for dynamic field operations in ingestion and validation.
  */
-export const articuloMetadata: EntityMetadata<readonly ['erp_codigo']> = {
+export const articuloMetadata: EntityMetadata<readonly ['codigo']> = {
   entity: 'articulo',
   tableName: 'articulos',
-  keyFields: ['erp_codigo'] as const,
+  keyFields: ['codigo'] as const,
   systemFields: ['erp_sincronizado', 'erp_fecha_sync', 'actualizado', 'creado'] as const,
   validations: {},
 };
@@ -95,7 +96,7 @@ export const articuloTableSchema: TableSchemaMetadata = {
     {
       "column_name": "codigo",
       "data_type": "text",
-      "is_nullable": true,
+      "is_nullable": false,
       "default_value": null,
       "ordinal_position": 2,
       "column_comment": null
@@ -375,7 +376,7 @@ export const articuloTableSchema: TableSchemaMetadata = {
     {
       "column_name": "erp_codigo",
       "data_type": "text",
-      "is_nullable": false,
+      "is_nullable": true,
       "default_value": null,
       "ordinal_position": 37,
       "column_comment": null
@@ -383,7 +384,7 @@ export const articuloTableSchema: TableSchemaMetadata = {
     {
       "column_name": "erp_nombre",
       "data_type": "text",
-      "is_nullable": false,
+      "is_nullable": true,
       "default_value": null,
       "ordinal_position": 38,
       "column_comment": null
@@ -475,16 +476,19 @@ export const articuloTableSchema: TableSchemaMetadata = {
       "default_value": null,
       "ordinal_position": 49,
       "column_comment": null
+    },
+    {
+      "column_name": "imagenes_producto_procesadas",
+      "data_type": "array",
+      "is_nullable": true,
+      "default_value": "'{}'::text[]",
+      "ordinal_position": 50,
+      "column_comment": null
     }
   ],
   constraints: [
     {
-      "constraint_name": "2200_41004_37_not_null",
-      "constraint_type": "CHECK",
-      "columns": []
-    },
-    {
-      "constraint_name": "2200_41004_38_not_null",
+      "constraint_name": "18527_18975_2_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
@@ -492,7 +496,7 @@ export const articuloTableSchema: TableSchemaMetadata = {
       "constraint_name": "articulos_pkey",
       "constraint_type": "PRIMARY KEY",
       "columns": [
-        "erp_codigo"
+        "codigo"
       ]
     }
   ],

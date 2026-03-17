@@ -152,7 +152,7 @@ export class IngestionService {
    * Ingesta de artículos
    * ✅ TODO EN SNAKE_CASE - Sin mapeo manual
    * ✅ BULK OPERATIONS - Batch lookup + createMany + transaction
-   * ✅ SINGLE KEY - Uses erp_codigo as primary key
+   * ✅ SINGLE KEY - Uses codigo as primary key
    */
   static async ingestArticulos(
     prisma: PrismaClient,
@@ -171,18 +171,18 @@ export class IngestionService {
       origin_synced_at: new Date(),
     } : {}
 
-    // Primary key: erp_codigo (single field)
-    // Step 1: Batch lookup by erp_codigo (trimmed)
+    // Primary key: codigo (single field)
+    // Step 1: Batch lookup by codigo (trimmed)
 
-    // 
-    const keyValues = articulos.map(a => a.erp_codigo).filter(Boolean)
+    //
+    const keyValues = articulos.map(a => a.codigo).filter(Boolean) as string[]
     const existingRecords = await prisma.articulo.findMany({
-      where: { erp_codigo: { in: keyValues } },
-      select: { erp_codigo: true },
+      where: { codigo: { in: keyValues } },
+      select: { codigo: true },
     })
     // Build key set for efficient lookup
     const existingSet = new Set<string>(
-      existingRecords.map((r) => r.erp_codigo)
+      existingRecords.map((r) => r.codigo)
     )
 
     // Step 2: Separate new vs existing, normalizing whitespace
@@ -190,14 +190,12 @@ export class IngestionService {
     const toUpdate: Array<{ key: string; data: ArticuloInput }> = []
 
     for (const articulo of articulos) {
-      const normalizedCodigo = articulo.erp_codigo?.trim()
-      const normalizedNombre = articulo.erp_nombre?.trim()
+      const normalizedCodigo = articulo.codigo?.trim()
       if (!normalizedCodigo) continue
 
       const normalizedArticulo = {
         ...articulo,
-        erp_codigo: normalizedCodigo,
-        erp_nombre: normalizedNombre || articulo.erp_nombre,
+        codigo: normalizedCodigo,
       }
 
       if (existingSet.has(normalizedCodigo)) {
@@ -238,7 +236,7 @@ export class IngestionService {
           } catch (createError) {
             errors.push({
               index,
-              identifier: `${articulo.erp_codigo}|${articulo.erp_nombre}`,
+              identifier: `${articulo.codigo}`,
               error: createError instanceof Error ? createError.message : 'Error desconocido',
               code: 'INGESTION_ERROR',
             })
@@ -256,20 +254,20 @@ export class IngestionService {
           key,
           metadata.originSource,
           () => prisma.articulo.findUnique({
-            where: { erp_codigo: key },
+            where: { codigo: key },
             select: { origin_source: true, origin_synced_at: true },
           })
         )
       }
     }
 
-    // Step 4: Update existing records (in transaction) using erp_codigo
+    // Step 4: Update existing records (in transaction) using codigo
     if (toUpdate.length > 0) {
       try {
         await prisma.$transaction(
           toUpdate.map(({ key, data }) =>
             prisma.articulo.update({
-              where: { erp_codigo: key },
+              where: { codigo: key },
               data: nullToUndefined({
                 ...data,
                 ...originData,
@@ -288,7 +286,7 @@ export class IngestionService {
         for (const [index, { key, data }] of toUpdate.entries()) {
           try {
             await prisma.articulo.update({
-              where: { erp_codigo: key },
+              where: { codigo: key },
               data: nullToUndefined({
                 ...data,
                 ...originData,

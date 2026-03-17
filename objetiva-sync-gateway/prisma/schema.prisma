@@ -10,7 +10,7 @@ datasource db {
 
 model Articulo {
   sku String? @db.Text
-  codigo String? @db.Text
+  codigo String @id @db.Text
   codigo_barras String? @db.Text
   codigo_equivalencia String? @db.Text
   nombre String? @db.Text
@@ -45,8 +45,8 @@ model Articulo {
   creado DateTime? @default(now()) @db.Timestamp(6)
   actualizado DateTime? @default(now()) @updatedAt @db.Timestamp(6)
   erp_id String? @db.Text
-  erp_codigo String @id @db.Text
-  erp_nombre String @db.Text
+  erp_codigo String? @db.Text
+  erp_nombre String? @db.Text
   erp_precio Decimal? @db.Decimal(10, 2)
   erp_costo Decimal? @db.Decimal(10, 2)
   erp_unidades Int? @default(0)
@@ -58,6 +58,7 @@ model Articulo {
   origin_source String? @db.Text
   origin_sync_id String? @db.Text
   origin_synced_at DateTime? @db.Timestamp(6)
+  imagenes_producto_procesadas String[] @db.Text
   @@index([activo], map: "idx_articulos_activo")
   @@index([codigo_barras], map: "idx_articulos_codigo_barras")
   @@index([codigo_equivalencia], map: "idx_articulos_codigo_equivalencia")
@@ -177,4 +178,3 @@ model ComprobantePagos {
   @@id([comprobante_operacion, comprobante_formulario, comprobante_numero, linea_numero])
   @@map("comprobantes_pagos")
 }
-
