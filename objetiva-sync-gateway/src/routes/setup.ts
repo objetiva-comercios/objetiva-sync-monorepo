@@ -986,19 +986,19 @@ export async function registerSetupRoutes(app: FastifyInstance) {
             state.token = tokenData.token;
           } else {
             console.error('Setup token failed:', tokenData);
-            var errorEl = document.getElementById('pairing-error');
-            if (errorEl) {
-              errorEl.textContent = 'Could not obtain setup token: ' + (tokenData.error || 'Unknown error') + '. Try restarting the gateway.';
-              errorEl.style.display = 'block';
+            var tokenErr = document.getElementById('pairing-error');
+            if (tokenErr) {
+              tokenErr.textContent = 'Could not obtain setup token: ' + (tokenData.error || 'Unknown error') + '. Try restarting the gateway.';
+              tokenErr.style.display = 'block';
             }
             return;
           }
         } catch (err) {
           console.error('Setup token fetch error:', err);
-          var errorEl = document.getElementById('pairing-error');
-          if (errorEl) {
-            errorEl.textContent = 'Could not connect to setup token endpoint. Try restarting the gateway.';
-            errorEl.style.display = 'block';
+          var tokenErr2 = document.getElementById('pairing-error');
+          if (tokenErr2) {
+            tokenErr2.textContent = 'Could not connect to setup token endpoint. Try restarting the gateway.';
+            tokenErr2.style.display = 'block';
           }
           return;
         }
