@@ -5,7 +5,7 @@
  * POST /api/pairing/claim   — unauthenticated, rate-limited, claims code for credentials
  *
  * Flow:
- *  1. Operator completes setup wizard and reaches step 6 (Link Sync Client)
+ *  1. Operator completes setup wizard and reaches step 5 (Link Sync Client)
  *  2. Wizard calls POST /api/pairing/generate (requires JWT) to get a 6-char code
  *  3. Operator reads code to the sync server or enters it in sync UI
  *  4. Sync server calls POST /api/pairing/claim with the code

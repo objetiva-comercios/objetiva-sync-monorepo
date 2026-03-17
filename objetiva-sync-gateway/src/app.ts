@@ -93,14 +93,13 @@ export async function buildApp() {
     ? (isNaN(Number(jwtExpiresInRaw)) ? jwtExpiresInRaw : Number(jwtExpiresInRaw))
     : '24h'
 
-  // Use a dynamic secret function so that if the setup wizard updates
-  // JWT_SECRET in process.env mid-session, both sign and verify pick up
-  // the new value without requiring a server restart.
-  const fallbackSecret = process.env.JWT_SECRET || 'change-me-in-production'
+  // Static secret from process.env at startup. During the setup wizard,
+  // the wizard saves JWT_SECRET to .env and process.env, but @fastify/jwt
+  // keeps using whatever was set at registration time. This is fine because
+  // both sign and verify use the same registered secret within a single
+  // container lifecycle. After restart, the new secret from .env is loaded.
   await app.register(jwt as any, {
-    secret: async function (_request: any, _token: any) {
-      return process.env.JWT_SECRET || fallbackSecret
-    },
+    secret: process.env.JWT_SECRET || 'change-me-in-production',
     sign: {
       expiresIn: jwtExpiresIn
     }

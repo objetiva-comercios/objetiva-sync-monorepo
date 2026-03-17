@@ -937,7 +937,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         successEl.style.display = 'block';
         btnGroup.style.display = 'none';
 
-        // Auto-advance to step 6 after a brief pause
+        // Auto-advance to step 5 after a brief pause
         setTimeout(function() { advanceStep(); }, 1500);
       } catch (err) {
         spinnerEl.style.display = 'none';
@@ -979,7 +979,8 @@ export async function registerSetupRoutes(app: FastifyInstance) {
         try {
           const tokenRes = await fetch('/api/setup/token', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
           });
           const tokenData = await tokenRes.json();
           if (tokenData.success && tokenData.token) {
@@ -1520,16 +1521,8 @@ export async function registerSetupRoutes(app: FastifyInstance) {
   })
 
   // POST /api/setup/token - Issue a JWT during setup wizard
-  // This endpoint replaces /auth/login for the setup wizard.
-  // Allow token during setup-only mode OR normal mode before first claim
-  // (fixes 403 bug when apply-config transitions mode mid-wizard).
-  // After restart with valid config, wizard UI is not served so this path is not exposed.
-  //
-  // IMPORTANT: We sign with process.env.JWT_SECRET (which may have been updated
-  // by the wizard mid-session) using fast-jwt directly, instead of app.jwt.sign()
-  // which uses the secret captured at plugin registration time. This ensures the
-  // token can be verified by @fastify/jwt after a restart when the new secret is
-  // loaded from .env.
+  // Uses the same secret that @fastify/jwt was registered with (static at startup).
+  // Both sign and verify use the same secret within a container lifecycle.
   app.post('/api/setup/token', async (_request, reply) => {
     const canIssueToken = systemState.startupMode === 'setup-only'
       || (systemState.startupMode === 'normal' && !systemState.setupComplete)
@@ -1541,8 +1534,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
 
     try {
-      // Use reply.jwtSign so the dynamic secret function receives request/token
-      const token = await reply.jwtSign({
+      const token = app.jwt.sign({
         source: 'setup-wizard',
         authenticated: true
       })
