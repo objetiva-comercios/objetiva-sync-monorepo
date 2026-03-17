@@ -1,5 +1,6 @@
 export interface JWTPayload {
-  username: string
+  username?: string
+  source?: string
   authenticated: boolean
 }
 
