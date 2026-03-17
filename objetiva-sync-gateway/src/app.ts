@@ -93,8 +93,14 @@ export async function buildApp() {
     ? (isNaN(Number(jwtExpiresInRaw)) ? jwtExpiresInRaw : Number(jwtExpiresInRaw))
     : '24h'
 
+  // Use a dynamic secret function so that if the setup wizard updates
+  // JWT_SECRET in process.env mid-session, both sign and verify pick up
+  // the new value without requiring a server restart.
+  const fallbackSecret = process.env.JWT_SECRET || 'change-me-in-production'
   await app.register(jwt as any, {
-    secret: process.env.JWT_SECRET || 'change-me-in-production',
+    secret: async function (_request: any, _token: any) {
+      return process.env.JWT_SECRET || fallbackSecret
+    },
     sign: {
       expiresIn: jwtExpiresIn
     }

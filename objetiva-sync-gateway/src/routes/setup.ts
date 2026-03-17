@@ -984,9 +984,23 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           const tokenData = await tokenRes.json();
           if (tokenData.success && tokenData.token) {
             state.token = tokenData.token;
+          } else {
+            console.error('Setup token failed:', tokenData);
+            var errorEl = document.getElementById('pairing-error');
+            if (errorEl) {
+              errorEl.textContent = 'Could not obtain setup token: ' + (tokenData.error || 'Unknown error') + '. Try restarting the gateway.';
+              errorEl.style.display = 'block';
+            }
+            return;
           }
-        } catch (_) {
-          // Token fetch is best-effort; fetchPairingCode will show an error if it fails
+        } catch (err) {
+          console.error('Setup token fetch error:', err);
+          var errorEl = document.getElementById('pairing-error');
+          if (errorEl) {
+            errorEl.textContent = 'Could not connect to setup token endpoint. Try restarting the gateway.';
+            errorEl.style.display = 'block';
+          }
+          return;
         }
       }
 
@@ -1123,9 +1137,11 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           document.getElementById('db-password-configured').style.display = 'block';
         }
 
-        // Pre-fill domain
+        // Pre-fill domain: use saved value, or auto-detect from current browser URL
         if (status.gatewayUrl) {
           document.getElementById('domain-url').value = status.gatewayUrl;
+        } else if (!document.getElementById('domain-url').value) {
+          document.getElementById('domain-url').value = window.location.origin;
         }
 
         // JWT configured indicator + pre-fill
@@ -1508,6 +1524,12 @@ export async function registerSetupRoutes(app: FastifyInstance) {
   // Allow token during setup-only mode OR normal mode before first claim
   // (fixes 403 bug when apply-config transitions mode mid-wizard).
   // After restart with valid config, wizard UI is not served so this path is not exposed.
+  //
+  // IMPORTANT: We sign with process.env.JWT_SECRET (which may have been updated
+  // by the wizard mid-session) using fast-jwt directly, instead of app.jwt.sign()
+  // which uses the secret captured at plugin registration time. This ensures the
+  // token can be verified by @fastify/jwt after a restart when the new secret is
+  // loaded from .env.
   app.post('/api/setup/token', async (_request, reply) => {
     const canIssueToken = systemState.startupMode === 'setup-only'
       || (systemState.startupMode === 'normal' && !systemState.setupComplete)
@@ -1519,10 +1541,13 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
 
     try {
-      const token = app.jwt.sign({
+      // Use reply.jwtSign so the dynamic secret function receives request/token
+      const token = await reply.jwtSign({
         source: 'setup-wizard',
         authenticated: true
       })
+
+      logger.info({ tokenLength: token.length, mode: systemState.startupMode }, 'Setup token issued')
 
       return reply.send({
         success: true,
