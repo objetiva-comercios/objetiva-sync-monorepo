@@ -1520,18 +1520,10 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     }
   })
 
-  // POST /api/setup/token - Issue a JWT during setup wizard
-  // Uses the same secret that @fastify/jwt was registered with (static at startup).
-  // Both sign and verify use the same secret within a container lifecycle.
+  // POST /api/setup/token - Issue a JWT for the setup wizard
+  // Always allowed: the wizard is served on /setup regardless of mode,
+  // and operators need to re-pair without restarting the gateway.
   app.post('/api/setup/token', async (_request, reply) => {
-    const canIssueToken = systemState.startupMode === 'setup-only'
-      || (systemState.startupMode === 'normal' && !systemState.setupComplete)
-    if (!canIssueToken) {
-      return reply.status(403).send({
-        success: false,
-        error: 'Only available during setup'
-      })
-    }
 
     try {
       const token = app.jwt.sign({
