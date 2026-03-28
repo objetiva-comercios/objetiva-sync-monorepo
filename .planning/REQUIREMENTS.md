@@ -1,4 +1,4 @@
-# Requirements — Milestone v1.3: Distributed Schema Regeneration
+# Requirements -- Milestone v1.3: Distributed Schema Regeneration
 
 **Defined:** 2026-03-28
 **Core Value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
@@ -28,25 +28,26 @@ None deferred.
 
 ## Out of Scope
 
-- Regeneracion automatica de schemas sin intervencion del operador — control manual preferido
-- Auto-actualizacion de los tipos manuales en objetiva-sync/src/types/*.ts — requiere revision humana
-- Schema versioning o migration rollback — proyecto single-team, no necesario
-- Regeneracion dentro del container Docker — archivos deben commitearse al repo
+- Regeneracion automatica de schemas sin intervencion del operador -- control manual preferido
+- Auto-actualizacion de los tipos manuales en objetiva-sync/src/types/*.ts -- requiere revision humana
+- Schema versioning o migration rollback -- proyecto single-team, no necesario
+- Regeneracion dentro del container Docker -- archivos deben commitearse al repo
 
 ## Traceability
 
 | Requirement | Phase | Plan | Status |
 |-------------|-------|------|--------|
-| REGEN-01 | — | — | Pending |
-| REGEN-02 | — | — | Pending |
-| REGEN-03 | — | — | Pending |
-| REGEN-04 | — | — | Pending |
-| SCHEMA-01 | — | — | Pending |
-| SCHEMA-02 | — | — | Pending |
-| SCHEMA-03 | — | — | Pending |
-| SCHEMA-04 | — | — | Pending |
-| FIX-01 | — | — | Pending |
-| FIX-02 | — | — | Pending |
+| REGEN-01 | Phase 25 | -- | Pending |
+| REGEN-02 | Phase 25 | -- | Pending |
+| REGEN-03 | Phase 25 | -- | Pending |
+| REGEN-04 | Phase 25 | -- | Pending |
+| SCHEMA-01 | Phase 27 | -- | Pending |
+| SCHEMA-02 | Phase 26 | -- | Pending |
+| SCHEMA-03 | Phase 27 | -- | Pending |
+| SCHEMA-04 | Phase 26 | -- | Pending |
+| FIX-01 | Phase 25 | -- | Pending |
+| FIX-02 | Phase 28 | -- | Pending |
 
 ---
-*Created: 2026-03-28 — Milestone v1.3*
+*Created: 2026-03-28 -- Milestone v1.3*
+*Traceability updated: 2026-03-27 -- Phase mappings assigned*

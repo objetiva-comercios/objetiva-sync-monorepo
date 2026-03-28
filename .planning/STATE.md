@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Distributed Schema Regeneration
-status: planning
+status: ready_to_plan
 stopped_at: null
-last_updated: "2026-03-28T15:00:00.000Z"
-last_activity: 2026-03-28 — Milestone v1.3 started
+last_updated: "2026-03-27T18:00:00.000Z"
+last_activity: 2026-03-27 — Roadmap created for v1.3
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** v1.3 Distributed Schema Regeneration — Defining requirements
+**Current focus:** Phase 25 — Script Adaptation & 207 Fix
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-28 — Milestone v1.3 started
+Phase: 25 of 28 (Script Adaptation & 207 Fix)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-03-27 — Roadmap created for v1.3
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -49,17 +49,12 @@ See: .planning/MILESTONES.md for full details
 
 - v1.3: Schema Status page lives in gateway dashboard (has direct access to PostgreSQL source of truth)
 - v1.3: 3-way schema comparison: PostgreSQL live vs gateway compiled vs sync reported
-- v1.3: Script de regeneración elimina dependencias Windows (taskkill, DLL handling)
-- v1.3: UI diseñada con frontend-design + ui-ux-pro-max skills, iconos Lucide, tipografía Inter
+- v1.3: Script de regeneracion elimina dependencias Windows (taskkill, DLL handling)
+- v1.3: UI con frontend-design + ui-ux-pro-max skills, iconos Lucide, tipografia Inter
 - v1.3: Fix bug 207 Multi-Status — gateway devuelve 207 con errors:0, sync lo trata como fallo
-- v1.3: undici.fetch reemplazado por globalThis.fetch nativo de Node 22 (fix de esta sesión)
-- v1.3: Test de conexión ahora valida JWT contra endpoint autenticado (no /health público)
-- v1.3: Pairing claim devuelve registeredJwtSecret de systemState (no process.env que puede estar desactualizado)
+- v1.3: undici.fetch reemplazado por globalThis.fetch nativo de Node 22
+- v1.3: Pairing claim devuelve registeredJwtSecret de systemState
 - v1.3: docker-entrypoint.sh usa prisma db push en vez de migrate deploy
-
-### Roadmap Evolution
-
-None yet.
 
 ### Pending Todos
 
@@ -71,10 +66,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28
-Stopped at: Defining requirements for v1.3
+Last session: 2026-03-27
+Stopped at: Roadmap created for v1.3
 Resume file: None
-Next action: Define requirements and create roadmap
+Next action: `/gsd:plan-phase 25`
 
 ---
-*Last updated: 2026-03-28 after v1.3 milestone started*
+*Last updated: 2026-03-27 after v1.3 roadmap created*
