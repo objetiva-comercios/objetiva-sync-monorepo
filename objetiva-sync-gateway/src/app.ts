@@ -93,13 +93,14 @@ export async function buildApp() {
     ? (isNaN(Number(jwtExpiresInRaw)) ? jwtExpiresInRaw : Number(jwtExpiresInRaw))
     : '24h'
 
-  // Static secret from process.env at startup. During the setup wizard,
-  // the wizard saves JWT_SECRET to .env and process.env, but @fastify/jwt
-  // keeps using whatever was set at registration time. This is fine because
-  // both sign and verify use the same registered secret within a single
-  // container lifecycle. After restart, the new secret from .env is loaded.
+  // Static secret from process.env at startup. @fastify/jwt caches the secret
+  // at registration time. We also store it in systemState so that the pairing
+  // claim endpoint returns the ACTUAL secret the gateway verifies against,
+  // not a potentially stale process.env value updated by the setup wizard.
+  const jwtSecretAtStartup = process.env.JWT_SECRET || 'change-me-in-production'
+  systemState.registeredJwtSecret = jwtSecretAtStartup
   await app.register(jwt as any, {
-    secret: process.env.JWT_SECRET || 'change-me-in-production',
+    secret: jwtSecretAtStartup,
     sign: {
       expiresIn: jwtExpiresIn
     }

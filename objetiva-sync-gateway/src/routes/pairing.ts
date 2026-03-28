@@ -17,6 +17,7 @@ import { z } from 'zod'
 import { authenticate } from '../middleware/auth.js'
 import { generateCode, claimCode, getActiveCode } from '../lib/pairing-store.js'
 import { logger } from '../lib/logger.js'
+import { systemState } from '../lib/system-state.js'
 
 const ClaimSchema = z.object({
   code: z.string().min(1, 'Code is required').max(10, 'Code too long')
@@ -93,10 +94,14 @@ export async function registerPairingRoutes(app: FastifyInstance): Promise<void>
 
     if (result === 'ok') {
       lastCodeWasClaimed = true
+      // Return the secret that @fastify/jwt actually verifies against,
+      // not process.env which may have been updated by the setup wizard
+      // after jwt plugin registration.
+      const effectiveSecret = systemState.registeredJwtSecret ?? process.env.JWT_SECRET ?? null
       return reply.code(200).send({
         success: true,
         gatewayUrl: process.env.GATEWAY_PUBLIC_URL ?? null,
-        jwtSecret: process.env.JWT_SECRET ?? null
+        jwtSecret: effectiveSecret
       })
     }
 

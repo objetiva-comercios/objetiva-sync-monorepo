@@ -22,5 +22,9 @@ export const systemState = {
   // The /api/setup/preflight endpoint runs live checks on each request.
   preflightChecks: [] as PreflightCheck[],
   // Whether a pairing code has been successfully claimed in this container lifecycle
-  setupComplete: false
+  setupComplete: false,
+  // JWT secret that @fastify/jwt was registered with (cached at startup).
+  // Used by pairing/claim to return the actual secret the gateway verifies against,
+  // not process.env.JWT_SECRET which may have been updated after registration.
+  registeredJwtSecret: null as string | null
 }

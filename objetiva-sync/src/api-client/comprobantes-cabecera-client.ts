@@ -2,8 +2,6 @@
  * Cliente para el endpoint de comprobantes - Cabeceras
  */
 
-import { fetch } from 'undici';
-import type { Dispatcher } from 'undici';
 import type { IComprobanteCabeceraPayload } from '../types/comprobantes-cabecera.js';
 import type { BatchResult } from '../types/common.js';
 import { logger } from '../utils/logger.js';
@@ -21,11 +19,8 @@ const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
  */
 export class ComprobantesCabeceraClient {
   private baseUrl: string;
-  private dispatcher?: Dispatcher;
-
-  constructor(baseUrl: string, dispatcher?: Dispatcher) {
+  constructor(baseUrl: string, _dispatcher?: unknown) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.dispatcher = dispatcher;
   }
 
   /**
@@ -112,7 +107,7 @@ export class ComprobantesCabeceraClient {
         headers,
         body: JSON.stringify({ comprobantes }),
         signal: combinedSignal,
-        dispatcher: this.dispatcher,
+        // Node 22 native fetch handles connection pooling internally
       });
 
       // Siempre leer el cuerpo de la respuesta primero
@@ -297,7 +292,7 @@ export class ComprobantesCabeceraClient {
       const response = await fetch(`${this.baseUrl}/health`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),
-        dispatcher: this.dispatcher,
+        // Node 22 native fetch handles connection pooling internally
       });
 
       if (response.ok) {

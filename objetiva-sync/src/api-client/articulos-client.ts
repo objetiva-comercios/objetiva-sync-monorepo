@@ -2,8 +2,6 @@
  * Cliente para el endpoint de artículos
  */
 
-import { fetch } from 'undici';
-import type { Dispatcher } from 'undici';
 import type { IArticuloPayload } from '../types/articulos.js';
 import type { BatchResult } from '../types/common.js';
 import { logger } from '../utils/logger.js';
@@ -21,11 +19,8 @@ const BATCH_REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per batch request
  */
 export class ArticulosClient {
   private baseUrl: string;
-  private dispatcher?: Dispatcher;
-
-  constructor(baseUrl: string, dispatcher?: Dispatcher) {
+  constructor(baseUrl: string, _dispatcher?: unknown) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.dispatcher = dispatcher;
   }
 
   /**
@@ -115,7 +110,7 @@ export class ArticulosClient {
         headers,
         body: JSON.stringify({ articulos: transformedArticulos }),
         signal: combinedSignal,
-        dispatcher: this.dispatcher,
+        // Node 22 native fetch handles connection pooling internally
       });
 
       // Siempre leer el cuerpo de la respuesta primero
@@ -219,7 +214,7 @@ export class ArticulosClient {
       try {
         const healthResp = await fetch(`${this.baseUrl}/health`, {
           signal: AbortSignal.timeout(3000),
-          dispatcher: this.dispatcher,
+          // Node 22 native fetch handles connection pooling internally
         });
         logger.info({ status: healthResp.status }, '[ArticulosClient] Gateway health check after error: REACHABLE');
       } catch (healthErr) {
@@ -356,7 +351,7 @@ export class ArticulosClient {
       const response = await fetch(`${this.baseUrl}/health`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),
-        dispatcher: this.dispatcher,
+        // Node 22 native fetch handles connection pooling internally
       });
 
       if (response.ok) {

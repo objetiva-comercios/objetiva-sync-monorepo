@@ -7,5 +7,8 @@
     "shared",
     "objetiva-sync",
     "objetiva-sync-gateway"
-  ]
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
 }

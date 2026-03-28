@@ -4,7 +4,6 @@
  */
 
 import os from 'os';
-import { Agent } from 'undici';
 
 /**
  * Generate stable source identifier for this sync client instance.
@@ -45,7 +44,6 @@ import { ComprobantesCabeceraClient } from './comprobantes-cabecera-client.js';
 import { ComprobantesDetalleClient } from './comprobantes-detalle-client.js';
 import { ComprobantesPagosClient } from './comprobantes-pagos-client.js';
 import { getJwtToken } from '../services/gateway-client.js';
-import { fetch } from 'undici';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -60,8 +58,6 @@ export interface APIClientConfig {
  * Maneja autenticación y proporciona acceso a todos los endpoints
  */
 export class APIClient {
-  private agent: Agent;
-
   public readonly articulos: ArticulosClient;
   public readonly comprobantes: ComprobantesCabeceraClient; // cabeceras
   public readonly comprobantesDetalle: ComprobantesDetalleClient;
@@ -78,21 +74,11 @@ export class APIClient {
       baseUrl: normalizedBaseUrl
     };
 
-    // Shared HTTP agent with connection pooling to prevent TCP exhaustion
-    // Without this, each fetch() creates a new TCP connection, and after ~200+
-    // sequential requests in 60s, Windows ephemeral ports get stuck in TIME_WAIT
-    this.agent = new Agent({
-      keepAliveTimeout: 30_000,     // Keep connections alive 30s between requests
-      keepAliveMaxTimeout: 120_000, // Max 2 min keepalive
-      connections: 10,              // Up to 10 connections per origin
-      pipelining: 1,                // HTTP/1.1 pipelining
-    });
-
-    // Inicializar clientes de endpoints con dispatcher compartido
-    this.articulos = new ArticulosClient(normalizedBaseUrl, this.agent);
-    this.comprobantes = new ComprobantesCabeceraClient(normalizedBaseUrl, this.agent);
-    this.comprobantesDetalle = new ComprobantesDetalleClient(normalizedBaseUrl, this.agent);
-    this.comprobantesPagos = new ComprobantesPagosClient(normalizedBaseUrl, this.agent);
+    // Node 22 native fetch handles connection pooling internally
+    this.articulos = new ArticulosClient(normalizedBaseUrl);
+    this.comprobantes = new ComprobantesCabeceraClient(normalizedBaseUrl);
+    this.comprobantesDetalle = new ComprobantesDetalleClient(normalizedBaseUrl);
+    this.comprobantesPagos = new ComprobantesPagosClient(normalizedBaseUrl);
   }
 
   /**
@@ -106,7 +92,6 @@ export class APIClient {
       const response = await fetch(`${this.config.baseUrl}/health`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),
-        dispatcher: this.agent,
       });
 
       if (!response.ok) {
@@ -121,23 +106,53 @@ export class APIClient {
   }
 
   /**
-   * Prueba la conexion a la API via JWT + /health
+   * Prueba la conexion a la API via JWT + endpoint protegido
+   *
+   * Two-step check:
+   * 1. GET /health (unauthenticated) — verifies gateway is reachable
+   * 2. POST /api/articulos/batch with empty payload — verifies JWT is accepted
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
       logger.info('[APIClient] Probando conexion a API...');
 
-      const token = await getJwtToken();
-      const response = await fetch(`${this.config.baseUrl}/health`, {
-        headers: { Authorization: `Bearer ${token}` },
+      // Step 1: Check gateway is reachable (no auth needed)
+      const healthResponse = await fetch(`${this.config.baseUrl}/health`, {
         signal: AbortSignal.timeout(10_000),
-        dispatcher: this.agent,
       });
 
-      if (!response.ok) {
+      if (!healthResponse.ok) {
         return {
           success: false,
-          message: `Health check failed: HTTP ${response.status}`,
+          message: `Gateway no disponible: HTTP ${healthResponse.status}`,
+        };
+      }
+
+      // Step 2: Verify JWT against an authenticated endpoint
+      const token = await getJwtToken();
+      const authResponse = await fetch(`${this.config.baseUrl}/api/articulos/batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ articulos: [] }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (authResponse.status === 401) {
+        const data = await authResponse.json() as Record<string, any>;
+        const errorCode = data.error || 'TOKEN_INVALID';
+        return {
+          success: false,
+          message: `JWT rechazado por el gateway (${errorCode}). Re-ejecuta el pairing.`,
+        };
+      }
+
+      if (!authResponse.ok) {
+        return {
+          success: false,
+          message: `Gateway respondio con HTTP ${authResponse.status}`,
         };
       }
 

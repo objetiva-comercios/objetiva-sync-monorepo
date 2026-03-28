@@ -406,8 +406,32 @@ export async function registerConfigApiRoutes(app: FastifyInstance) {
 
         try {
           const baseUrl = url.value.replace(/\/+$/, '');
-          const response = await fetch(`${baseUrl}/health`, {
-            headers: { Authorization: `Bearer ${token}` },
+
+          // Step 1: Verify gateway is reachable
+          const healthResponse = await fetch(`${baseUrl}/health`, {
+            signal: AbortSignal.timeout(10000),
+          });
+
+          if (!healthResponse.ok) {
+            await Promise.all([
+              setConfig(CONFIG_KEYS.API_TEST_STATUS, 'failed'),
+              setConfig(CONFIG_KEYS.API_TEST_MESSAGE, `Gateway no disponible: HTTP ${healthResponse.status}`),
+              setConfig(CONFIG_KEYS.API_TESTED_AT, new Date().toISOString()),
+            ]);
+            return reply.status(400).send({
+              success: false,
+              error: `Gateway no disponible: HTTP ${healthResponse.status}`,
+            });
+          }
+
+          // Step 2: Verify JWT against authenticated endpoint
+          const response = await fetch(`${baseUrl}/api/articulos/batch`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ articulos: [] }),
             signal: AbortSignal.timeout(10000),
           });
 

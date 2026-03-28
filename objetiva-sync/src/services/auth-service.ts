@@ -27,29 +27,42 @@ export interface User {
 }
 
 /**
- * Asegura que existe el usuario admin
- * Crea uno con password del .env si no existe
+ * Asegura que existe el usuario admin y que su password está sincronizado con .env
+ *
+ * - Si no existe: crea el admin con el password del .env
+ * - Si existe pero el password del .env no coincide con el hash guardado:
+ *   resetea el hash al password del .env (permite reset via .env + restart)
  */
 export async function ensureAdminExists(): Promise<void> {
   try {
     const config = requireEnv();
-
-    // Verificar si ya existe el usuario admin
-    const existingUsername = await ConfigRepo.getConfig(CONFIG_KEYS.ADMIN_USERNAME);
-
-    if (existingUsername) {
-      logger.info('✅ Usuario admin ya existe');
-      return;
-    }
-
-    // Crear usuario admin inicial
-    logger.info('👤 Creando usuario admin inicial...');
-
-    const username = 'admin';
     const adminPassword = config.ADMIN_PASSWORD;
     if (!adminPassword) {
       throw new Error('ADMIN_PASSWORD is required in environment variables');
     }
+
+    const existingUsername = await ConfigRepo.getConfig(CONFIG_KEYS.ADMIN_USERNAME);
+
+    if (existingUsername) {
+      // Admin exists — check if .env password matches stored hash
+      const storedHash = await ConfigRepo.getConfig(CONFIG_KEYS.ADMIN_PASSWORD_HASH);
+      if (storedHash) {
+        const envMatchesDb = await comparePassword(adminPassword, storedHash.value);
+        if (!envMatchesDb) {
+          // .env password differs from DB — reset to .env password
+          const newHash = await hashPassword(adminPassword);
+          await ConfigRepo.setConfig(CONFIG_KEYS.ADMIN_PASSWORD_HASH, newHash, true);
+          logger.info('🔑 Password admin reseteado desde .env (no coincidía con DB)');
+        }
+      }
+      logger.info('✅ Usuario admin verificado');
+      return;
+    }
+
+    // Create initial admin user
+    logger.info('👤 Creando usuario admin inicial...');
+
+    const username = 'admin';
     const passwordHash = await hashPassword(adminPassword);
 
     await ConfigRepo.setConfig(CONFIG_KEYS.ADMIN_USERNAME, username, false);
