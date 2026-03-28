@@ -152,21 +152,49 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 | v1.0 | Schema-driven synchronization control | 2026-02-03 | `.planning/milestones/v1.0-ROADMAP.md` |
 | v1.1-rc | Release candidate with sync reliability | 2026-02-05 | `.planning/milestones/v1.1-rc-ROADMAP.md` |
 | v1.1-rc2 | Multi-source sync & hardening | 2026-02-18 | `.planning/milestones/v1.1-rc2-ROADMAP.md` |
+| v1.2 | Setup & Pairing | 2026-03-16 | `.planning/milestones/v1.2-ROADMAP.md` |
 
-## Current Milestone: v1.2 Setup & Pairing
+## Current Milestone: v1.3 Distributed Schema Regeneration
 
-**Goal:** Simplificar radicalmente la instalación del gateway y el enlace sync↔gateway.
+**Goal:** Adaptar el pipeline completo de regeneración de schemas para arquitectura distribuida (sync en Windows, gateway dockerizado en VPS Linux), con Schema Status page en el gateway y fix del bug 207.
 
 **Target features:**
-- Pairing con código de enlace: gateway genera código corto, sync lo consume y quedan enlazados automáticamente
-- Setup page mejorada del gateway: wizard paso a paso que genera el .env completo
-- Checklist de pre-vuelo que valida cada parámetro antes de arrancar Docker
-- Variables de entorno unificadas en .env para docker-compose (subdominio Traefik, PostgreSQL, credenciales, JWT)
+- Script de regeneración adaptado para arquitectura distribuida: corre en Windows, introspecciona PostgreSQL via gateway remoto, genera archivos Zod + Prisma localmente listos para commit
+- Schema Status page en dashboard del gateway: comparación 3-way (PostgreSQL live vs schemas compilados en gateway vs schemas reportados por sync), visualización completa de columnas/tipos/constraints/comentarios
+- Fix bug 207 Multi-Status: batches exitosos con 0 errores reportados como fallidos por el sync client
+- Flujo de deploy documentado: regenerar → commit → rebuild imagen Docker → prisma db push sincroniza la DB automáticamente
 
 **Context:**
-- Sync se instala primero (Windows), gateway después (VPS/Docker)
-- El setup page del sync no requiere cambios
-- Ambos sistemas se conectan via Tailscale
+- Arquitectura distribuida: sync en Windows local, gateway dockerizado en VPS Linux remoto
+- PostgreSQL es la fuente de verdad (solo accesible via gateway)
+- El endpoint GET /api/schemas/:entity ya funciona remotamente con JWT
+- La fase "fetch + compute" del script funciona — solo la fase "kill + write + generate" necesita adaptación (eliminar dependencias Windows/DLL)
+- El Prisma client se bake en la imagen Docker durante build (stage 2 del Dockerfile)
+- Los Zod schemas viven en shared/schemas/generated/ y son consumidos por ambas partes
+- UI de Schema Status usa diseño pro: iconos Lucide, tipografía Inter
+
+**Cascade de schemas (lo que el script regenera):**
+- shared/schemas/generated/*.schema.ts → Zod schemas + TypeScript types + EntityMetadata + TableSchemaMetadata
+- prisma/schema.prisma → modelos Prisma para el gateway
+- prisma generate → Prisma Client (se ejecuta durante Docker build)
+- Consumidores: gateway routes (validación batch), gateway ingestion (tipos Prisma), sync schema-cache (validación queries), sync query-validator, sync schema-validator, dashboard (errores campo por campo)
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-03-04 after v1.2 milestone started*
+*Last updated: 2026-03-28 after v1.3 milestone started*
