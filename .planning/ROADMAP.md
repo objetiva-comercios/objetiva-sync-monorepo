@@ -49,7 +49,7 @@ Phases 18-24 completed. See `.planning/milestones/v1.2-ROADMAP.md` for details.
 
 ## Phases
 
-- [ ] **Phase 25: Script Adaptation & 207 Fix** - Adapt regeneration script for distributed architecture and fix 207 multi-status bug
+- [x] **Phase 25: Script Adaptation & 207 Fix** - Adapt regeneration script for distributed architecture and fix 207 multi-status bug (completed 2026-03-29)
 - [ ] **Phase 26: Schema Comparison API** - Gateway endpoints for 3-way schema comparison and sync schema reporting
 - [ ] **Phase 27: Schema Status Page** - React dashboard page showing schema alignment across all layers
 - [ ] **Phase 28: Deploy Flow Documentation** - Document the complete regenerate-commit-rebuild-push deploy cycle
@@ -65,10 +65,10 @@ Phases 18-24 completed. See `.planning/milestones/v1.2-ROADMAP.md` for details.
   2. Running `npm run regenerate-schemas:dry-run` shows a colored diff of detected changes (added/removed/modified fields) without writing any files to disk
   3. The script completes its full cycle without calling `taskkill`, loading Windows DLLs, or requiring filesystem access to the Docker container
   4. After a sync batch receives HTTP 207 with `{ errors: 0 }`, the sync client logs and counts it as a successful batch (not a failure)
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 25-00-PLAN.md — Wave 0: Test scaffolds for 207 fix (Nyquist compliance)
-- [ ] 25-01-PLAN.md — New regeneration script at monorepo root + delete old gateway script
+- [x] 25-01-PLAN.md — New regeneration script at monorepo root + delete old gateway script
 - [x] 25-02-PLAN.md — Fix 207 Multi-Status bug in all 4 sync API clients
 
 ### Phase 26: Schema Comparison API
@@ -113,7 +113,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28
 | 8-12. Reliability & Deployment | v1.1-rc | 15/15 | Complete | 2026-02-05 |
 | 13-16. Multi-Source & Hardening | v1.1-rc2 | 14/14 | Complete | 2026-02-18 |
 | 18-24. Setup & Pairing | v1.2 | 13/13 | Complete | 2026-03-16 |
-| 25. Script Adaptation & 207 Fix | v1.3 | 2/3 | In Progress|  |
+| 25. Script Adaptation & 207 Fix | v1.3 | 3/3 | Complete   | 2026-03-29 |
 | 26. Schema Comparison API | v1.3 | 0/? | Not started | - |
 | 27. Schema Status Page | v1.3 | 0/? | Not started | - |
 | 28. Deploy Flow Documentation | v1.3 | 0/? | Not started | - |

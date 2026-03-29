@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Distributed Schema Regeneration
-status: executing
-stopped_at: Completed 25-02-PLAN.md
-last_updated: "2026-03-29T22:55:11.993Z"
+status: verifying
+stopped_at: Completed 25-01-PLAN.md
+last_updated: "2026-03-29T22:56:07.960Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-28)
 
 Phase: 25 (script-adaptation-207-fix) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
@@ -56,6 +56,9 @@ See: .planning/MILESTONES.md for full details
 - v1.3: Pairing claim devuelve registeredJwtSecret de systemState
 - v1.3: docker-entrypoint.sh usa prisma db push en vez de migrate deploy
 - [Phase 25-script-adaptation-207-fix]: 207 with errors.length === 0 is success:true, not failure; log at info level (D-05, D-06)
+- [Phase 25]: Test scaffold for 207 fix written against fixed behavior (tests green from day 1, no skip needed)
+- [Phase 25]: Root script uses process.chdir(gatewayDir) before regenerateSchemas() for correct path resolution
+- [Phase 25]: Single execSync prisma generate with no retry — distributed arch eliminates Windows DLL locking
 
 ### Pending Todos
 
@@ -67,8 +70,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T22:54:28.370Z
-Stopped at: Completed 25-02-PLAN.md
+Last session: 2026-03-29T22:56:07.947Z
+Stopped at: Completed 25-01-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 25`
 

@@ -5,10 +5,10 @@
 
 ## Schema Regeneration
 
-- [ ] **REGEN-01**: Operador puede correr el script de regeneracion desde Windows y obtener schemas actualizados de PostgreSQL via gateway remoto
-- [ ] **REGEN-02**: Script genera archivos Zod en `shared/schemas/generated/` y Prisma en `prisma/schema.prisma` localmente, listos para commit
-- [ ] **REGEN-03**: Script no requiere matar procesos, manejar DLL de Windows, ni acceso al filesystem del container Docker
-- [ ] **REGEN-04**: Script muestra diff de cambios detectados antes de escribir archivos (dry-run disponible)
+- [x] **REGEN-01**: Operador puede correr el script de regeneracion desde Windows y obtener schemas actualizados de PostgreSQL via gateway remoto
+- [x] **REGEN-02**: Script genera archivos Zod en `shared/schemas/generated/` y Prisma en `prisma/schema.prisma` localmente, listos para commit
+- [x] **REGEN-03**: Script no requiere matar procesos, manejar DLL de Windows, ni acceso al filesystem del container Docker
+- [x] **REGEN-04**: Script muestra diff de cambios detectados antes de escribir archivos (dry-run disponible)
 
 ## Schema Status
 
