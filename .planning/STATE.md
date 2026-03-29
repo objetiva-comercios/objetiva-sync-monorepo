@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Distributed Schema Regeneration
-status: ready_to_plan
-stopped_at: null
-last_updated: "2026-03-27T18:00:00.000Z"
+status: planning
+stopped_at: Phase 25 context gathered
+last_updated: "2026-03-29T02:55:36.195Z"
 last_activity: 2026-03-27 — Roadmap created for v1.3
 progress:
   total_phases: 4
@@ -66,9 +66,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27
-Stopped at: Roadmap created for v1.3
-Resume file: None
+Last session: 2026-03-29T02:55:36.186Z
+Stopped at: Phase 25 context gathered
+Resume file: .planning/phases/25-script-adaptation-207-fix/25-CONTEXT.md
 Next action: `/gsd:plan-phase 25`
 
 ---
