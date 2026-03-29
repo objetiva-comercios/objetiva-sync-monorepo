@@ -113,7 +113,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28
 | 8-12. Reliability & Deployment | v1.1-rc | 15/15 | Complete | 2026-02-05 |
 | 13-16. Multi-Source & Hardening | v1.1-rc2 | 14/14 | Complete | 2026-02-18 |
 | 18-24. Setup & Pairing | v1.2 | 13/13 | Complete | 2026-03-16 |
-| 25. Script Adaptation & 207 Fix | v1.3 | 3/3 | Complete   | 2026-03-29 |
+| 25. Script Adaptation & 207 Fix | v1.3 | 3/3 | Complete    | 2026-03-29 |
 | 26. Schema Comparison API | v1.3 | 0/? | Not started | - |
 | 27. Schema Status Page | v1.3 | 0/? | Not started | - |
 | 28. Deploy Flow Documentation | v1.3 | 0/? | Not started | - |
