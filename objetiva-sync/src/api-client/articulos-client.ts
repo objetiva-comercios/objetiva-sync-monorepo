@@ -130,26 +130,35 @@ export class ArticulosClient {
         }
       }, '[ArticulosClient] Respuesta de la gateway');
 
-      // ✅ Manejo de 207 Multi-Status (éxito parcial)
+      // ✅ Manejo de 207 Multi-Status (éxito parcial o total)
       if (response.status === 207) {
-        const result = data.data || data.result;
+        const result = data.data || data.result;  // KEEP: articulos-specific fallback
 
         if (!result) {
           throw new Error('No data in 207 Multi-Status response');
         }
 
-        logger.warn({
-          inserted: result.inserted || 0,
-          updated: result.updated || 0,
-          errors: result.errors?.length || 0,
-        }, '[ArticulosClient] ⚠️ Batch con éxito parcial (207 Multi-Status)');
+        const errors = result.errors || [];
+        const hasErrors = errors.length > 0;
 
-        // Retornar resultado parcial (success=false indica que hubo errores)
+        if (hasErrors) {
+          logger.warn({
+            inserted: result.inserted || 0,
+            updated: result.updated || 0,
+            errors: errors.length,
+          }, '[ArticulosClient] ⚠️ Batch con éxito parcial (207 Multi-Status)');
+        } else {
+          logger.info({
+            inserted: result.inserted || 0,
+            updated: result.updated || 0,
+          }, '[ArticulosClient] Batch exitoso, sin errores');
+        }
+
         return {
-          success: false, // Hay errores, no es 100% exitoso
+          success: !hasErrors,
           inserted: result.inserted || 0,
           updated: result.updated || 0,
-          errors: result.errors || [],
+          errors,
         };
       }
 
