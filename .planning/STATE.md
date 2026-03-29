@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Distributed Schema Regeneration
-status: planning
-stopped_at: Phase 25 context gathered
-last_updated: "2026-03-29T02:55:36.195Z"
-last_activity: 2026-03-27 — Roadmap created for v1.3
+status: executing
+stopped_at: Completed 25-02-PLAN.md
+last_updated: "2026-03-29T22:55:11.993Z"
+last_activity: 2026-03-29
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 2
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Phase 25 — Script Adaptation & 207 Fix
+**Current focus:** Phase 25 — script-adaptation-207-fix
 
 ## Current Position
 
-Phase: 25 of 28 (Script Adaptation & 207 Fix)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-27 — Roadmap created for v1.3
+Phase: 25 (script-adaptation-207-fix) — EXECUTING
+Plan: 3 of 3
+Status: Ready to execute
+Last activity: 2026-03-29
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -55,6 +55,7 @@ See: .planning/MILESTONES.md for full details
 - v1.3: undici.fetch reemplazado por globalThis.fetch nativo de Node 22
 - v1.3: Pairing claim devuelve registeredJwtSecret de systemState
 - v1.3: docker-entrypoint.sh usa prisma db push en vez de migrate deploy
+- [Phase 25-script-adaptation-207-fix]: 207 with errors.length === 0 is success:true, not failure; log at info level (D-05, D-06)
 
 ### Pending Todos
 
@@ -66,9 +67,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T02:55:36.186Z
-Stopped at: Phase 25 context gathered
-Resume file: .planning/phases/25-script-adaptation-207-fix/25-CONTEXT.md
+Last session: 2026-03-29T22:54:28.370Z
+Stopped at: Completed 25-02-PLAN.md
+Resume file: None
 Next action: `/gsd:plan-phase 25`
 
 ---
