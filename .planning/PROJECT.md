@@ -75,6 +75,8 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - ✓ Prometheus metrics export (/metrics) with gateway_ prefix — v1.1-rc2
 - ✓ Sync-specific metrics (duration histogram, record counter per entity) — v1.1-rc2
 - ✓ Health check endpoint (/health) with component probes — v1.1-rc2
+- ✓ Regeneration script adapted for distributed architecture (monorepo root, zero Windows code) — v1.3
+- ✓ 207 Multi-Status fix: batches with 0 errors count as successful across all 4 API clients — v1.3
 
 ### Active
 
