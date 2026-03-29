@@ -14,9 +14,7 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio",
-    "regenerate-schemas": "tsx scripts/regenerate-schemas.ts",
-    "regenerate-schemas:dry-run": "tsx scripts/regenerate-schemas.ts --dry-run"
+    "prisma:studio": "prisma studio"
   },
   "keywords": [
     "fastify",
