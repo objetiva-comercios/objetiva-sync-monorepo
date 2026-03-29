@@ -8,7 +8,13 @@
     "objetiva-sync",
     "objetiva-sync-gateway"
   ],
+  "scripts": {
+    "regenerate-schemas": "tsx scripts/regenerate-schemas.ts",
+    "regenerate-schemas:dry-run": "tsx scripts/regenerate-schemas.ts --dry-run"
+  },
   "devDependencies": {
-    "@playwright/test": "^1.58.2"
+    "@playwright/test": "^1.58.2",
+    "dotenv": "^17.2.3",
+    "tsx": "^4.19.2"
   }
 }
