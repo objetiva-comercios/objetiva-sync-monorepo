@@ -37,17 +37,17 @@ None deferred.
 
 | Requirement | Phase | Plan | Status |
 |-------------|-------|------|--------|
-| REGEN-01 | Phase 25 | -- | Pending |
-| REGEN-02 | Phase 25 | -- | Pending |
-| REGEN-03 | Phase 25 | -- | Pending |
-| REGEN-04 | Phase 25 | -- | Pending |
+| REGEN-01 | Phase 25 | 25-01 | Verified |
+| REGEN-02 | Phase 25 | 25-01 | Verified |
+| REGEN-03 | Phase 25 | 25-01 | Verified |
+| REGEN-04 | Phase 25 | 25-01 | Verified |
 | SCHEMA-01 | Phase 27 | -- | Pending |
 | SCHEMA-02 | Phase 26 | -- | Pending |
 | SCHEMA-03 | Phase 27 | -- | Pending |
 | SCHEMA-04 | Phase 26 | -- | Pending |
-| FIX-01 | Phase 25 | -- | Pending |
+| FIX-01 | Phase 25 | 25-00, 25-02 | Verified |
 | FIX-02 | Phase 28 | -- | Pending |
 
 ---
 *Created: 2026-03-28 -- Milestone v1.3*
-*Traceability updated: 2026-03-27 -- Phase mappings assigned*
+*Traceability updated: 2026-03-29 -- Phase 25 requirements verified*
