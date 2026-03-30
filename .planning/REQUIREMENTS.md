@@ -12,9 +12,9 @@
 
 ## Schema Status
 
-- [ ] **SCHEMA-01**: Dashboard del gateway muestra pagina de Schema Status con todas las columnas, tipos, nullable, defaults y comentarios de cada entidad
+- [x] **SCHEMA-01**: Dashboard del gateway muestra pagina de Schema Status con todas las columnas, tipos, nullable, defaults y comentarios de cada entidad
 - [x] **SCHEMA-02**: Schema Status compara 3 niveles: PostgreSQL live vs schemas compilados en gateway vs schemas reportados por sync
-- [ ] **SCHEMA-03**: Schema Status indica visualmente campos alineados (verde), desincronizados (rojo) y nuevos no propagados (amarillo)
+- [x] **SCHEMA-03**: Schema Status indica visualmente campos alineados (verde), desincronizados (rojo) y nuevos no propagados (amarillo)
 - [x] **SCHEMA-04**: Sync reporta su version de schemas al gateway via endpoint dedicado
 
 ## Sync Fixes
