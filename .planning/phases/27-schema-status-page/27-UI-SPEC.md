@@ -43,7 +43,7 @@ Declared values (multiples of 4):
 | 2xl | 48px | Not used in this phase |
 | 3xl | 64px | Not used in this phase |
 
-Exceptions: Tab bar touch target minimum is 44px height (accessibility requirement for clickable tabs).
+Exceptions: Tab bar touch target minimum is 44px height (WCAG 2.5.5 accessibility requirement). Applied as `min-h-[44px]` directly on the tab element. This is a one-off accessibility override — NOT a reusable spacing token and NOT part of the spacing scale above.
 
 ---
 
@@ -52,9 +52,11 @@ Exceptions: Tab bar touch target minimum is 44px height (accessibility requireme
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 14px (`text-sm`) | 400 (regular) | 1.5 | Table cell data, badge text, status text |
-| Label | 12px (`text-xs`) | 500 (medium) | 1.4 | Column headers, sub-labels, entity tab captions |
+| Label | 12px (`text-xs`) | 700 (bold) | 1.4 | Column headers, sub-labels, entity tab captions — use `text-xs font-bold` |
 | Heading | 20px (`text-xl`) | 700 (bold) | 1.2 | Page title "Schema Status", section headings |
 | Display | 24px (`text-2xl`) | 700 (bold) | 1.2 | Top navigation heading (matches existing Dashboard heading) |
+
+Weights used: **400** (regular) and **700** (bold) — maximum 2 weights. Weight 500 (medium) is not used in this phase.
 
 Font family: `font-sans` (Outfit) for all UI text. `font-mono` (IBM Plex Mono) for `data_type` and `is_nullable` values in table cells — these are technical type strings and benefit from mono rendering.
 
@@ -108,12 +110,14 @@ Source: Decisions D-07, D-08, D-09 from `27-CONTEXT.md`. Dark-theme row tints us
 **`SchemaEntityTabs.tsx`** — Horizontal entity tab switcher
 - Props: `entities: EntityComparison[]`, `activeEntity: string`, `onSelect: (entity: string) => void`
 - Each tab: entity name + summary badge (mismatch + missing count, or green checkmark when both are 0)
+- Tab element: `min-h-[44px]` (WCAG 2.5.5 touch target — accessibility override, not a spacing token)
 - Active tab: bottom border `border-primary` 2px, text `text-primary`
 - Inactive tab: `text-muted-foreground`, hover `text-foreground`
 
 **`SchemaComparisonTable.tsx`** — Per-entity comparison table
 - Props: `comparison: EntityComparison`, `syncReported: boolean`
 - Columns: Field Name | PostgreSQL | Compiled | Sync | Status
+- Column headers: `text-xs font-bold` (Label role — 12px, weight 700)
 - Each layer sub-cell: `data_type` in `font-mono text-sm`, `is_nullable` as `YES`/`NO` in `text-xs text-muted-foreground`
 - Missing layer: `—` placeholder in `text-muted-foreground`
 - Status cell: colored dot (6px circle, `rounded-full`, `inline-block`) + status text label
@@ -135,7 +139,7 @@ Source: Decisions D-07, D-08, D-09 from `27-CONTEXT.md`. Dark-theme row tints us
 
 Add tab bar at top level. State: `const [activeTab, setActiveTab] = useState<'dashboard' | 'schema'>('dashboard')`.
 
-Tab bar: two tabs — "Dashboard" and "Schema Status". Same visual treatment as `SchemaEntityTabs` but at page level. The tab bar sits above the page content, below the viewport top edge, full width.
+Tab bar: two tabs — "Dashboard" and "Schema Status". Same visual treatment as `SchemaEntityTabs` but at page level. The tab bar sits above the page content, below the viewport top edge, full width. Each tab: `min-h-[44px]` accessibility override.
 
 ---
 
@@ -145,7 +149,7 @@ Tab bar: two tabs — "Dashboard" and "Schema Status". Same visual treatment as 
 - Click "Dashboard" tab → renders `<Dashboard />`, hides `<SchemaStatus />`
 - Click "Schema Status" tab → renders `<SchemaStatus />`, hides `<Dashboard />`
 - No animation between tabs — immediate conditional render (consistent with existing pattern)
-- Active tab: `border-b-2 border-primary text-primary font-semibold`
+- Active tab: `border-b-2 border-primary text-primary font-bold`
 - Inactive tab: `text-muted-foreground hover:text-foreground transition-colors`
 
 ### Entity Tab Switching (within Schema Status page)
@@ -203,7 +207,7 @@ Language: Spanish throughout — matches existing Dashboard copy pattern ("Carga
 
 ```
 App.tsx
-└── Page Tab Bar (full width, bg-card, border-b border-border)
+└── Page Tab Bar (full width, bg-card, border-b border-border, min-h-[44px] per tab)
     ├── Tab: "Dashboard"
     └── Tab: "Schema Status"
 
@@ -214,12 +218,13 @@ When "Schema Status" active:
         │   ├── h1 "Schema Status" (text-2xl font-bold, gradient from-primary to-cyan-300)
         │   └── button "Actualizar" (RefreshCw icon)
         ├── SyncNotReportedBanner (conditional — shown when any entity has sync_reported=false)
-        ├── SchemaEntityTabs (entity switcher with summary badges)
+        ├── SchemaEntityTabs (entity switcher with summary badges, min-h-[44px] per tab)
         └── SchemaComparisonTable (current entity's fields)
             └── card wrapper
                 └── table
                     ├── thead (bg-muted/50, sticky top-0)
                     │   └── tr: Campo | PostgreSQL | Compilado | Sync | Estado
+                    │       (text-xs font-bold — Label role)
                     └── tbody
                         └── tr per field (conditional bg tint based on status)
                             ├── td: column_name (font-medium)
@@ -263,6 +268,8 @@ No third-party registries declared. All components are custom-built following ex
 | sync_reported: false handling | Claude's Discretion → informational banner (non-blocking) |
 | Entity summary at page top | Claude's Discretion → via entity tab badges (not separate section) |
 | Table border/padding style | Follows existing card + Tailwind utility patterns (detected) |
+| Typography: 2 weights only (400, 700) | Checker revision — removed weight 500, labels use `text-xs font-bold` |
+| 44px tab touch target | Checker revision — confirmed as `min-h-[44px]` one-off override, not a spacing token |
 
 ---
 
