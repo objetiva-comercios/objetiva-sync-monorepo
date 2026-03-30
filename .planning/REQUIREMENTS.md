@@ -20,7 +20,7 @@
 ## Sync Fixes
 
 - [x] **FIX-01**: Batches con respuesta 207 y 0 errores se cuentan como exitosos (no como fallidos)
-- [ ] **FIX-02**: Flujo de deploy documentado: regenerar -> commit -> rebuild imagen -> prisma db push
+- [x] **FIX-02**: Flujo de deploy documentado: regenerar -> commit -> rebuild imagen -> prisma db push
 
 ## Future Requirements
 

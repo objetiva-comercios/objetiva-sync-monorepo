@@ -52,7 +52,7 @@ Phases 18-24 completed. See `.planning/milestones/v1.2-ROADMAP.md` for details.
 - [x] **Phase 25: Script Adaptation & 207 Fix** - Adapt regeneration script for distributed architecture and fix 207 multi-status bug (completed 2026-03-29)
 - [x] **Phase 26: Schema Comparison API** - Gateway endpoints for 3-way schema comparison and sync schema reporting (completed 2026-03-30)
 - [x] **Phase 27: Schema Status Page** - React dashboard page showing schema alignment across all layers (completed 2026-03-30)
-- [ ] **Phase 28: Deploy Flow Documentation** - Document the complete regenerate-commit-rebuild-push deploy cycle
+- [x] **Phase 28: Deploy Flow Documentation** - Document the complete regenerate-commit-rebuild-push deploy cycle (completed 2026-03-30)
 
 ## Phase Details
 
@@ -106,9 +106,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. A deploy flow document exists that describes the complete cycle: regenerate schemas locally, review diffs, commit, push, rebuild Docker image, and verify prisma db push runs automatically on container start
   2. The document covers the common scenarios: new column added, column type changed, column removed, new table added
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
-- [ ] 28-01-PLAN.md — Schema deploy cycle runbook in DEPLOY.md
+- [x] 28-01-PLAN.md — Schema deploy cycle runbook in DEPLOY.md
 
 ## Progress
 
@@ -124,7 +124,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28
 | 25. Script Adaptation & 207 Fix | v1.3 | 3/3 | Complete    | 2026-03-29 |
 | 26. Schema Comparison API | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 27. Schema Status Page | v1.3 | 2/2 | Complete    | 2026-03-30 |
-| 28. Deploy Flow Documentation | v1.3 | 0/1 | Not started | - |
+| 28. Deploy Flow Documentation | v1.3 | 1/1 | Complete   | 2026-03-30 |
 
 ---
 *Last updated: 2026-03-30 -- Phase 28 plans created (1 plan, 1 wave)*

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Distributed Schema Regeneration
 status: verifying
-stopped_at: Phase 28 context gathered
-last_updated: "2026-03-30T12:15:09.934Z"
+stopped_at: Completed 28-01-PLAN.md
+last_updated: "2026-03-30T12:35:47.623Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  completed_phases: 4
+  total_plans: 9
+  completed_plans: 9
   percent: 0
 ---
 
@@ -21,12 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Phase 27 — schema-status-page
+**Current focus:** Phase 28 — deploy-flow-documentation
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
+Phase: 28 (deploy-flow-documentation) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-03-30
 
@@ -66,6 +66,7 @@ See: .planning/MILESTONES.md for full details
 - [Phase 27-01]: Token cached in useRef not useState — avoids re-render on token acquisition
 - [Phase 27-02]: Simple useState toggle for tab navigation — no router needed for 2-tab operator tool (D-01)
 - [Phase 27-02]: Simple useState toggle for tab navigation — no router needed for 2-tab operator tool (D-01)
+- [Phase 28]: Section 10 added to DEPLOY.md: 6-step schema deploy runbook with inline Verificar checks and 4 scenario callouts
 
 ### Pending Todos
 
@@ -77,9 +78,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T12:15:09.927Z
-Stopped at: Phase 28 context gathered
-Resume file: .planning/phases/28-deploy-flow-documentation/28-CONTEXT.md
+Last session: 2026-03-30T12:35:47.615Z
+Stopped at: Completed 28-01-PLAN.md
+Resume file: None
 Next action: `/gsd:plan-phase 25`
 
 ---
