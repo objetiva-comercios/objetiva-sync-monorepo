@@ -24,6 +24,7 @@ decisions:
   - "LayerCell as internal component — avoids repeating null-check td rendering 3 times per row"
   - "Token cached in useRef not useState — avoids re-render on token acquisition"
   - "sync_reported check at page level not per-entity (Pitfall 5) — single banner, not per-tab noise"
+requirements_completed: []
 metrics:
   duration: "2 minutes"
   completed_date: "2026-03-30"

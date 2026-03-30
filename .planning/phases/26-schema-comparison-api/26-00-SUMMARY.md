@@ -22,6 +22,7 @@ decisions:
   - "buildEntityComparison takes (entity, pgSchema|null, compiledSchema, syncSchema|null, syncReported) signature"
   - "null pgSchema returns all fields with status 'missing' and postgresql: null"
   - "syncReported=false uses 2-way comparison (pg vs compiled), sync: null per field"
+requirements_completed: []
 metrics:
   duration: "4m"
   completed: "2026-03-30T02:31:20Z"

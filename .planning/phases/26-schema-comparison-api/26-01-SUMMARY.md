@@ -26,6 +26,7 @@ decisions:
   - "@objetiva/shared is the correct workspace package path — not @shared/schemas/index.js as documented in plan interfaces"
   - "default_value in Zod schema uses .default(null) not .optional() for TableSchemaMetadata type compatibility"
   - "_resetForTest exported as both method on syncSchemaStore and standalone named export for integration test compatibility"
+requirements_completed: [SCHEMA-02, SCHEMA-04]
 metrics:
   duration_seconds: 624
   completed_date: "2026-03-30"

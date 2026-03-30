@@ -24,6 +24,7 @@ decisions:
   - "process.chdir(gatewayDir) before regenerateSchemas() — codegen/index.ts resolves prismaSchemaPath and monorepoRoot relative to process.cwd()"
   - "No skipFileWrites — regenerateSchemas() writes files directly, no DLL locking concern in distributed arch"
   - "Single execSync prisma generate call, no retry loop — gateway runs on Linux Docker, no Windows DLL issues"
+requirements_completed: [REGEN-01, REGEN-02, REGEN-03, REGEN-04]
 metrics:
   duration: ~8 minutes
   completed: "2026-03-29T22:54:00Z"

@@ -20,6 +20,7 @@ decisions:
   - "reportSchemasToGateway throws on failure; try/catch in index.ts makes it non-blocking"
   - "AbortSignal.timeout(10_000) prevents blocking startup on gateway unreachability"
   - "getGatewayUrl export is additive — no other changes to gateway-client.ts"
+requirements_completed: [SCHEMA-04]
 metrics:
   duration: "~5 minutes"
   completed: "2026-03-30"
