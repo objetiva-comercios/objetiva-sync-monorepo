@@ -294,6 +294,25 @@ Syncing database schema...
 Schema sync complete.
 ```
 
+#### Paso 5b: Rebuild objetiva-sync en el VPS
+
+Los schemas regenerados deben compilarse en el bundle de produccion del sync para que `reportSchemasToGateway()` envie los schemas actualizados al gateway.
+
+```bash
+# En el VPS
+cd objetiva-sync-monorepo/objetiva-sync
+npm ci --production=false
+npm run build
+pm2 restart objetiva-sync
+```
+
+**Verificar:** PM2 reinicia sin errores y el proceso retoma estado `online`:
+
+```bash
+pm2 list
+pm2 logs objetiva-sync --lines 10
+```
+
 #### Paso 6: Verificacion final — Schema Status
 
 Abrir la pagina **Schema Status** en el dashboard del gateway. Cada entidad debe mostrar todas las columnas en verde (alineadas) en las 3 capas: PostgreSQL live, gateway compilado, sync reportado.
