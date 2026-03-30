@@ -52,3 +52,28 @@ export interface ActivityItem {
   timestamp: string
   metadata?: Record<string, any>
 }
+
+// Schema comparison types (mirror of gateway EntityComparison shape)
+export interface FieldLayerData {
+  data_type: string
+  is_nullable: boolean
+}
+
+export interface ComparisonFieldRow {
+  column_name: string
+  status: 'aligned' | 'mismatched' | 'missing'
+  postgresql: FieldLayerData | null
+  compiled: FieldLayerData | null
+  sync: FieldLayerData | null
+}
+
+export interface EntityComparison {
+  entity: string
+  sync_reported: boolean
+  summary: {
+    aligned: number
+    mismatched: number
+    missing: number
+  }
+  fields: ComparisonFieldRow[]
+}
