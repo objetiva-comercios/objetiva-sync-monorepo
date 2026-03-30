@@ -18,7 +18,7 @@ import { decrypt } from '../utils/crypto.js';
  * Gateway configuration: SQLite-first, falls back to environment variables.
  * Read lazily to ensure dotenv has loaded.
  */
-async function getGatewayUrl(): Promise<string> {
+export async function getGatewayUrl(): Promise<string> {
   const record = await getConfig('REMOTE_API_URL');
   if (record?.value) {
     return record.value;
