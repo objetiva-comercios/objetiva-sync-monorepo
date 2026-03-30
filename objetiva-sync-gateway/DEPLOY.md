@@ -218,6 +218,132 @@ Si migrás desde el deployment anterior con PM2:
 2. El contenedor Docker usa la misma base de datos, no se necesita migrar datos
 3. Si ya tenias un `.env`, copialo a `objetiva-sync-gateway/.env` y el contenedor lo levanta directamente sin pasar por el wizard
 
+## 10. Ciclo de Deploy: Regeneracion de Schemas
+
+Usar este procedimiento cuando un cambio en PostgreSQL (columna nueva, tipo modificado, columna eliminada, tabla nueva) necesita propagarse al sistema completo. Para referencia tecnica detallada del flujo completo, ver `.planning/REGENERACION_SCHEMAS.md`.
+
+### Procedimiento paso a paso
+
+#### Paso 1: Preview de cambios (dry-run)
+
+```bash
+cd objetiva-sync-monorepo
+npm run regenerate-schemas:dry-run
+```
+
+Muestra un diff con colores por campo sin escribir ningun archivo. Campos agregados (+) en verde, eliminados (-) en rojo, modificados (~) en amarillo.
+
+**Verificar:** el output muestra los nombres de entidades y el resumen de cambios esperados.
+
+#### Paso 2: Regenerar schemas
+
+```bash
+npm run regenerate-schemas
+```
+
+Conecta al gateway remoto via HTTP con JWT, introspecciona PostgreSQL, genera los schemas Zod en `shared/schemas/generated/` y el schema Prisma en `objetiva-sync-gateway/prisma/schema.prisma`, y ejecuta `prisma generate` automaticamente.
+
+**Verificar:** el output muestra "Schemas regenerated successfully". Confirmar archivos modificados:
+
+```bash
+git diff --stat
+```
+
+#### Paso 3: Revisar cambios
+
+```bash
+git diff shared/schemas/generated/ objetiva-sync-gateway/prisma/schema.prisma
+```
+
+**Verificar:** el diff coincide con lo que mostro el dry-run. No hay cambios inesperados en otras entidades.
+
+#### Paso 4: Commit y push
+
+```bash
+git add shared/schemas/generated/ objetiva-sync-gateway/prisma/schema.prisma
+git commit -m "chore: regenerate schemas from PostgreSQL"
+git push origin main
+```
+
+**Verificar:** el commit esta en el historial:
+
+```bash
+git log --oneline -1
+```
+
+#### Paso 5: Rebuild imagen Docker en el VPS
+
+```bash
+# En el VPS
+cd objetiva-sync-monorepo/objetiva-sync-gateway
+git pull
+docker compose build --no-cache && docker compose up -d
+```
+
+El `docker-entrypoint.sh` ejecuta `npx prisma db push` automaticamente al iniciar el contenedor — sincroniza el schema Prisma con PostgreSQL real (crea columnas faltantes, ajusta tipos, elimina columnas con `--accept-data-loss`).
+
+**Verificar:** los logs confirman que el ciclo completo se ejecuto:
+
+```bash
+docker compose logs --tail 20 sync-gateway
+```
+
+Debe aparecer:
+```
+Syncing database schema...
+Schema sync complete.
+```
+
+#### Paso 6: Verificacion final — Schema Status
+
+Abrir la pagina **Schema Status** en el dashboard del gateway. Cada entidad debe mostrar todas las columnas en verde (alineadas) en las 3 capas: PostgreSQL live, gateway compilado, sync reportado.
+
+**Verificar:** no quedan indicadores amarillos ni rojos en ninguna entidad.
+
+---
+
+### Escenarios comunes
+
+**Columna nueva agregada:** La columna nueva aparece en el schema Zod y en el modelo Prisma. `prisma db push` es un no-op para esta columna (ya existe en PostgreSQL). Si el sync debe enviar datos para esta columna, actualizar manualmente `objetiva-sync/src/types/*.ts`.
+
+**Tipo de columna cambiado:** La regeneracion actualiza el tipo Zod y la anotacion `@db.*` en Prisma. `prisma db push` puede emitir una advertencia si el cambio requiere migracion de datos. Revisar cuidadosamente antes de continuar.
+
+**Columna eliminada:** La regeneracion elimina el campo de Zod y Prisma. `prisma db push` (con `--accept-data-loss`, ya incluido en el entrypoint) refleja la eliminacion desde la perspectiva de Prisma. La columna ya fue eliminada previamente en PostgreSQL.
+
+**Tabla nueva agregada:** Requiere agregar la entidad a los endpoints de introspección del gateway y a la lista de entidades del script antes de correr el procedimiento. Este es un cambio de codigo, no solo una regeneracion.
+
+---
+
+### Ejemplo de output dry-run
+
+```
+=== articulos ===
++ stock_minimo: integer, nullable
+
+Resumen: 1 campo agregado en 1 entidad
+```
+
+---
+
+### Troubleshooting
+
+**"JWT authentication failed" al ejecutar el script:**
+Verificar que `JWT_SECRET` en el `.env` raiz del monorepo coincide exactamente con el `JWT_SECRET` configurado en el gateway. Verificar que `GATEWAY_URL` apunta al host correcto.
+
+**El contenedor no refleja los cambios despues del rebuild:**
+Verificar que se corrio `git pull` en el VPS antes de `docker compose build`. Confirmar que se uso el flag `--no-cache`. Revisar que los logs del entrypoint muestran "Schema sync complete."
+
+**`prisma db push` falla con error de tipos:**
+Un cambio de tipo de columna puede ser incompatible con datos existentes (ej: text a integer). Resolver el conflicto directamente en PostgreSQL primero, luego volver a correr el ciclo.
+
+**Dry-run no muestra los cambios esperados:**
+El script compara contra los archivos locales actuales. Si los archivos ya estan al dia, no hay diff. Verificar que el cambio en PostgreSQL fue realmente aplicado en la base de datos remota.
+
+**Schema Status muestra amarillo/rojo despues del ciclo completo:**
+El sync puede no haber reportado sus schemas todavia. Esperar el proximo ciclo de sync o reiniciar objetiva-sync. Si persiste el desalineamiento, verificar que el sync esta corriendo con el codigo actualizado (schemas regenerados).
+
+---
+
 ## Notas de Arquitectura
 
 - **Build multi-stage:** deps → builder → runtime (~200MB imagen final)
