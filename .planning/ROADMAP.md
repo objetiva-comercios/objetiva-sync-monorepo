@@ -51,7 +51,7 @@ Phases 18-24 completed. See `.planning/milestones/v1.2-ROADMAP.md` for details.
 
 - [x] **Phase 25: Script Adaptation & 207 Fix** - Adapt regeneration script for distributed architecture and fix 207 multi-status bug (completed 2026-03-29)
 - [x] **Phase 26: Schema Comparison API** - Gateway endpoints for 3-way schema comparison and sync schema reporting (completed 2026-03-30)
-- [ ] **Phase 27: Schema Status Page** - React dashboard page showing schema alignment across all layers
+- [x] **Phase 27: Schema Status Page** - React dashboard page showing schema alignment across all layers (completed 2026-03-30)
 - [ ] **Phase 28: Deploy Flow Documentation** - Document the complete regenerate-commit-rebuild-push deploy cycle
 
 ## Phase Details
@@ -94,10 +94,10 @@ Plans:
   2. Each field row shows a color-coded alignment indicator: green for aligned across all 3 layers, red for mismatched between layers, yellow for fields present in PostgreSQL but not yet propagated to gateway or sync schemas
   3. The page loads schema comparison data from the Phase 26 API and renders it without requiring manual refresh or page reload
   4. The page uses Lucide icons and Inter font, following the project design system
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 27-01-PLAN.md — Types, hook, and all Schema Status page components
-- [ ] 27-02-PLAN.md — Wire App.tsx tab bar + visual verification
+- [x] 27-02-PLAN.md — Wire App.tsx tab bar + visual verification
 
 ### Phase 28: Deploy Flow Documentation
 **Goal**: Operator has a clear, documented procedure for the complete schema regeneration deploy cycle
@@ -121,7 +121,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28
 | 18-24. Setup & Pairing | v1.2 | 13/13 | Complete | 2026-03-16 |
 | 25. Script Adaptation & 207 Fix | v1.3 | 3/3 | Complete    | 2026-03-29 |
 | 26. Schema Comparison API | v1.3 | 3/3 | Complete    | 2026-03-30 |
-| 27. Schema Status Page | v1.3 | 1/2 | In Progress|  |
+| 27. Schema Status Page | v1.3 | 2/2 | Complete   | 2026-03-30 |
 | 28. Deploy Flow Documentation | v1.3 | 0/? | Not started | - |
 
 ---
