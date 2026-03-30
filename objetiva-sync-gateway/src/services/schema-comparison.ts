@@ -12,7 +12,7 @@
  * - D-10: Entity includes summary: { aligned: N, mismatched: N, missing: N }
  */
 
-import type { TableSchemaMetadata } from '@shared/types/schema-metadata.js';
+import type { TableSchemaMetadata } from '@objetiva/shared/types';
 import type { TableSchema } from '../types/schema.js';
 
 // ────────────────────────────────────────────────────────────────

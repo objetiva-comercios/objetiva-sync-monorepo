@@ -7,7 +7,7 @@
  * reconnects (D-04).
  */
 
-import type { TableSchemaMetadata } from '@shared/types/schema-metadata.js';
+import type { TableSchemaMetadata } from '@objetiva/shared/types';
 
 /**
  * Internal Map storage — not exported directly.

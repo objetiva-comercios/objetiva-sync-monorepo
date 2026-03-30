@@ -16,6 +16,7 @@ import { registerSchemaRoutes } from './routes/schemas.js'
 import { registerRegenerateRoutes } from './routes/regenerate-schemas.js'
 import { registerDashboardRoutes } from './routes/dashboard.js'
 import { registerPairingRoutes } from './routes/pairing.js'
+import { registerSchemaComparisonRoutes } from './routes/schema-comparison.js'
 import { registerHealthRoutes } from './routes/health.js'
 import { registerMetricsRoutes } from './routes/metrics.js'
 import { registerPreflightRoutes } from './routes/preflight.js'
@@ -158,6 +159,7 @@ export async function buildApp() {
   await registerRegenerateRoutes(app)
   await registerDashboardRoutes(app)
   await registerPairingRoutes(app)
+  await registerSchemaComparisonRoutes(app)
 
   // SPA fallback - todas las rutas no encontradas sirven el dashboard
   app.setNotFoundHandler(async (request, reply) => {
