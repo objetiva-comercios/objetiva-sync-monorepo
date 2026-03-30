@@ -79,6 +79,7 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - ✓ 207 Multi-Status fix: batches with 0 errors count as successful across all 4 API clients — v1.3
 - ✓ Schema comparison API: 3-way comparison (PostgreSQL live vs gateway compiled vs sync reported) per entity — v1.3
 - ✓ Schema Status page in gateway dashboard: entity tabs, comparison table with color-coded alignment indicators, JWT-authenticated data fetching — v1.3
+- ✓ Deploy flow documented: complete regeneration-to-production cycle runbook with inline verification steps — v1.3 (Validated in Phase 28: deploy-flow-documentation)
 
 ### Active
 
@@ -201,4 +202,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after Phase 26 (schema-comparison-api) complete — POST /api/schemas/report and GET /api/schemas/compare endpoints live, sync reports schemas on startup*
+*Last updated: 2026-03-30 after Phase 28 (deploy-flow-documentation) complete — DEPLOY.md has full schema regeneration cycle runbook, v1.3 milestone feature-complete*
