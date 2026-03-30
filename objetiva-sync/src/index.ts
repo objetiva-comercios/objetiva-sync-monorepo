@@ -26,6 +26,7 @@ import { LOG_CONFIG } from './config/constants.js';
 import { initScheduler, stopScheduler } from './sync/scheduler-instance.js';
 import { initializeSchemaCache } from './services/schema-cache.js';
 import { resetStaleStates } from './store/repositories/sync-state-repo.js';
+import { reportSchemasToGateway } from './api-client/schema-report-client.js';
 
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -219,6 +220,13 @@ async function start() {
     // 3.5. Inicializar schema cache (para query validation)
     logger.info('📋 Inicializando schema cache desde gateway...');
     await initializeSchemaCache();
+
+    // 3.6. Report compiled schemas to gateway (for 3-way comparison)
+    try {
+      await reportSchemasToGateway();
+    } catch (err) {
+      logger.warn({ err }, 'Schema report to gateway failed (non-blocking)');
+    }
 
     // 4. Inicializar scheduler automático
     logger.info('⏰ Inicializando scheduler automático...');
