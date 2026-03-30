@@ -41,13 +41,13 @@ None deferred.
 | REGEN-02 | Phase 25 | 25-01 | Verified |
 | REGEN-03 | Phase 25 | 25-01 | Verified |
 | REGEN-04 | Phase 25 | 25-01 | Verified |
-| SCHEMA-01 | Phase 27 | 27-01, 27-02 | Pending → Phase 29 |
-| SCHEMA-02 | Phase 26 | 26-01 | Pending → Phase 29 |
-| SCHEMA-03 | Phase 27 | 27-01, 27-02 | Pending → Phase 29 |
-| SCHEMA-04 | Phase 26 | 26-02 | Pending → Phase 29 |
+| SCHEMA-01 | Phase 27 | 27-01, 27-02 | Verified |
+| SCHEMA-02 | Phase 26 | 26-01 | Verified |
+| SCHEMA-03 | Phase 27 | 27-01, 27-02 | Verified |
+| SCHEMA-04 | Phase 26 | 26-02 | Verified |
 | FIX-01 | Phase 25 | 25-00, 25-02 | Verified |
-| FIX-02 | Phase 28 | 28-01 | Pending → Phase 29 |
+| FIX-02 | Phase 28 | 28-01 | Verified |
 
 ---
 *Created: 2026-03-28 -- Milestone v1.3*
-*Traceability updated: 2026-03-30 -- Phase 29 gap closure assignments added*
+*Traceability updated: 2026-03-30 -- Phase 29 closes all gaps to Verified*
