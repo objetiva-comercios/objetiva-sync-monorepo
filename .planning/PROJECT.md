@@ -77,6 +77,8 @@ PostgreSQL schema changes propagate correctly through the entire synchronization
 - ✓ Health check endpoint (/health) with component probes — v1.1-rc2
 - ✓ Regeneration script adapted for distributed architecture (monorepo root, zero Windows code) — v1.3
 - ✓ 207 Multi-Status fix: batches with 0 errors count as successful across all 4 API clients — v1.3
+- ✓ Schema comparison API: 3-way comparison (PostgreSQL live vs gateway compiled vs sync reported) per entity — v1.3
+- ✓ Schema Status page in gateway dashboard: entity tabs, comparison table with color-coded alignment indicators, JWT-authenticated data fetching — v1.3
 
 ### Active
 
