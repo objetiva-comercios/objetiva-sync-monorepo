@@ -79,7 +79,11 @@ Plans:
   1. Sync reports its current schema version to the gateway via a dedicated endpoint (POST or PUT), and the gateway stores this per-entity schema snapshot in memory
   2. GET endpoint on the gateway returns a structured 3-way comparison for each entity: PostgreSQL live columns vs gateway compiled TableSchemaMetadata vs sync-reported schema, with per-field alignment status (aligned/mismatched/missing)
   3. The comparison API returns data for all 4 entities (articulos, comprobantes_cabecera, comprobantes_detalle, comprobantes_pagos) in a single request
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 26-00-PLAN.md — Wave 0: Test scaffolds for schema comparison (Nyquist compliance)
+- [ ] 26-01-PLAN.md — Gateway: sync schema store + comparison service + route handlers
+- [ ] 26-02-PLAN.md — Sync: schema report client + startup hook
 
 ### Phase 27: Schema Status Page
 **Goal**: Operator can view a Schema Status page in the gateway React dashboard showing full column details and visual alignment indicators across all 3 schema layers
@@ -114,9 +118,9 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28
 | 13-16. Multi-Source & Hardening | v1.1-rc2 | 14/14 | Complete | 2026-02-18 |
 | 18-24. Setup & Pairing | v1.2 | 13/13 | Complete | 2026-03-16 |
 | 25. Script Adaptation & 207 Fix | v1.3 | 3/3 | Complete    | 2026-03-29 |
-| 26. Schema Comparison API | v1.3 | 0/? | Not started | - |
+| 26. Schema Comparison API | v1.3 | 0/3 | Not started | - |
 | 27. Schema Status Page | v1.3 | 0/? | Not started | - |
 | 28. Deploy Flow Documentation | v1.3 | 0/? | Not started | - |
 
 ---
-*Last updated: 2026-03-29 -- Phase 25 plans revised (added Wave 0)*
+*Last updated: 2026-03-29 -- Phase 26 plans created (3 plans, 2 waves)*
