@@ -53,7 +53,7 @@ Phases 18-24 completed. See `.planning/milestones/v1.2-ROADMAP.md` for details.
 - [x] **Phase 26: Schema Comparison API** - Gateway endpoints for 3-way schema comparison and sync schema reporting (completed 2026-03-30)
 - [x] **Phase 27: Schema Status Page** - React dashboard page showing schema alignment across all layers (completed 2026-03-30)
 - [x] **Phase 28: Deploy Flow Documentation** - Document the complete regenerate-commit-rebuild-push deploy cycle (completed 2026-03-30)
-- [ ] **Phase 29: Tech Debt Cleanup & Deploy Hardening** - Close audit gaps: traceability, DEPLOY.md hardening, SUMMARY metadata, Nyquist compliance
+- [x] **Phase 29: Tech Debt Cleanup & Deploy Hardening** - Close audit gaps: traceability, DEPLOY.md hardening, SUMMARY metadata, Nyquist compliance (completed 2026-03-30)
 
 ## Phase Details
 
@@ -121,9 +121,9 @@ Plans:
   2. DEPLOY.md includes explicit step for rebuilding objetiva-sync before deploying
   3. All SUMMARY frontmatter files include `requirements_completed` field
   4. Phases 26, 27, 28 have compliant VALIDATION.md files (Nyquist)
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
-- [ ] 29-01-PLAN.md — Traceability, DEPLOY.md hardening, SUMMARY backfill, VALIDATION.md compliance
+- [x] 29-01-PLAN.md — Traceability, DEPLOY.md hardening, SUMMARY backfill, VALIDATION.md compliance
 
 ## Progress
 
@@ -140,7 +140,7 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | 26. Schema Comparison API | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 27. Schema Status Page | v1.3 | 2/2 | Complete    | 2026-03-30 |
 | 28. Deploy Flow Documentation | v1.3 | 1/1 | Complete    | 2026-03-30 |
-| 29. Tech Debt Cleanup & Deploy Hardening | v1.3 | 0/1 | Planned | — |
+| 29. Tech Debt Cleanup & Deploy Hardening | v1.3 | 1/1 | Complete   | 2026-03-30 |
 
 ---
 *Last updated: 2026-03-30 -- Phase 29 planned (1 plan, 4 tasks)*

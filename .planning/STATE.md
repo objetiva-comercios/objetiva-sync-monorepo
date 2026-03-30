@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Distributed Schema Regeneration
 status: verifying
-stopped_at: Completed 28-01-PLAN.md
-last_updated: "2026-03-30T12:39:50.428Z"
+stopped_at: Completed 29-01-PLAN.md
+last_updated: "2026-03-30T14:34:32.022Z"
 last_activity: 2026-03-30
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 10
+  completed_plans: 10
   percent: 0
 ---
 
@@ -21,12 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-28)
 
 **Core value:** PostgreSQL schema changes propagate correctly through entire sync pipeline without breaking queries, validation, or data ingestion
-**Current focus:** Phase 28 — deploy-flow-documentation
+**Current focus:** Phase 29 — tech-debt-cleanup
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
+Phase: 29 (tech-debt-cleanup) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-03-30
 
@@ -67,6 +67,8 @@ See: .planning/MILESTONES.md for full details
 - [Phase 27-02]: Simple useState toggle for tab navigation — no router needed for 2-tab operator tool (D-01)
 - [Phase 27-02]: Simple useState toggle for tab navigation — no router needed for 2-tab operator tool (D-01)
 - [Phase 28]: Section 10 added to DEPLOY.md: 6-step schema deploy runbook with inline Verificar checks and 4 scenario callouts
+- [Phase 29]: requirements_completed uses underscore form for new additions; existing hyphen-form files not modified
+- [Phase 29]: Phase 26 integration test rows marked env (pre-existing failures from missing local PostgreSQL, not Phase 26 regressions)
 
 ### Pending Todos
 
@@ -78,8 +80,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T12:35:47.615Z
-Stopped at: Completed 28-01-PLAN.md
+Last session: 2026-03-30T14:34:32.014Z
+Stopped at: Completed 29-01-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 25`
 
