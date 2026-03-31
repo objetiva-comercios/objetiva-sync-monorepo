@@ -1,6 +1,6 @@
 # Objetiva Sync Monorepo
 
-Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde sistemas ERP (SQL Server, PostgreSQL, MySQL, Excel) y los centraliza en una base de datos PostgreSQL a traves de un API Gateway REST. Diseñado para empresas que necesitan consolidar informacion de articulos, comprobantes y pagos desde multiples origenes hacia un unico repositorio de datos confiable. Incluye un dashboard web para configuracion y monitoreo en tiempo real, un wizard de setup guiado para el gateway y enlace automatico sync-gateway via codigos de pairing.
+Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde sistemas ERP (SQL Server, PostgreSQL, MySQL, Excel) y los centraliza en una base de datos PostgreSQL a traves de un API Gateway REST. Diseñado para empresas que necesitan consolidar informacion de articulos, comprobantes y pagos desde multiples origenes hacia un unico repositorio de datos confiable. Incluye regeneracion distribuida de schemas (Zod + Prisma) desde PostgreSQL remoto, comparacion 3-way de schemas (PostgreSQL live vs gateway compilado vs sync reportado), dashboard web con pagina de Schema Status, wizard de setup guiado y enlace automatico sync-gateway via codigos de pairing.
 
 ## Tecnologias
 
@@ -14,6 +14,7 @@ Sistema de sincronizacion ETL (Extract-Transform-Load) que extrae datos desde si
 | Validacion | Zod 3.23 |
 | Autenticacion | JWT (@fastify/jwt + fast-jwt) |
 | Frontend (Sync) | HTMX + EJS + Tailwind CSS |
+| Frontend (Gateway) | React + Vite |
 | Logging | Pino |
 | Metricas | prom-client (Prometheus) |
 | Scheduling | node-cron |
@@ -158,7 +159,28 @@ No es necesario crear ni editar el `.env` manualmente. El archivo `.env.example`
 | `GATEWAY_PUBLIC_URL` | Gateway | URL publica accesible desde sync. Requerida para el flujo de pairing |
 | `ENCRYPTION_KEY` | Sync | Se auto-genera en el primer arranque. Encripta datos sensibles en SQLite |
 
+### Monorepo root (.env)
+
+Para la regeneracion remota de schemas desde la maquina de desarrollo:
+
+```env
+GATEWAY_URL=http://tu-gateway-url:3335
+JWT_SECRET=tu_jwt_secret_64_hex_chars
+```
+
+| Variable | Descripcion |
+|---|---|
+| `GATEWAY_URL` | URL del gateway remoto accesible desde la maquina de desarrollo |
+| `JWT_SECRET` | Debe coincidir con el JWT_SECRET del gateway |
+
 ## Uso
+
+### Monorepo root (regeneracion de schemas)
+
+| Comando | Descripcion |
+|---|---|
+| `npm run regenerate-schemas` | Regenera schemas Zod y Prisma desde PostgreSQL remoto |
+| `npm run regenerate-schemas:dry-run` | Vista previa de cambios sin escribir archivos |
 
 ### objetiva-sync (Motor de sincronizacion)
 
@@ -185,8 +207,6 @@ No es necesario crear ni editar el `.env` manualmente. El archivo `.env.example`
 | `npm run prisma:push` | Aplica el schema a PostgreSQL |
 | `npm run prisma:migrate` | Crea una migracion de Prisma |
 | `npm run prisma:studio` | Abre Prisma Studio (inspector visual de BD) |
-| `npm run regenerate-schemas` | Regenera schemas Zod y Prisma desde PostgreSQL |
-| `npm run regenerate-schemas:dry-run` | Vista previa de la regeneracion sin aplicar cambios |
 
 ### Docker (Gateway)
 
@@ -215,7 +235,7 @@ No es necesario crear ni editar el `.env` manualmente. El archivo `.env.example`
 │   │   │   ├── routes/               # Rutas HTTP (API y vistas)
 │   │   │   ├── static/               # Assets CSS/JS
 │   │   │   └── views/                # Templates EJS
-│   │   ├── services/                 # Logica de negocio (auth)
+│   │   ├── services/                 # Logica de negocio (auth, schema-cache)
 │   │   ├── store/                    # Acceso a datos SQLite (Drizzle)
 │   │   │   ├── schema.ts             # Esquema de tablas
 │   │   │   ├── repositories/         # Patron repository
@@ -238,11 +258,12 @@ No es necesario crear ni editar el `.env` manualmente. El archivo `.env.example`
 │   │   ├── lib/                      # Utilidades (logger, Prisma, metricas)
 │   │   ├── middleware/               # JWT auth, manejo de errores
 │   │   ├── routes/                   # Endpoints (ingesta, schemas, setup, pairing)
-│   │   ├── services/                 # Logica de ingesta y pairing
+│   │   ├── services/                 # Logica de ingesta, pairing, schema comparison
 │   │   ├── utils/                    # Env writer, system state
 │   │   └── app.ts / server.ts        # Setup y arranque de Fastify
+│   ├── dashboard/                    # React SPA (Schema Status, metricas)
 │   ├── prisma/
-│   │   ├── schema.prisma             # Modelos PostgreSQL
+│   │   ├── schema.prisma             # Modelos PostgreSQL (auto-generado)
 │   │   └── migrations/               # Historial de migraciones
 │   ├── Dockerfile                    # Build multi-stage (3 etapas, ~200MB)
 │   ├── docker-compose.yml            # Despliegue con Traefik
@@ -250,12 +271,16 @@ No es necesario crear ni editar el `.env` manualmente. El archivo `.env.example`
 │
 ├── shared/                           # Codigo compartido entre servicios
 │   ├── schemas/
+│   │   ├── index.ts                  # Exports de todos los schemas generados
 │   │   └── generated/                # Schemas Zod auto-generados desde PostgreSQL
 │   │       ├── articulos.schema.ts
 │   │       ├── comprobantes_cabecera.schema.ts
 │   │       ├── comprobantes_detalle.schema.ts
 │   │       └── comprobantes_pagos.schema.ts
-│   └── types/                        # Tipos compartidos (EntityMetadata)
+│   └── types/                        # Tipos compartidos (EntityMetadata, SchemaMetadata)
+│
+├── scripts/
+│   └── regenerate-schemas.ts         # CLI de regeneracion distribuida de schemas
 │
 └── package.json                      # Configuracion del monorepo (workspaces)
 ```
@@ -271,6 +296,15 @@ El Gateway expone los siguientes endpoints en el puerto `3335`:
 | POST | `/api/batch/:entityType` | Ingesta de un lote de registros para una entidad |
 | GET | `/api/schemas` | Obtiene los schemas de validacion vigentes |
 | GET | `/api/schemas/:entityType` | Schema de validacion para una entidad especifica |
+
+### Comparacion de schemas
+
+| Metodo | Ruta | Descripcion |
+|---|---|---|
+| GET | `/api/schemas/compare` | Comparacion 3-way: PostgreSQL live vs gateway compilado vs sync reportado |
+| POST | `/api/schemas/report` | Sync reporta sus schemas actuales al gateway |
+
+La comparacion 3-way permite detectar desalineamientos entre las 3 capas del sistema. La pagina Schema Status del dashboard del gateway consume estos endpoints para visualizar el estado de alineacion por entidad y por campo.
 
 ### Setup y pairing
 
@@ -304,15 +338,19 @@ La autenticacion entre sync y gateway es via JWT con shared secret (`JWT_SECRET`
 
 ### Regeneracion de schemas
 
-Cuando la estructura de PostgreSQL cambia, los schemas Zod y modelos Prisma deben regenerarse:
+Cuando la estructura de PostgreSQL cambia (columna nueva, tipo modificado, columna eliminada), los schemas Zod y modelos Prisma deben regenerarse. El comando se ejecuta desde la raiz del monorepo:
 
 ```bash
-cd objetiva-sync-gateway
-npm run regenerate-schemas          # Aplica los cambios
-npm run regenerate-schemas:dry-run  # Vista previa sin aplicar
+# Vista previa de cambios (sin escribir archivos)
+npm run regenerate-schemas:dry-run
+
+# Aplicar cambios
+npm run regenerate-schemas
 ```
 
-Este comando introspecciona PostgreSQL y actualiza los archivos en `shared/schemas/generated/` y `prisma/schema.prisma`.
+El script conecta al gateway remoto via HTTP con JWT, introspecciona PostgreSQL, genera los schemas Zod en `shared/schemas/generated/` y el schema Prisma en `objetiva-sync-gateway/prisma/schema.prisma`, y ejecuta `prisma generate` automaticamente.
+
+El ciclo completo de deploy tras un cambio en PostgreSQL se documenta en la Seccion 10 de `objetiva-sync-gateway/DEPLOY.md`.
 
 ### Sincronizacion programada
 
@@ -425,8 +463,8 @@ Todas las entidades incluyen campos de auditoria (`erp_creado`, `erp_actualizado
 
 ## Estado del proyecto
 
-Milestone actual: **v1.2 Setup & Pairing** — 7 de 7 fases completadas, auditoria aprobada (2026-03-16).
+Milestone actual: **v1.3 Distributed Schema Regeneration** — 5 de 5 fases completadas, 10 requirements verificados, closure-ready (2026-03-30).
 
-Milestones anteriores: v1.0 (2026-02-03), v1.1-rc (2026-02-05), v1.1-rc2 (2026-02-18).
+Milestones anteriores: v1.0 (2026-02-03), v1.1-rc (2026-02-05), v1.1-rc2 (2026-02-18), v1.2 (2026-03-16).
 
-Proximo paso: cierre de milestone v1.2 y verificacion humana con datos de produccion para el release de v1.1 estable.
+Pendiente: verificacion humana end-to-end con cambios reales en PostgreSQL y datos de produccion.
