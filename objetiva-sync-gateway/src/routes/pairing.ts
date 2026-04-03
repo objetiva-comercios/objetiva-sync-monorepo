@@ -94,9 +94,9 @@ export async function registerPairingRoutes(app: FastifyInstance): Promise<void>
 
     if (result === 'ok') {
       lastCodeWasClaimed = true
-      // Return the secret that @fastify/jwt actually verifies against,
-      // not process.env which may have been updated by the setup wizard
-      // after jwt plugin registration.
+      // Return the JWT secret the gateway will verify against after restart.
+      // During setup-only mode, the wizard updates systemState.registeredJwtSecret
+      // when saving the new secret, so this returns the correct post-restart value.
       const effectiveSecret = systemState.registeredJwtSecret ?? process.env.JWT_SECRET ?? null
       return reply.code(200).send({
         success: true,

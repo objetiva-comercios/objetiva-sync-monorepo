@@ -1223,7 +1223,14 @@ export async function registerSetupRoutes(app: FastifyInstance) {
 
       await writeEnvVar('JWT_SECRET', jwtSecret)
 
-      logger.info('JWT Secret guardado en .env')
+      // Update systemState so pairing/claim returns the correct secret.
+      // @fastify/jwt was registered with the startup default ('change-me-in-production')
+      // but after container restart it will use this new secret from .env.
+      // The pairing endpoint must return the post-restart secret, not the cached one.
+      const { systemState } = await import('../lib/system-state.js')
+      systemState.registeredJwtSecret = jwtSecret
+
+      logger.info('JWT Secret guardado en .env y systemState actualizado')
 
       return reply.send({ success: true })
     } catch (error) {
