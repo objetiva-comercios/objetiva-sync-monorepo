@@ -128,6 +128,13 @@ cd "$GATEWAY_DIR"
 docker compose build --no-cache --pull
 ok "Imagen construida"
 
+# -- Asegurar .env existe (bind-mount necesita un archivo, no un directorio) --
+if [ ! -f "${GATEWAY_DIR}/.env" ]; then
+  touch "${GATEWAY_DIR}/.env"
+  chmod 666 "${GATEWAY_DIR}/.env"
+  ok "Archivo .env creado (vacio — el wizard lo completara)"
+fi
+
 # -- Levantar contenedor ----------------------------------------------------
 echo ""
 info "Levantando contenedor..."

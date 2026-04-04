@@ -14,6 +14,7 @@ services:
     #   - "3335:3335"
     volumes:
       - gateway-logs:/app/objetiva-sync-gateway/logs
+      - ./.env:/app/objetiva-sync-gateway/.env
     networks:
       - sanchez_docker_network
     mem_limit: 512m
