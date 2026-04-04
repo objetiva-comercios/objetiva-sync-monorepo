@@ -115,6 +115,9 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 gateway && \
     chown -R gateway:nodejs objetiva-sync-gateway/logs && \
     chown -R gateway:nodejs objetiva-sync-gateway/data && \
+    chown -R gateway:nodejs node_modules/.prisma && \
+    chown -R gateway:nodejs node_modules/prisma && \
+    chown -R gateway:nodejs objetiva-sync-gateway/node_modules/.prisma && \
     chown gateway:nodejs objetiva-sync-gateway
 
 USER gateway
