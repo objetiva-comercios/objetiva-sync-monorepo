@@ -7,7 +7,7 @@
 - [x] **v1.1-rc2 Multi-Source & Hardening** - Phases 13-16 (shipped 2026-02-18)
 - [x] **v1.1-rc2 Dashboard (rolled back)** - Phase 17 (rolled back)
 - [x] **v1.2 Setup & Pairing** - Phases 18-24 (completed 2026-03-16)
-- [ ] **v1.3 Distributed Schema Regeneration** - Phases 25-29 (in progress)
+- [ ] **v1.3 Distributed Schema Regeneration** - Phases 25-30 (in progress)
 
 ---
 
@@ -141,6 +141,17 @@ Phases execute in numeric order: 25 -> 26 -> 27 -> 28 -> 29
 | 27. Schema Status Page | v1.3 | 2/2 | Complete    | 2026-03-30 |
 | 28. Deploy Flow Documentation | v1.3 | 1/1 | Complete    | 2026-03-30 |
 | 29. Tech Debt Cleanup & Deploy Hardening | v1.3 | 1/1 | Complete    | 2026-03-30 |
+
+### Phase 30: Zero-config auth for monorepo scripts
+
+**Goal:** After pairing, regenerate-schemas and any future monorepo scripts authenticate automatically against the gateway — zero manual .env, zero token copying. Scripts discover gateway URL and obtain JWT tokens using the same trust established during pairing.
+**Requirements**: ZEROAUTH-01: Scripts auto-discover gateway URL without manual config; ZEROAUTH-02: Scripts obtain valid JWT without manual JWT_SECRET; ZEROAUTH-03: No breaking changes to existing pairing flow; ZEROAUTH-04: Works from both VPS (sparse checkout) and dev machine (full repo)
+**Depends on:** Phase 26 (schema comparison API), Phase 25 (regenerate-schemas script)
+**UI hint:** no
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 30 to break down)
 
 ---
 *Last updated: 2026-03-30 -- Phase 29 planned (1 plan, 4 tasks)*

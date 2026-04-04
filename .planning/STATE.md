@@ -70,6 +70,10 @@ See: .planning/MILESTONES.md for full details
 - [Phase 29]: requirements_completed uses underscore form for new additions; existing hyphen-form files not modified
 - [Phase 29]: Phase 26 integration test rows marked env (pre-existing failures from missing local PostgreSQL, not Phase 26 regressions)
 
+### Roadmap Evolution
+
+- Phase 30 added: Zero-config auth for monorepo scripts — after pairing, scripts authenticate automatically against gateway without manual .env
+
 ### Pending Todos
 
 None yet.
