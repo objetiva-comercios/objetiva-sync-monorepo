@@ -10,6 +10,7 @@
  */
 
 import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
 import * as path from 'path'
 
 // In-memory promise-chain mutex. Serializes all .env writes.
@@ -31,8 +32,24 @@ function escapeValue(value: string): string {
  * Core write implementation. Reads the current .env, replaces or appends
  * a single key=value line, writes back, and updates process.env.
  */
+/**
+ * Resolve the .env file path.
+ * In Docker, write to data/.env (a named volume that persists across restarts).
+ * In development, write to .env in cwd as before.
+ */
+function resolveEnvPath(): string {
+  const dataDir = path.join(process.cwd(), 'data')
+  try {
+    const stat = fsSync.statSync(dataDir)
+    if (stat.isDirectory()) return path.join(dataDir, '.env')
+  } catch {
+    // data/ doesn't exist — dev mode, use cwd
+  }
+  return path.join(process.cwd(), '.env')
+}
+
 async function doWrite(key: string, value: string): Promise<void> {
-  const envPath = path.join(process.cwd(), '.env')
+  const envPath = resolveEnvPath()
   const escaped = escapeValue(value)
   const line = `${key}="${escaped}"`
 

@@ -8,13 +8,15 @@ services:
     env_file:
       - path: .env
         required: false
+      - path: data/.env
+        required: false
     # No port mapping — Traefik routes internally via Docker network
     # Uncomment for local development without Traefik:
     # ports:
     #   - "3335:3335"
     volumes:
       - gateway-logs:/app/objetiva-sync-gateway/logs
-      - ./.env:/app/objetiva-sync-gateway/.env
+      - gateway-data:/app/objetiva-sync-gateway/data
     networks:
       - sanchez_docker_network
     mem_limit: 512m
@@ -38,6 +40,7 @@ services:
 
 volumes:
   gateway-logs:
+  gateway-data:
 
 networks:
   sanchez_docker_network:

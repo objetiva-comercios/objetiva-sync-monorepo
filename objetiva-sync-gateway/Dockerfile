@@ -107,13 +107,14 @@ COPY --from=builder /app/objetiva-sync-gateway/prisma objetiva-sync-gateway/pris
 COPY objetiva-sync-gateway/docker-entrypoint.sh objetiva-sync-gateway/docker-entrypoint.sh
 RUN chmod +x objetiva-sync-gateway/docker-entrypoint.sh
 
-# Create logs directory
-RUN mkdir -p objetiva-sync-gateway/logs
+# Create logs and data directories
+RUN mkdir -p objetiva-sync-gateway/logs objetiva-sync-gateway/data
 
 # Non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 gateway && \
     chown -R gateway:nodejs objetiva-sync-gateway/logs && \
+    chown -R gateway:nodejs objetiva-sync-gateway/data && \
     chown gateway:nodejs objetiva-sync-gateway
 
 USER gateway
