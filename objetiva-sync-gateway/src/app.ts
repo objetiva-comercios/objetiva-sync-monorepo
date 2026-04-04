@@ -100,6 +100,7 @@ export async function buildApp() {
   // not a potentially stale process.env value updated by the setup wizard.
   const jwtSecretAtStartup = process.env.JWT_SECRET || 'change-me-in-production'
   systemState.registeredJwtSecret = jwtSecretAtStartup
+  systemState.startupJwtSecret = jwtSecretAtStartup
   await app.register(jwt as any, {
     secret: jwtSecretAtStartup,
     sign: {

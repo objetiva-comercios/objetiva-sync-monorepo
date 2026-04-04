@@ -24,7 +24,11 @@ export const systemState = {
   // Whether a pairing code has been successfully claimed in this container lifecycle
   setupComplete: false,
   // JWT secret that @fastify/jwt was registered with (cached at startup).
-  // Used by pairing/claim to return the actual secret the gateway verifies against,
-  // not process.env.JWT_SECRET which may have been updated after registration.
-  registeredJwtSecret: null as string | null
+  // Used by pairing/claim to return the secret the gateway will use post-restart.
+  // Updated by the setup wizard when saving a new JWT_SECRET.
+  registeredJwtSecret: null as string | null,
+  // The secret @fastify/jwt was ACTUALLY registered with at startup (immutable).
+  // Used by auth middleware to detect when the wizard updated the secret mid-lifecycle
+  // and activate fallback verification with the new secret.
+  startupJwtSecret: null as string | null
 }

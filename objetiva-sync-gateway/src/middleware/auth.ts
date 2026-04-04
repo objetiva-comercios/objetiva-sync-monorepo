@@ -1,5 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
+import { createVerifier } from 'fast-jwt'
 import { logger } from '../lib/logger.js'
+import { systemState } from '../lib/system-state.js'
 
 /**
  * Auth error codes for specific failure types.
@@ -13,6 +15,29 @@ export const AUTH_ERROR_CODES = {
 } as const
 
 export type AuthErrorCode = keyof typeof AUTH_ERROR_CODES
+
+/**
+ * Try verifying a token with the current process.env.JWT_SECRET.
+ *
+ * After the setup wizard saves a new JWT_SECRET, @fastify/jwt still holds the
+ * startup default. This fallback lets tokens signed with the NEW secret pass
+ * verification without requiring a container restart.
+ *
+ * Only activates when process.env.JWT_SECRET differs from what @fastify/jwt
+ * was registered with (i.e., the wizard updated the secret mid-lifecycle).
+ */
+function tryFallbackVerify(token: string): Record<string, unknown> | null {
+  const currentSecret = process.env.JWT_SECRET
+  const startupSecret = systemState.startupJwtSecret
+  if (!currentSecret || currentSecret === startupSecret) return null
+
+  try {
+    const verifier = createVerifier({ key: currentSecret })
+    return verifier(token) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
 
 /**
  * Authentication middleware that verifies JWT tokens and returns specific error codes.
@@ -35,6 +60,17 @@ export async function authenticate(
   try {
     await request.jwtVerify()
   } catch (err: any) {
+    // Before returning 401, try verifying with the current JWT_SECRET.
+    // This handles the case where the setup wizard updated the secret but
+    // @fastify/jwt still holds the old cached value.
+    const rawToken = authHeader.replace(/^Bearer\s+/i, '')
+    const fallbackPayload = tryFallbackVerify(rawToken)
+    if (fallbackPayload) {
+      // Attach payload so downstream handlers can read request.user
+      ;(request as any).user = fallbackPayload
+      return
+    }
+
     const errorCode = err?.code || ''
 
     // Map @fastify/jwt error codes to our specific error codes
