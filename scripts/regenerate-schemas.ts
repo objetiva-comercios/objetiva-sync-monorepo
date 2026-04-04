@@ -6,12 +6,12 @@
  * No process-killing or DLL dependencies — the gateway runs on a separate
  * Linux server (Docker), so Windows file-locking is not a concern.
  *
- * Flow:
- * 1. Load env vars from root .env
- * 2. Check prerequisites (env vars, gateway health, PostgreSQL connection)
- * 3. chdir to gateway dir so codegen resolves paths correctly
- * 4. Call regenerateSchemas() — fetches schemas, generates content, writes files
- * 5. Run prisma generate (updates Prisma Client for local type checking)
+ * Authentication is automatic after initial pairing:
+ * 1. Auto-discover gateway URL from gateway's own .env (GATEWAY_PUBLIC_URL)
+ * 2. Request a JWT token from gateway via POST /api/setup/token (same as dashboard)
+ * 3. No manual .env configuration needed at monorepo root
+ *
+ * Fallback: manual GATEWAY_URL + JWT_SECRET in monorepo root .env still works.
  *
  * Usage:
  *   npm run regenerate-schemas                        # Full regeneration
@@ -23,14 +23,17 @@ import { config } from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { regenerateSchemas } from '../objetiva-sync-gateway/src/codegen/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const monorepoRoot = resolve(__dirname, '..');
+const gatewayDir = resolve(monorepoRoot, 'objetiva-sync-gateway');
 
-// Load .env from monorepo root (per D-02)
+// Load .env from monorepo root if it exists (legacy support)
 if (!process.env.SKIP_DOTENV) {
-  config({ path: resolve(__dirname, '..', '.env') });
+  config({ path: resolve(monorepoRoot, '.env') });
 }
 
 // Parse CLI arguments
@@ -44,28 +47,117 @@ if (entityIndex !== -1 && !entity) {
   process.exit(1);
 }
 
-const REQUIRED_ENV_VARS = ['GATEWAY_URL', 'JWT_SECRET'] as const;
+/**
+ * Auto-discover gateway URL from the gateway's own .env files.
+ * The setup wizard writes GATEWAY_PUBLIC_URL there during initial configuration.
+ *
+ * Search order:
+ * 1. objetiva-sync-gateway/data/.env (Docker named volume — production)
+ * 2. objetiva-sync-gateway/.env (local dev or VPS sparse-checkout)
+ */
+function discoverGatewayUrl(): string | null {
+  const envPaths = [
+    resolve(gatewayDir, 'data', '.env'),
+    resolve(gatewayDir, '.env'),
+  ];
+
+  for (const envPath of envPaths) {
+    if (!existsSync(envPath)) continue;
+
+    try {
+      const content = readFileSync(envPath, 'utf-8');
+      // Parse GATEWAY_PUBLIC_URL from the file (handles quoted and unquoted values)
+      const match = content.match(/^GATEWAY_PUBLIC_URL=["']?([^"'\s\r\n]+)["']?/m);
+      if (match?.[1]) {
+        return match[1];
+      }
+    } catch {
+      // Can't read file, try next
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Request a JWT token from the gateway via POST /api/setup/token.
+ * This is the same unauthenticated endpoint the dashboard uses.
+ * It works because we're an authorized operator with access to the gateway.
+ */
+async function requestGatewayToken(gatewayUrl: string): Promise<string> {
+  const response = await fetch(`${gatewayUrl}/api/setup/token`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Gateway returned ${response.status} for token request`);
+  }
+
+  const body = await response.json() as { success: boolean; token?: string };
+  if (!body.success || !body.token) {
+    throw new Error('Gateway returned invalid token response');
+  }
+
+  return body.token;
+}
+
+/**
+ * Resolve GATEWAY_URL and authentication token.
+ *
+ * Priority:
+ * 1. Auto-discover from gateway .env + request token from gateway (zero-config)
+ * 2. Manual GATEWAY_URL + JWT_SECRET from monorepo root .env (legacy)
+ */
+async function resolveAuth(): Promise<void> {
+  // If GATEWAY_URL is already set (manual .env or env var), use legacy flow
+  if (process.env.GATEWAY_URL && process.env.JWT_SECRET) {
+    console.log('  ✓ Using manual configuration (GATEWAY_URL + JWT_SECRET from .env)');
+    return;
+  }
+
+  // Auto-discovery: find gateway URL from gateway's own config
+  console.log('  Auto-discovering gateway configuration...');
+
+  const discoveredUrl = process.env.GATEWAY_URL || discoverGatewayUrl();
+  if (!discoveredUrl) {
+    console.error('\nError: Could not find gateway URL.');
+    console.error('Options:');
+    console.error('  1. Run this from a machine with objetiva-sync-gateway/ present');
+    console.error('  2. Set GATEWAY_URL in .env at monorepo root');
+    process.exit(1);
+  }
+
+  // Normalize URL (strip trailing slash)
+  const gatewayUrl = discoveredUrl.replace(/\/+$/, '');
+  process.env.GATEWAY_URL = gatewayUrl;
+  console.log(`  ✓ Gateway URL: ${gatewayUrl}`);
+
+  // Request token from gateway (zero-config auth)
+  try {
+    const token = await requestGatewayToken(gatewayUrl);
+    process.env.JWT_TOKEN = token;
+    console.log('  ✓ Token obtained from gateway (auto-authenticated)');
+  } catch (error: any) {
+    if (process.env.JWT_SECRET) {
+      // Fallback: can still sign locally
+      console.log('  ⚠ Could not get token from gateway, using local JWT_SECRET');
+      return;
+    }
+    console.error(`\nError: Cannot authenticate with gateway at ${gatewayUrl}`);
+    console.error(`  ${error.message}`);
+    console.error('\nIs the gateway running? Try: curl ' + gatewayUrl + '/health');
+    process.exit(1);
+  }
+}
 
 async function checkPrerequisites(): Promise<void> {
   console.log('Checking prerequisites...\n');
 
-  // 1. Check required environment variables
-  const missingVars: string[] = [];
-  for (const varName of REQUIRED_ENV_VARS) {
-    if (!process.env[varName]) {
-      missingVars.push(varName);
-    }
-  }
+  // 1. Resolve gateway URL and authentication
+  await resolveAuth();
 
-  if (missingVars.length > 0) {
-    for (const varName of missingVars) {
-      console.error(`Error: ${varName} is not set. Add it to .env at the monorepo root.`);
-    }
-    process.exit(1);
-  }
-  console.log('  ✓ Environment variables configured');
-
-  // 2. Check gateway is reachable
+  // 2. Check gateway is reachable and healthy
   const gatewayUrl = process.env.GATEWAY_URL!;
   try {
     const healthResponse = await fetch(`${gatewayUrl}/health`, {
@@ -111,16 +203,9 @@ async function main() {
   await checkPrerequisites();
 
   // Change CWD to gateway dir so regenerateSchemas() resolves paths correctly.
-  // codegen/index.ts uses process.cwd() for prismaSchemaPath and monorepoRoot:
-  //   const prismaSchemaPath = resolve(process.cwd(), 'prisma/schema.prisma');
-  //   const monorepoRoot = resolve(process.cwd(), '..');
-  const gatewayDir = resolve(__dirname, '..', 'objetiva-sync-gateway');
   process.chdir(gatewayDir);
 
   try {
-    // Call regenerateSchemas() — handles fetching, generating, diffing, and writing files.
-    // skipPrismaGenerate: true because we run prisma generate separately below
-    // with stdio: 'inherit' for real-time output. Per D-03 and D-08.
     const result = await regenerateSchemas({
       dryRun,
       entity,
@@ -140,7 +225,7 @@ async function main() {
       return;
     }
 
-    // Run prisma generate as final step (per D-03, D-08 — simple single call, no retry)
+    // Run prisma generate as final step
     console.log('\nRunning prisma generate...\n');
     execSync('npx prisma generate', { cwd: gatewayDir, stdio: 'inherit' });
 

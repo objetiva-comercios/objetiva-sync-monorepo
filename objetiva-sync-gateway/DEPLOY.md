@@ -231,7 +231,7 @@ cd objetiva-sync-monorepo
 npm run regenerate-schemas:dry-run
 ```
 
-Muestra un diff con colores por campo sin escribir ningun archivo. Campos agregados (+) en verde, eliminados (-) en rojo, modificados (~) en amarillo.
+No requiere configuracion manual — el script auto-descubre la URL del gateway desde `objetiva-sync-gateway/.env` (GATEWAY_PUBLIC_URL) y obtiene un token JWT automaticamente via `POST /api/setup/token`. Muestra un diff con colores por campo sin escribir ningun archivo. Campos agregados (+) en verde, eliminados (-) en rojo, modificados (~) en amarillo.
 
 **Verificar:** el output muestra los nombres de entidades y el resumen de cambios esperados.
 
@@ -241,7 +241,7 @@ Muestra un diff con colores por campo sin escribir ningun archivo. Campos agrega
 npm run regenerate-schemas
 ```
 
-Conecta al gateway remoto via HTTP con JWT, introspecciona PostgreSQL, genera los schemas Zod en `shared/schemas/generated/` y el schema Prisma en `objetiva-sync-gateway/prisma/schema.prisma`, y ejecuta `prisma generate` automaticamente.
+Se autentica automaticamente con el gateway (mismo mecanismo que el dashboard). Introspecciona PostgreSQL, genera los schemas Zod en `shared/schemas/generated/` y el schema Prisma en `objetiva-sync-gateway/prisma/schema.prisma`, y ejecuta `prisma generate` automaticamente.
 
 **Verificar:** el output muestra "Schemas regenerated successfully". Confirmar archivos modificados:
 
@@ -347,7 +347,7 @@ Resumen: 1 campo agregado en 1 entidad
 ### Troubleshooting
 
 **"JWT authentication failed" al ejecutar el script:**
-Verificar que `JWT_SECRET` en el `.env` raiz del monorepo coincide exactamente con el `JWT_SECRET` configurado en el gateway. Verificar que `GATEWAY_URL` apunta al host correcto.
+El script se autentica automaticamente via `POST /api/setup/token`. Si falla, verificar que el gateway esta corriendo y accesible. Si se usa la configuracion manual legacy (`.env` en raiz del monorepo), verificar que `JWT_SECRET` coincide con el del gateway y que `GATEWAY_URL` apunta al host correcto.
 
 **El contenedor no refleja los cambios despues del rebuild:**
 Verificar que se corrio `git pull` en el VPS antes de `docker compose build`. Confirmar que se uso el flag `--no-cache`. Revisar que los logs del entrypoint muestran "Schema sync complete."

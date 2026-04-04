@@ -22,12 +22,22 @@ import { computeDiff, displayDiff, displaySummary } from './diff-display.js';
 import { getSyncEntities } from '../config/entities.js';
 
 /**
- * Sign a JWT locally using JWT_SECRET (no /auth/login call needed).
+ * Get a valid JWT for gateway API calls.
+ *
+ * Priority:
+ * 1. Pre-obtained token in JWT_TOKEN env var (from auto-discovery via POST /api/setup/token)
+ * 2. Sign locally using JWT_SECRET env var (legacy manual .env approach)
  */
-function signLocalToken(): string {
+function getAuthToken(): string {
+  // Priority 1: Pre-obtained token (zero-config flow)
+  if (process.env.JWT_TOKEN) {
+    return process.env.JWT_TOKEN;
+  }
+
+  // Priority 2: Sign locally with JWT_SECRET (legacy)
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
-    throw new Error('E002: JWT_SECRET environment variable not set. Required for authentication.');
+    throw new Error('E002: No authentication available. Either JWT_TOKEN or JWT_SECRET must be set.');
   }
 
   const signer = createSigner({ key: jwtSecret, expiresIn: 60000 }); // 60s is plenty for codegen
@@ -70,10 +80,10 @@ export async function regenerateSchemas(options: RegenerateOptions): Promise<Reg
     throw new Error('E001: GATEWAY_URL environment variable not set. Set it to the gateway base URL (e.g., http://localhost:3001).');
   }
 
-  // Step 2: Sign JWT locally (no /auth/login call needed)
-  console.log(chalk.cyan('Signing local JWT token...'));
-  const token = signLocalToken();
-  console.log(chalk.green('Token signed successfully\n'));
+  // Step 2: Get auth token (auto-discovered or locally signed)
+  console.log(chalk.cyan('Obtaining auth token...'));
+  const token = getAuthToken();
+  console.log(chalk.green('Token obtained successfully\n'));
 
   // Step 3: Determine entities to process
   const allEntities = getSyncEntities();
