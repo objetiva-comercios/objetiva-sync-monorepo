@@ -22,7 +22,7 @@
 import { config } from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { regenerateSchemas } from '../objetiva-sync-gateway/src/codegen/index.js';
 
@@ -48,14 +48,24 @@ if (entityIndex !== -1 && !entity) {
 }
 
 /**
- * Auto-discover gateway URL from the gateway's own .env files.
- * The setup wizard writes GATEWAY_PUBLIC_URL there during initial configuration.
+ * Parse GATEWAY_PUBLIC_URL from an .env file content string.
+ */
+function parseGatewayUrl(content: string): string | null {
+  const match = content.match(/^GATEWAY_PUBLIC_URL=["']?([^"'\s\r\n]+)["']?/m);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Auto-discover gateway URL from the gateway's configuration.
+ * The setup wizard writes GATEWAY_PUBLIC_URL during initial configuration.
  *
  * Search order:
- * 1. objetiva-sync-gateway/data/.env (Docker named volume — production)
+ * 1. objetiva-sync-gateway/data/.env (Docker named volume bind-mounted to host)
  * 2. objetiva-sync-gateway/.env (local dev or VPS sparse-checkout)
+ * 3. Docker container data/.env (read via docker exec — production VPS)
  */
 function discoverGatewayUrl(): string | null {
+  // Try host filesystem first
   const envPaths = [
     resolve(gatewayDir, 'data', '.env'),
     resolve(gatewayDir, '.env'),
@@ -66,14 +76,22 @@ function discoverGatewayUrl(): string | null {
 
     try {
       const content = readFileSync(envPath, 'utf-8');
-      // Parse GATEWAY_PUBLIC_URL from the file (handles quoted and unquoted values)
-      const match = content.match(/^GATEWAY_PUBLIC_URL=["']?([^"'\s\r\n]+)["']?/m);
-      if (match?.[1]) {
-        return match[1];
-      }
+      const url = parseGatewayUrl(content);
+      if (url) return url;
     } catch {
       // Can't read file, try next
     }
+  }
+
+  // Try reading from Docker container (production: config lives in named volume)
+  try {
+    const content = execFileSync('docker', [
+      'exec', 'sync-gateway', 'cat', '/app/objetiva-sync-gateway/data/.env'
+    ], { encoding: 'utf-8', timeout: 5000 });
+    const url = parseGatewayUrl(content);
+    if (url) return url;
+  } catch {
+    // Docker not available or container not running, skip
   }
 
   return null;
