@@ -1,6 +1,6 @@
 // Auto-generated from PostgreSQL schema introspection
 // DO NOT EDIT - regenerate with: npm run regenerate-schemas
-// Generated: 2026-03-17T12:28:22.473Z
+// Generated: 2026-04-05T18:34:15.233Z
 // Table: articulos
 
 import { z } from 'zod';
@@ -38,9 +38,6 @@ export const articuloSchema = z.object({
   precio: z.coerce.number().nullable().optional(),
   costo: z.coerce.number().nullable().optional(),
   unidades: z.coerce.number().transform(n => Math.trunc(n)).nullable().optional(),
-  imagenes_producto: z.array(z.string()).nullable().optional(),
-  imagenes_etiqueta: z.array(z.string()).nullable().optional(),
-  etiquetas_ocr: z.array(z.string()).nullable().optional(),
   json_articulo: z.record(z.unknown()).nullable().optional(),
   activo: z.boolean().nullable().optional(),
   observaciones: z.string().nullable().optional(),
@@ -61,6 +58,9 @@ export const articuloSchema = z.object({
   origin_sync_id: z.string().nullable().optional(),
   origin_synced_at: z.coerce.date().nullable().optional(),
   imagenes_producto_procesadas: z.array(z.string()).nullable().optional(),
+  imagenes_producto: z.array(z.string()).nullable().optional(),
+  imagenes_etiqueta: z.array(z.string()).nullable().optional(),
+  etiquetas_ocr: z.array(z.string()).nullable().optional(),
 });
 
 export type ArticuloInput = z.infer<typeof articuloSchema>;
@@ -302,30 +302,6 @@ export const articuloTableSchema: TableSchemaMetadata = {
       "column_comment": null
     },
     {
-      "column_name": "imagenes_producto",
-      "data_type": "array",
-      "is_nullable": true,
-      "default_value": "ARRAY[]::text[]",
-      "ordinal_position": 28,
-      "column_comment": null
-    },
-    {
-      "column_name": "imagenes_etiqueta",
-      "data_type": "array",
-      "is_nullable": true,
-      "default_value": "ARRAY[]::text[]",
-      "ordinal_position": 29,
-      "column_comment": null
-    },
-    {
-      "column_name": "etiquetas_ocr",
-      "data_type": "array",
-      "is_nullable": true,
-      "default_value": "ARRAY[]::text[]",
-      "ordinal_position": 30,
-      "column_comment": null
-    },
-    {
       "column_name": "json_articulo",
       "data_type": "jsonb",
       "is_nullable": true,
@@ -481,8 +457,32 @@ export const articuloTableSchema: TableSchemaMetadata = {
       "column_name": "imagenes_producto_procesadas",
       "data_type": "array",
       "is_nullable": true,
-      "default_value": "'{}'::text[]",
+      "default_value": null,
       "ordinal_position": 50,
+      "column_comment": null
+    },
+    {
+      "column_name": "imagenes_producto",
+      "data_type": "array",
+      "is_nullable": true,
+      "default_value": "ARRAY[]::text[]",
+      "ordinal_position": 53,
+      "column_comment": null
+    },
+    {
+      "column_name": "imagenes_etiqueta",
+      "data_type": "array",
+      "is_nullable": true,
+      "default_value": "ARRAY[]::text[]",
+      "ordinal_position": 54,
+      "column_comment": null
+    },
+    {
+      "column_name": "etiquetas_ocr",
+      "data_type": "array",
+      "is_nullable": true,
+      "default_value": "ARRAY[]::text[]",
+      "ordinal_position": 55,
       "column_comment": null
     }
   ],

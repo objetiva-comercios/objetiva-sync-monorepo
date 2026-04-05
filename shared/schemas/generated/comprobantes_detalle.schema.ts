@@ -1,6 +1,6 @@
 // Auto-generated from PostgreSQL schema introspection
 // DO NOT EDIT - regenerate with: npm run regenerate-schemas
-// Generated: 2026-02-18T20:48:20.984Z
+// Generated: 2026-04-05T18:34:15.235Z
 // Table: comprobantes_detalle
 
 import { z } from 'zod';
@@ -299,87 +299,87 @@ export const comprobantesDetalleTableSchema: TableSchemaMetadata = {
   ],
   constraints: [
     {
-      "constraint_name": "2200_33191_11_not_null",
+      "constraint_name": "18527_35645_11_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_12_not_null",
+      "constraint_name": "18527_35645_12_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_13_not_null",
+      "constraint_name": "18527_35645_13_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_14_not_null",
+      "constraint_name": "18527_35645_14_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_15_not_null",
+      "constraint_name": "18527_35645_15_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_17_not_null",
+      "constraint_name": "18527_35645_17_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_18_not_null",
+      "constraint_name": "18527_35645_18_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_19_not_null",
+      "constraint_name": "18527_35645_19_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_1_not_null",
+      "constraint_name": "18527_35645_1_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_20_not_null",
+      "constraint_name": "18527_35645_20_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_21_not_null",
+      "constraint_name": "18527_35645_21_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_2_not_null",
+      "constraint_name": "18527_35645_2_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_3_not_null",
+      "constraint_name": "18527_35645_3_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_4_not_null",
+      "constraint_name": "18527_35645_4_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_7_not_null",
+      "constraint_name": "18527_35645_7_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_8_not_null",
+      "constraint_name": "18527_35645_8_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
     {
-      "constraint_name": "2200_33191_9_not_null",
+      "constraint_name": "18527_35645_9_not_null",
       "constraint_type": "CHECK",
       "columns": []
     },
