@@ -105,8 +105,8 @@ export async function registerArticulosRoutes(app: FastifyInstance) {
             }
           })
 
-          // Registrar en metrics CADA batch para mostrar progreso en tiempo real
-          metrics.recordSync({
+          // Registrar en metrics solo si hay datos reales (evita ruido de batches vacíos)
+          if (articulos.length > 0) metrics.recordSync({
             timestamp: new Date(),
             entityType: 'articulo',
             comercioId: job.comercioId,
@@ -138,7 +138,7 @@ export async function registerArticulosRoutes(app: FastifyInstance) {
               'Job de sincronización completado'
             )
           }
-        } else {
+        } else if (articulos.length > 0) {
           // Modo legacy sin metadata - registrar batch individual
           metrics.recordSync({
             timestamp: new Date(),

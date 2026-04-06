@@ -109,8 +109,8 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
             }
           })
 
-          // Registrar en metrics CADA batch para mostrar progreso en tiempo real
-          metrics.recordSync({
+          // Registrar en metrics solo si hay datos reales
+          if (comprobantes_cabecera?.length > 0) metrics.recordSync({
             timestamp: new Date(),
             entityType: 'comprobante_cabecera',
             comercioId: job.comercioId,
@@ -132,7 +132,7 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
           if (isLastBatch) {
             logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
           }
-        } else {
+        } else if (comprobantes_cabecera.length > 0) {
           // Modo legacy sin metadata
           metrics.recordSync({
             timestamp: new Date(),
@@ -251,8 +251,8 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
             }
           })
 
-          // Registrar en metrics CADA batch para mostrar progreso en tiempo real
-          metrics.recordSync({
+          // Registrar en metrics solo si hay datos reales
+          if (comprobantes_detalle?.length > 0) metrics.recordSync({
             timestamp: new Date(),
             entityType: 'comprobante_detalle',
             comercioId: job.comercioId,
@@ -274,7 +274,7 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
           if (isLastBatch) {
             logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
           }
-        } else {
+        } else if (comprobantes_detalle.length > 0) {
           // Modo legacy sin metadata
           metrics.recordSync({
             timestamp: new Date(),
@@ -393,8 +393,8 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
             }
           })
 
-          // Registrar en metrics CADA batch para mostrar progreso en tiempo real
-          metrics.recordSync({
+          // Registrar en metrics solo si hay datos reales
+          if (comprobantes_pagos?.length > 0) metrics.recordSync({
             timestamp: new Date(),
             entityType: 'comprobante_pago',
             comercioId: job.comercioId,
@@ -416,7 +416,7 @@ export async function registerComprobantesRoutes(app: FastifyInstance) {
           if (isLastBatch) {
             logger.info({ syncId, queryName, totalBatches: job.totalBatches, totalReceived: job.totalReceived, inserted: job.inserted, updated: job.updated }, 'Job de sincronización completado')
           }
-        } else {
+        } else if (comprobantes_pagos.length > 0) {
           // Modo legacy sin metadata
           metrics.recordSync({
             timestamp: new Date(),
